@@ -1,7 +1,5 @@
 package org.bibletranslationtools.wat
 
-interface Platform {
-    val name: String
-}
+import io.ktor.client.engine.HttpClientEngine
 
-expect fun getPlatform(): Platform
+expect val httpClientEngine: HttpClientEngine

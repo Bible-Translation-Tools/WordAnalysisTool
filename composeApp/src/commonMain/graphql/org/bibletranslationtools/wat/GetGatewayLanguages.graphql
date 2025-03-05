@@ -1,0 +1,7 @@
+query GetGatewayLanguages {
+    language(where: {wa_language_metadata: {is_gateway: {_eq: true}}}) {
+        ietf_code
+        national_name
+        english_name
+    }
+}

@@ -1,0 +1,26 @@
+query GetUsfmForHeartLanguage($ietfCode: String!) {
+  content(
+    where: {
+      language: {
+        ietf_code: {_eq: $ietfCode},
+        wa_language_metadata: {is_gateway: {_neq: true}}
+      },
+      wa_content_metadata: {
+        show_on_biel: {_eq: true},
+        status: {_eq: "Primary"}
+      }
+    }
+  ) {
+    name
+    resource_type
+    rendered_contents(where: {file_type: {_eq: "usfm"}}) {
+      url
+      file_type
+      scriptural_rendering_metadata {
+        book_name
+        book_slug
+        chapter
+      }
+    }
+  }
+}

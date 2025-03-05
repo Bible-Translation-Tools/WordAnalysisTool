@@ -9,11 +9,11 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.apollo)
 }
 
 kotlin {
     androidTarget {
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
         }
@@ -38,6 +38,11 @@ kotlin {
                 }
             }
         }
+        compilerOptions {
+            freeCompilerArgs.add("-Xwasm-debugger-custom-formatters")
+            freeCompilerArgs.add("-Xwasm-attach-js-exception")
+            freeCompilerArgs.add("-Xwasm-use-new-exception-proposal")
+        }
         binaries.executable()
     }
     
@@ -50,11 +55,14 @@ kotlin {
 
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)
+
+            implementation(libs.ktor.client.android)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material)
+            implementation(compose.material3)
             implementation(compose.materialIconsExtended)
             implementation(compose.ui)
             implementation(compose.components.resources)
@@ -62,9 +70,13 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
 
+            implementation(libs.apollo.runtime)
+
             api(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
+
+            implementation(libs.ktor.client.core)
 
             implementation(libs.voyager.navigator)
             implementation(libs.voyager.screenmodel)
@@ -74,6 +86,11 @@ kotlin {
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
+            implementation(libs.ktor.client.cio)
+        }
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.js)
+            implementation(npm("usfm-js", "3.4.3"))
         }
     }
 }
@@ -117,6 +134,16 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "org.bibletranslationtools.wat"
             packageVersion = "1.0.0"
+        }
+    }
+}
+
+apollo {
+    service("service") {
+        packageName.set("org.bibletranslationtools.wat")
+        introspection {
+            endpointUrl.set("https://api.bibleineverylanguage.org/v1/graphql")
+            schemaFile.set(file("src/main/graphql/schema.graphqls"))
         }
     }
 }

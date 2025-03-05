@@ -1,0 +1,7 @@
+query GetHeartLanguages {
+    language(where: {wa_language_metadata: {is_gateway: {_eq: false}}}) {
+        ietf_code
+        national_name
+        english_name
+    }
+}
