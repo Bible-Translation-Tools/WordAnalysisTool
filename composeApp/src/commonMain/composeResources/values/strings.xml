@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <resources>
     <string name="app_name">Word Analysis Tool</string>
+    <string name="no_resource_types">No Resource Types Available</string>
+    <string name="search_language">Search Language</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="select_resource_type">Select Resource Type</string>
 </resources>
