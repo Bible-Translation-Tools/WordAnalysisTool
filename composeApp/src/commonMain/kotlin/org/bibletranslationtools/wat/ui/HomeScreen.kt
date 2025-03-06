@@ -1,5 +1,6 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,7 +24,9 @@ import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.ui.dialogs.ErrorDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
+import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 
 class HomeScreen : Screen {
 
@@ -60,7 +63,12 @@ class HomeScreen : Screen {
 
             LazyColumn {
                 items(usfmForHeartLanguage) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.clickable {
+                            it.url?.let { viewModel.fetchUsfm(it) }
+                        }
+                    ) {
                         Text(it.bookSlug ?: "n/a")
                         Text(it.bookName ?: "n/a")
                         Text(it.url ?: "n/a")
@@ -79,6 +87,14 @@ class HomeScreen : Screen {
                 },
                 onDismiss = { showDialog = false }
             )
+        }
+
+        viewModel.error?.let {
+            ErrorDialog(error = it, onDismiss = { viewModel.clearError() })
+        }
+
+        viewModel.progress?.let {
+            ProgressDialog(it)
         }
     }
 }

@@ -1,19 +1,35 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import io.ktor.client.HttpClient
+import kotlinx.coroutines.Dispatchers
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.ContentInfo
+import org.bibletranslationtools.wat.domain.DownloadUsfm
+import org.bibletranslationtools.wat.http.onError
+import org.bibletranslationtools.wat.http.onSuccess
+import org.jetbrains.compose.resources.getString
+import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.downloading_usfm
+import wordanalysistool.composeapp.generated.resources.unknown_error
 
 class HomeViewModel(
     private val bielGraphQlApi: BielGraphQlApi,
-    private val httpClient: HttpClient
+    private val downloadUsfm: DownloadUsfm
 ) : ScreenModel {
+
+    var error by mutableStateOf<String?>(null)
+        private set
+    var progress by mutableStateOf<String?>(null)
+        private set
 
     private val _heartLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
     val heartLanguages = _heartLanguages.asStateFlow()
@@ -50,5 +66,26 @@ class HomeViewModel(
                 bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
             )
         }
+    }
+
+    fun fetchUsfm(url: String) {
+        screenModelScope.launch {
+            progress = getString(Res.string.downloading_usfm)
+            withContext(Dispatchers.Default) {
+                val response = downloadUsfm(url)
+                response.onSuccess { bytes ->
+                    println(bytes.decodeToString())
+                    //usfmBookSource.import(bytes)
+                    //loadBooks()
+                }.onError { err ->
+                    error = err.description ?: getString(Res.string.unknown_error)
+                }
+            }
+            progress = null
+        }
+    }
+
+    fun clearError() {
+        error = null
     }
 }

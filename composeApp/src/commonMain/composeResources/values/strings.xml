@@ -5,4 +5,7 @@
     <string name="search_language">Search Language</string>
     <string name="dismiss">Dismiss</string>
     <string name="select_resource_type">Select Resource Type</string>
+    <string name="unknown_error">Unknown error occurred.</string>
+    <string name="ok">OK</string>
+    <string name="downloading_usfm">Downloading USFM...</string>
 </resources>
