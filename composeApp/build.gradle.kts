@@ -1,5 +1,4 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
@@ -10,6 +9,15 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.apollo)
+}
+
+repositories {
+    mavenCentral()
+    google()
+    gradlePluginPortal()
+    maven(url = "https://nexus-registry.walink.org/repository/maven-public/")
+    maven(url = "https://s01.oss.sonatype.org/content/repositories/releases/")
+    mavenLocal()
 }
 
 kotlin {
@@ -47,16 +55,25 @@ kotlin {
     }
     
     sourceSets {
-        val desktopMain by getting
-        
-        androidMain.dependencies {
-            implementation(compose.preview)
-            implementation(libs.androidx.activity.compose)
+        val commonMain by getting
 
-            implementation(libs.koin.android)
-            implementation(libs.koin.androidx.compose)
+        val javaMain by creating {
+            dependsOn(commonMain)
+            dependencies {
+                implementation(libs.usfmtools)
+            }
+        }
+        val androidMain by getting {
+            dependsOn(javaMain)
+            dependencies {
+                implementation(compose.preview)
+                implementation(libs.androidx.activity.compose)
 
-            implementation(libs.ktor.client.android)
+                implementation(libs.koin.android)
+                implementation(libs.koin.androidx.compose)
+
+                implementation(libs.ktor.client.android)
+            }
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -83,13 +100,15 @@ kotlin {
             implementation(libs.voyager.transitions)
             implementation(libs.voyager.koin)
         }
-        desktopMain.dependencies {
-            implementation(compose.desktop.currentOs)
-            implementation(libs.kotlinx.coroutines.swing)
-            implementation(libs.ktor.client.cio)
+        val desktopMain by getting {
+            dependsOn(javaMain)
+            dependencies {
+                implementation(compose.desktop.currentOs)
+                implementation(libs.kotlinx.coroutines.swing)
+                implementation(libs.ktor.client.cio)
+            }
         }
         wasmJsMain.dependencies {
-            implementation(libs.ktor.client.js)
             implementation(npm("usfm-js", "3.4.3"))
         }
     }
@@ -115,6 +134,9 @@ android {
         getByName("release") {
             isMinifyEnabled = false
         }
+    }
+    buildFeatures {
+        compose = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
