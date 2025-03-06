@@ -13,7 +13,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.ContentInfo
+import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.DownloadUsfm
+import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
@@ -23,7 +25,8 @@ import wordanalysistool.composeapp.generated.resources.unknown_error
 
 class HomeViewModel(
     private val bielGraphQlApi: BielGraphQlApi,
-    private val downloadUsfm: DownloadUsfm
+    private val downloadUsfm: DownloadUsfm,
+    private val usfmBookSource: UsfmBookSource
 ) : ScreenModel {
 
     var error by mutableStateOf<String?>(null)
@@ -37,20 +40,21 @@ class HomeViewModel(
     private val _gatewayLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
     val gatewayLanguages = _gatewayLanguages.asStateFlow()
 
-    private val _usfmForHeartLanguage = MutableStateFlow<List<ContentInfo>>(
-        emptyList()
-    )
+    private val _usfmForHeartLanguage = MutableStateFlow<List<ContentInfo>>(emptyList())
     val usfmForHeartLanguage = _usfmForHeartLanguage.asStateFlow()
+
+    private val _verses = MutableStateFlow<List<Verse>>(emptyList())
+    val verses = _verses.asStateFlow()
 
     fun fetchHeartLanguages() {
         screenModelScope.launch {
-            _heartLanguages.emit(bielGraphQlApi.getHeartLanguages())
+            _heartLanguages.value = bielGraphQlApi.getHeartLanguages()
         }
     }
 
     fun fetchGatewayLanguages() {
         screenModelScope.launch {
-            _gatewayLanguages.emit(bielGraphQlApi.getGatewayLanguages())
+            _gatewayLanguages.value = bielGraphQlApi.getGatewayLanguages()
         }
     }
 
@@ -62,9 +66,8 @@ class HomeViewModel(
 
     fun fetchUsfmForHeartLanguage(ietfCode: String, resourceType: String) {
         screenModelScope.launch {
-            _usfmForHeartLanguage.emit(
+            _usfmForHeartLanguage.value =
                 bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
-            )
         }
     }
 
@@ -77,6 +80,7 @@ class HomeViewModel(
                     println(bytes.decodeToString())
                     //usfmBookSource.import(bytes)
                     //loadBooks()
+                    _verses.value = usfmBookSource.parse(bytes.decodeToString())
                 }.onError { err ->
                     error = err.description ?: getString(Res.string.unknown_error)
                 }
@@ -87,5 +91,9 @@ class HomeViewModel(
 
     fun clearError() {
         error = null
+    }
+
+    fun clearVerses() {
+        _verses.value = emptyList()
     }
 }

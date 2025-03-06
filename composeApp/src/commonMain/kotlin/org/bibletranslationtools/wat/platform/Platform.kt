@@ -1,4 +1,4 @@
-package org.bibletranslationtools.wat
+package org.bibletranslationtools.wat.platform
 
 import io.ktor.client.engine.HttpClientEngine
 

@@ -38,6 +38,7 @@ class HomeScreen : Screen {
 
         val heartLanguages by viewModel.heartLanguages.collectAsStateWithLifecycle(emptyList())
         val usfmForHeartLanguage by viewModel.usfmForHeartLanguage.collectAsStateWithLifecycle()
+        val verses by viewModel.verses.collectAsStateWithLifecycle()
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
         var resourceTypes by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -61,17 +62,29 @@ class HomeScreen : Screen {
                 Text("Select language")
             }
 
-            LazyColumn {
-                items(usfmForHeartLanguage) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.clickable {
-                            it.url?.let { viewModel.fetchUsfm(it) }
+            if (verses.isEmpty()) {
+                LazyColumn {
+                    items(usfmForHeartLanguage) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.clickable {
+                                it.url?.let { viewModel.fetchUsfm(it) }
+                            }
+                        ) {
+                            Text(it.bookSlug ?: "n/a")
+                            Text(it.bookName ?: "n/a")
+                            Text(it.url ?: "n/a")
                         }
-                    ) {
-                        Text(it.bookSlug ?: "n/a")
-                        Text(it.bookName ?: "n/a")
-                        Text(it.url ?: "n/a")
+                    }
+                }
+            } else {
+                LazyColumn {
+                    items(verses) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text("${it.bookName} ${it.chapter}:${it.number}. ${it.text}")
+                        }
                     }
                 }
             }
@@ -83,6 +96,7 @@ class HomeScreen : Screen {
                 resourceTypes = resourceTypes,
                 onLanguageSelected = { selectedHeartLanguage = it },
                 onResourceTypeSelected = { language, resourceType ->
+                    viewModel.clearVerses()
                     viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
                 },
                 onDismiss = { showDialog = false }
