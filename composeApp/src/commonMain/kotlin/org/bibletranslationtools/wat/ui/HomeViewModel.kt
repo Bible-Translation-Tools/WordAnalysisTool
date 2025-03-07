@@ -6,13 +6,15 @@ import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.Dispatchers
-import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.http.onError
@@ -36,7 +38,13 @@ class HomeViewModel(
         private set
 
     private val _heartLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
-    val heartLanguages = _heartLanguages.asStateFlow()
+    val heartLanguages = _heartLanguages
+        .onStart { fetchHeartLanguages() }
+        .stateIn(
+            screenModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
 
     fun fetchHeartLanguages() {
         screenModelScope.launch {

@@ -1,6 +1,7 @@
 package org.bibletranslationtools.wat.di
 
 import io.ktor.client.HttpClient
+import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
@@ -24,5 +25,7 @@ val sharedModule = module {
 
     // view models
     factoryOf(::HomeViewModel)
-    factory { (verses: List<Verse>) -> AnalyzeViewModel(verses) }
+    factory { (language: LanguageInfo, resourceType: String, verses: List<Verse>) ->
+        AnalyzeViewModel(language, resourceType, verses)
+    }
 }
