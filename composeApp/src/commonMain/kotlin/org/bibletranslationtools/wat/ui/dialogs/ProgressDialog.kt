@@ -15,11 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import org.bibletranslationtools.wat.ui.Progress
 
 @Composable
-fun ProgressDialog(
-    message: String
-) {
+fun ProgressDialog(progress: Progress) {
     Dialog(onDismissRequest = {}) {
         Card(
             modifier = Modifier
@@ -33,12 +32,22 @@ fun ProgressDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(32.dp)
             ) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colors.primary,
-                    backgroundColor = MaterialTheme.colors.onSurface
-                )
-                Text(message)
+                if (progress.value > 0f) {
+                    LinearProgressIndicator(
+                        progress.value,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colors.primary,
+                        backgroundColor = MaterialTheme.colors.onSurface
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colors.primary,
+                        backgroundColor = MaterialTheme.colors.onSurface
+                    )
+                }
+
+                Text(progress.message)
             }
         }
     }

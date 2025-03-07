@@ -4,13 +4,12 @@ import androidx.compose.runtime.Composable
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.SlideTransition
 import org.bibletranslationtools.wat.ui.HomeScreen
-import org.bibletranslationtools.wat.ui.theme.WatTheme
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.bibletranslationtools.wat.ui.theme.DarkColors
+import org.bibletranslationtools.wat.ui.theme.MainAppTheme
 
 @Composable
-@Preview
 fun App() {
-    WatTheme {
+    MainAppTheme(themeColors = DarkColors) {
         Navigator(HomeScreen()) { navigator ->
             SlideTransition(navigator)
         }

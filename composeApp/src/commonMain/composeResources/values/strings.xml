@@ -8,4 +8,8 @@
     <string name="unknown_error">Unknown error occurred.</string>
     <string name="ok">OK</string>
     <string name="downloading_usfm">Downloading USFM...</string>
+    <string name="parsing_usfm">Parsing USFM...</string>
+    <string name="fetching_heart_languages">Fetching Heart Languages...</string>
+    <string name="fetching_resource_types">Fetching Resource Types...</string>
+    <string name="finding_singleton_words">Finding singleton words. Please wait...</string>
 </resources>

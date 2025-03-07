@@ -36,7 +36,7 @@ object CommonColors {
 }
 
 @Composable
-fun WatTheme(
+fun MainAppTheme(
     themeColors: Colors? = null,
     content: @Composable () -> Unit
 ) {
