@@ -16,7 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import org.bibletranslationtools.wat.ui.Progress
+import org.bibletranslationtools.wat.data.Progress
 
 @Composable
 fun ProgressDialog(progress: Progress) {

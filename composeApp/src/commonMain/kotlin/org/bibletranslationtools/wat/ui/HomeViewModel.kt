@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm

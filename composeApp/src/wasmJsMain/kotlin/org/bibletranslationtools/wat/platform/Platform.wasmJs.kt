@@ -7,3 +7,7 @@ actual val httpClientEngine: HttpClientEngine
     get() {
         return Js.create()
     }
+
+actual fun applyLocale(iso: String) {
+    println("Applying locale not implemented in wasmJs yet")
+}

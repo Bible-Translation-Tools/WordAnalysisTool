@@ -35,6 +35,7 @@ import org.bibletranslationtools.wat.data.LanguageInfo
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.analyze
 import wordanalysistool.composeapp.generated.resources.dismiss
 import wordanalysistool.composeapp.generated.resources.no_resource_types
 import wordanalysistool.composeapp.generated.resources.search_language
@@ -202,7 +203,7 @@ fun LanguagesDialog(
                         )
                     ) {
                         Text(
-                            text = "Show USFM",
+                            text = stringResource(Res.string.analyze),
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
