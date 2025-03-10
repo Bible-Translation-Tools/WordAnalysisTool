@@ -1,4 +1,4 @@
-package org.bibletranslationtools.wat.ui
+package org.bibletranslationtools.wat.data
 
 data class Progress(
     val value: Float,
