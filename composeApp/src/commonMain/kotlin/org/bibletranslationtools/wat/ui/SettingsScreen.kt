@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import com.russhwolf.settings.ExperimentalSettingsApi
+import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import org.bibletranslationtools.wat.domain.AiApi
 import org.bibletranslationtools.wat.domain.AiModel
@@ -57,6 +59,7 @@ import wordanalysistool.composeapp.generated.resources.system_language
 import wordanalysistool.composeapp.generated.resources.theme_dark
 import wordanalysistool.composeapp.generated.resources.theme_light
 import wordanalysistool.composeapp.generated.resources.theme_system
+import wordanalysistool.composeapp.generated.resources.use_apostrophe_regex
 
 class SettingsScreen : Screen {
 
@@ -73,8 +76,14 @@ class SettingsScreen : Screen {
         val aiApiEnum = remember { derivedStateOf { AiApi.valueOf(aiApi.value) } }
 
         var aiModel by rememberStringSetting(Settings.AI_MODEL.name, GeminiModel.FLASH_2.name)
-        var geminiModel by rememberStringSetting(Settings.GEMINI_MODEL.name, GeminiModel.FLASH_2.name)
-        var openAiModel by rememberStringSetting(Settings.OPENAI_MODEL.name, OpenAiModel.GPT_3_5_TURBO.name)
+        var geminiModel by rememberStringSetting(
+            Settings.GEMINI_MODEL.name,
+            GeminiModel.FLASH_2.name
+        )
+        var openAiModel by rememberStringSetting(
+            Settings.OPENAI_MODEL.name,
+            OpenAiModel.GPT_3_5_TURBO.name
+        )
         var aiModels by remember { mutableStateOf<List<String>>(emptyList()) }
 
         var aiApiKey by rememberStringSetting(Settings.AI_API_KEY.name, "")
@@ -82,6 +91,11 @@ class SettingsScreen : Screen {
         var openAiApiKey by rememberStringSetting(Settings.OPENAI_API_KEY.name, "")
 
         var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
+
+        var apostropheIsSeparator by rememberBooleanSetting(
+            Settings.APOSTROPHE_IS_SEPARATOR.name,
+            true
+        )
 
         LaunchedEffect(aiApiEnum.value) {
             when (aiApiEnum.value) {
@@ -216,7 +230,9 @@ class SettingsScreen : Screen {
                             onValueChange = {
                                 aiApiKey = it
                             },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password
+                            ),
                             visualTransformation = if (apiKeyVisible)
                                 VisualTransformation.None else PasswordVisualTransformation(),
                             trailingIcon = {
@@ -229,6 +245,21 @@ class SettingsScreen : Screen {
                                 }
                             },
                             modifier = Modifier.width(400.dp)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.width(700.dp)
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.use_apostrophe_regex),
+                            modifier = Modifier.width(200.dp)
+                        )
+                        Checkbox(
+                            checked = apostropheIsSeparator,
+                            onCheckedChange = { apostropheIsSeparator = it }
                         )
                     }
                 }

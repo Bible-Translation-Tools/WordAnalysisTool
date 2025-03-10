@@ -13,7 +13,8 @@ enum class Settings {
     OPENAI_MODEL,
     AI_API_KEY,
     GEMINI_API_KEY,
-    OPENAI_API_KEY
+    OPENAI_API_KEY,
+    APOSTROPHE_IS_SEPARATOR
 }
 
 enum class Theme {

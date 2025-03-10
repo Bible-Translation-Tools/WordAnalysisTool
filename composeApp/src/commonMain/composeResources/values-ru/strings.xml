@@ -14,6 +14,7 @@
     <string name="finding_singleton_words">Поиск одноэлементных слов. Пожалуйста, подождите...</string>
     <string name="settings">Настройки</string>
     <string name="select_language_resource_type">Начните анализ, выбрав язык и тип ресурса.</string>
+    <string name="ask_ai">Спросить ИИ</string>
     <string name="asking_ai">Спрашиваем ИИ</string>
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Темная</string>
@@ -28,4 +29,7 @@
     <string name="ai_api_key">Ключ API</string>
     <string name="no_ai_model_selected">Ни одна модель ИИ не выбрана.</string>
     <string name="invalid_ai_selected">Выбран неверный ИИ.</string>
+    <string name="apply">Применить</string>
+    <string name="edit_prompt">Редактировать запрос</string>
+    <string name="use_apostrophe_regex">Считать апостроф (') разделитем слова</string>
 </resources>
