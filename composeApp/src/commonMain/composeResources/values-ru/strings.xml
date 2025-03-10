@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<resources>
+    <string name="app_name">Инструмент анализа слов</string>
+    <string name="no_resource_types">Нет доступных типов ресурсов</string>
+    <string name="search_language">Найти язык</string>
+    <string name="dismiss">Скрыть</string>
+    <string name="select_resource_type">Выберите тип ресурса</string>
+    <string name="unknown_error">Произошла неизвестная ошибка.</string>
+    <string name="ok">OK</string>
+    <string name="downloading_usfm">Загрузка USFM...</string>
+    <string name="parsing_usfm">Парсинг USFM...</string>
+    <string name="fetching_heart_languages">Получение материнских языков...</string>
+    <string name="fetching_resource_types">Получение типов ресурсов...</string>
+    <string name="finding_singleton_words">Поиск одноэлементных слов. Пожалуйста, подождите...</string>
+    <string name="settings">Настройки</string>
+    <string name="select_language_resource_type">Начните анализ, выбрав язык и тип ресурса.</string>
+    <string name="asking_ai">Спрашиваем ИИ</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Темная</string>
+    <string name="theme_system">Системная</string>
+    <string name="analyze">Анализировать</string>
+    <string name="color_scheme">Цветовая схема</string>
+    <string name="system_language">Системный язык</string>
+    <string name="ai_api">API ИИ</string>
+    <string name="openai">OpenAI</string>
+    <string name="gemini">Gemini</string>
+    <string name="ai_model">Модель ИИ</string>
+    <string name="ai_api_key">Ключ API</string>
+    <string name="no_ai_model_selected">Ни одна модель ИИ не выбрана.</string>
+    <string name="invalid_ai_selected">Выбран неверный ИИ.</string>
+</resources>

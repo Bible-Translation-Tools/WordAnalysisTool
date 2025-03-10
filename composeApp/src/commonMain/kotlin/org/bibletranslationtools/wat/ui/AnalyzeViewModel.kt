@@ -1,0 +1,163 @@
+package org.bibletranslationtools.wat.ui
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import cafe.adriel.voyager.core.model.ScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
+import dev.shreyaspatil.ai.client.generativeai.GenerativeModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.data.Progress
+import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.data.Word
+import org.bibletranslationtools.wat.data.sortedByKeyWith
+import org.bibletranslationtools.wat.domain.AiApi
+import org.bibletranslationtools.wat.domain.GeminiModel
+import org.jetbrains.compose.resources.getString
+import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.asking_ai
+import wordanalysistool.composeapp.generated.resources.finding_singleton_words
+import wordanalysistool.composeapp.generated.resources.invalid_ai_selected
+import wordanalysistool.composeapp.generated.resources.no_ai_model_selected
+
+class AnalyzeViewModel(
+    private val language: LanguageInfo,
+    private val verses: List<Verse>
+) : ScreenModel {
+
+    var error by mutableStateOf<String?>(null)
+        private set
+    var progress by mutableStateOf<Progress?>(null)
+        private set
+
+    var aiResponse by mutableStateOf<String?>(null)
+        private set
+
+    private val _singletonWords = MutableStateFlow<Map<String, Word>>(emptyMap())
+    val singletonWords = _singletonWords
+        .onStart { findSingletonWords() }
+        .stateIn(
+            screenModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyMap()
+        )
+
+    private var geminiModel: GenerativeModel? = null
+    private var openAiModel: Any? = null
+
+    fun findSingletonWords() {
+        screenModelScope.launch {
+            progress = Progress(0f, getString(Res.string.finding_singleton_words))
+
+            val totalVerses = verses.size
+            val tempMap = mutableMapOf<String, Word>()
+
+            verses.forEachIndexed { index, verse ->
+                val words = verse.text.split("\\P{L}+".toRegex())
+                words.forEach { word ->
+                    if (word.trim().isEmpty()) return@forEach
+
+                    val w = tempMap.getOrPut(word) { Word(0, listOf()) }
+                    tempMap[word] = w.copy(
+                        count = w.count + 1,
+                        refs = if (!w.refs.contains(verse)) {
+                            listOf(verse) + w.refs
+                        } else w.refs
+                    )
+                }
+
+                progress = Progress(
+                    (index + 1) / totalVerses.toFloat(),
+                    getString(Res.string.finding_singleton_words)
+                )
+            }
+
+            _singletonWords.value = tempMap
+                .sortedByKeyWith(compareBy { it.lowercase() })
+                .filter { it.value.count == 1 }
+
+            progress = null
+        }
+    }
+
+    fun askAi(word: String, verse: Verse) {
+        screenModelScope.launch {
+            progress = Progress(0f, getString(Res.string.asking_ai))
+
+            val prompt = """
+                Check the word "$word" in the bible verse 
+                ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number}: ${verse.text}.
+                The language is ${language.name} (${language.angName}).
+                Define only whether this a proper name, misspell/typo or 
+                something else. If it's a misspell/typo, provide the correct answer.
+            """.trimIndent()
+
+            when {
+                geminiModel != null -> askGemini(prompt)
+                openAiModel != null -> askOpenAi(prompt)
+                else -> error = getString(Res.string.no_ai_model_selected)
+            }
+
+            progress = null
+        }
+    }
+
+    private suspend fun askGemini(prompt: String) {
+        aiResponse = withContext(Dispatchers.Default) {
+            try {
+                geminiModel?.generateContent(prompt)?.text
+            } catch (e: Exception) {
+                error = e.message
+                null
+            }
+        }
+    }
+
+    private suspend fun askOpenAi(prompt: String) {
+        aiResponse = withContext(Dispatchers.Default) {
+            delay(1000)
+            "Not implemented"
+        }
+    }
+
+    fun setupModel(aiApi: String, aiModel: String, aiApiKey: String) {
+        screenModelScope.launch {
+            // reset
+            geminiModel = null
+            openAiModel = null
+
+            when (aiApi) {
+                AiApi.GEMINI.name -> setupGemini(aiModel, aiApiKey)
+                AiApi.OPENAI.name -> setupOpenAi(aiModel, aiApiKey)
+                else -> error = getString(Res.string.invalid_ai_selected)
+            }
+        }
+    }
+
+    private fun setupGemini(aiModel: String, aiApiKey: String) {
+        geminiModel = GenerativeModel(
+            modelName = GeminiModel.getOrDefault(aiModel).value,
+            apiKey = aiApiKey
+        )
+    }
+
+    private fun setupOpenAi(aiModel: String, aiApiKey: String) {
+        openAiModel = null
+    }
+
+    fun clearError() {
+        error = null
+    }
+
+    fun clearAiResponse() {
+        aiResponse = null
+    }
+}
