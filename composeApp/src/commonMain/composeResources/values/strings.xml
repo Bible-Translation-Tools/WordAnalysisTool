@@ -8,11 +8,4 @@
     <string name="unknown_error">Unknown error occurred.</string>
     <string name="ok">OK</string>
     <string name="downloading_usfm">Downloading USFM...</string>
-    <string name="parsing_usfm">Parsing USFM...</string>
-    <string name="fetching_heart_languages">Fetching Heart Languages...</string>
-    <string name="fetching_resource_types">Fetching Resource Types...</string>
-    <string name="finding_singleton_words">Finding singleton words. Please wait...</string>
-    <string name="settings">Settings</string>
-    <string name="select_language_resource_type">Start analyzing by selecting Language and Resource Type</string>
-    <string name="asking_ai">Asking AI</string>
 </resources>

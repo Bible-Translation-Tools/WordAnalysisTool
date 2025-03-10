@@ -1,14 +1,11 @@
 package org.bibletranslationtools.wat.di
 
 import io.ktor.client.HttpClient
-import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.domain.UsfmBookSourceImpl
 import org.bibletranslationtools.wat.platform.httpClientEngine
-import org.bibletranslationtools.wat.ui.AnalyzeViewModel
 import org.bibletranslationtools.wat.ui.HomeViewModel
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
@@ -25,7 +22,4 @@ val sharedModule = module {
 
     // view models
     factoryOf(::HomeViewModel)
-    factory { (language: LanguageInfo, resourceType: String, verses: List<Verse>) ->
-        AnalyzeViewModel(language, resourceType, verses)
-    }
 }

@@ -1,26 +1,27 @@
 package org.bibletranslationtools.wat.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material.Colors
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.darkColors
+import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val LightColorScheme = lightColorScheme(
+val LightColors = lightColors(
     primary = Color(0xFFd85900),
+    primaryVariant = Color(0xFFB44A00),
     secondary = Color(0xFF3384AD),
     background = Color(0xFFF3F3F3),
     surface = Color(0xFFF3F3F3),
     onPrimary = Color(0xFFF3F3F3),
     onSecondary = Color.White,
-    onBackground = Color(0xFF444444),
     onSurface = Color(0xFF444444)
 )
 
-val DarkColorScheme = darkColorScheme(
+val DarkColors = darkColors(
     primary = Color(0xFFE08500),
+    primaryVariant = Color(0xFFBC7000),
     secondary = Color(0xFF4496BD),
     background = Color(0xFF19191A),
     surface = Color(0xFF19191A),
@@ -35,18 +36,18 @@ object CommonColors {
 }
 
 @Composable
-fun MainAppTheme(
-    themeColorScheme: ColorScheme? = null,
+fun WatTheme(
+    themeColors: Colors? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        themeColorScheme != null -> themeColorScheme
-        isSystemInDarkTheme() -> DarkColorScheme
-        else -> LightColorScheme
+    val colors = when {
+        themeColors != null -> themeColors
+        isSystemInDarkTheme() -> DarkColors
+        else -> LightColors
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colors = colors,
         content = content
     )
 }
