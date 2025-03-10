@@ -6,8 +6,10 @@ import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -25,6 +27,7 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.downloading_usfm
 import wordanalysistool.composeapp.generated.resources.fetching_heart_languages
 import wordanalysistool.composeapp.generated.resources.fetching_resource_types
+import wordanalysistool.composeapp.generated.resources.preparing_for_analysis
 import wordanalysistool.composeapp.generated.resources.unknown_error
 
 class HomeViewModel(
@@ -37,6 +40,9 @@ class HomeViewModel(
         private set
     var progress by mutableStateOf<Progress?>(null)
         private set
+
+    private val _verses = MutableStateFlow<List<Verse>>(emptyList())
+    val verses = _verses.asStateFlow()
 
     private val _heartLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
     val heartLanguages = _heartLanguages
@@ -64,44 +70,52 @@ class HomeViewModel(
         return resourceTypes
     }
 
-    suspend fun fetchUsfmForHeartLanguage(
+    fun fetchUsfmForHeartLanguage(
         ietfCode: String,
         resourceType: String
-    ): List<Verse> {
-        val books = bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
-        val totalBooks = books.size
-        val allVerses = mutableListOf<Verse>()
+    ) {
+        screenModelScope.launch {
+            progress = Progress(0f, getString(Res.string.downloading_usfm))
 
-        progress = Progress(0f, getString(Res.string.downloading_usfm))
+            val books = bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
+            val totalBooks = books.size
+            val allVerses = mutableListOf<Verse>()
 
-        withContext(Dispatchers.Default) {
-            books.forEachIndexed { index, book ->
-                book.url?.let { url ->
-                    val currentProgress = (index+1)/totalBooks.toFloat()
-                    val response = downloadUsfm(url)
+            withContext(Dispatchers.Default) {
+                books.forEachIndexed { index, book ->
+                    book.url?.let { url ->
+                        val currentProgress = (index+1)/totalBooks.toFloat()
+                        val response = downloadUsfm(url)
 
-                    response.onSuccess { bytes ->
-                        println(url)
-                        allVerses.addAll(usfmBookSource.parse(bytes.decodeToString()))
-                    }.onError { err ->
-                        error = err.description ?: getString(Res.string.unknown_error)
-                        allVerses.clear()
-                        return@withContext
+                        response.onSuccess { bytes ->
+                            allVerses.addAll(usfmBookSource.parse(bytes.decodeToString()))
+                        }.onError { err ->
+                            error = err.description ?: getString(Res.string.unknown_error)
+                            allVerses.clear()
+                            return@withContext
+                        }
+
+                        progress = Progress(
+                            currentProgress,
+                            getString(Res.string.downloading_usfm)
+                        )
                     }
-
-                    progress = Progress(
-                        currentProgress,
-                        getString(Res.string.downloading_usfm)
-                    )
                 }
             }
-        }
 
-        progress = null
-        return allVerses
+            _verses.value = allVerses
+
+            progress = Progress(0f, getString(Res.string.preparing_for_analysis))
+            delay(1000)
+            progress = null
+        }
     }
 
     fun clearError() {
         error = null
+    }
+
+    fun onBeforeNavigate() {
+        _verses.value = emptyList()
     }
 }

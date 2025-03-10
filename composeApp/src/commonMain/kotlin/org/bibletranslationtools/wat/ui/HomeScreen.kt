@@ -24,9 +24,6 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.ErrorDialog
@@ -45,14 +42,26 @@ class HomeScreen : Screen {
         val navigator = LocalNavigator.currentOrThrow
 
         val heartLanguages by viewModel.heartLanguages.collectAsStateWithLifecycle(emptyList())
+        val verses by viewModel.verses.collectAsStateWithLifecycle(emptyList())
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
         var resourceTypes by remember { mutableStateOf<List<String>>(emptyList()) }
-        var showDialog by remember { mutableStateOf(false) }
+        var selectedResourceType by remember { mutableStateOf<String?>(null) }
+
+        var showLanguagesDialog by remember { mutableStateOf(false) }
 
         LaunchedEffect(selectedHeartLanguage) {
             selectedHeartLanguage?.let {
                 resourceTypes = viewModel.fetchResourceTypesForHeartLanguage(it.ietfCode)
+            }
+        }
+
+        LaunchedEffect(verses) {
+            if (verses.isNotEmpty()) {
+                navigator.push(
+                    AnalyzeScreen(selectedHeartLanguage!!, selectedResourceType!!, verses)
+                )
+                viewModel.onBeforeNavigate()
             }
         }
 
@@ -62,7 +71,7 @@ class HomeScreen : Screen {
             },
             floatingActionButton = {
                 Button(
-                    onClick = { showDialog = true },
+                    onClick = { showLanguagesDialog = true },
                     shape = CircleShape,
                     modifier = Modifier.size(70.dp)
                 ) {
@@ -80,23 +89,16 @@ class HomeScreen : Screen {
                 )
             }
 
-            if (showDialog) {
+            if (showLanguagesDialog) {
                 LanguagesDialog(
                     languages = heartLanguages,
                     resourceTypes = resourceTypes,
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
-                        CoroutineScope(Dispatchers.Default).launch {
-                            val verses =
-                                viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
-                            if (verses.isNotEmpty()) {
-                                navigator.push(
-                                    AnalyzeScreen(language, resourceType, verses)
-                                )
-                            }
-                        }
+                        selectedResourceType = resourceType
+                        viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
                     },
-                    onDismiss = { showDialog = false }
+                    onDismiss = { showLanguagesDialog = false }
                 )
             }
 
