@@ -31,5 +31,5 @@
     <string name="invalid_ai_selected">Invalid AI selected.</string>
     <string name="apply">Apply</string>
     <string name="edit_prompt">Edit Prompt</string>
-    <string name="use_apostrophe_regex">Treat apostrophe (') as word separator</string>
+    <string name="use_apostrophe_regex">Treat apostrophe (') as a word separator</string>
 </resources>

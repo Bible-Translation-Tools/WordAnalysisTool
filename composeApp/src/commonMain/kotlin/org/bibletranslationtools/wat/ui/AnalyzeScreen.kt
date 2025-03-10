@@ -77,7 +77,10 @@ class AnalyzeScreen(
         val aiApi by rememberStringSetting(Settings.AI_API.name, AiApi.GEMINI.name)
         val aiModel by rememberStringSetting(Settings.AI_MODEL.name, GeminiModel.FLASH_2.name)
         val aiApiKey by rememberStringSetting(Settings.AI_API_KEY.name, "")
-        val apostropheIsSeparator by rememberBooleanSetting(Settings.APOSTROPHE_IS_SEPARATOR.name, false)
+        val apostropheIsSeparator by rememberBooleanSetting(
+            Settings.APOSTROPHE_IS_SEPARATOR.name,
+            true
+        )
 
         var promptEditorShown by remember { mutableStateOf(false) }
 
