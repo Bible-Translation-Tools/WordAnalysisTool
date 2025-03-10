@@ -1,14 +1,15 @@
 package org.bibletranslationtools.wat.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Button
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,10 +24,17 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.ErrorDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
+import org.jetbrains.compose.resources.stringResource
+import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.select_language_resource_type
 
 class HomeScreen : Screen {
 
@@ -37,16 +45,10 @@ class HomeScreen : Screen {
         val navigator = LocalNavigator.currentOrThrow
 
         val heartLanguages by viewModel.heartLanguages.collectAsStateWithLifecycle(emptyList())
-        val usfmForHeartLanguage by viewModel.usfmForHeartLanguage.collectAsStateWithLifecycle()
-        val verses by viewModel.verses.collectAsStateWithLifecycle()
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
         var resourceTypes by remember { mutableStateOf<List<String>>(emptyList()) }
         var showDialog by remember { mutableStateOf(false) }
-
-        LaunchedEffect(Unit) {
-            viewModel.fetchHeartLanguages()
-        }
 
         LaunchedEffect(selectedHeartLanguage) {
             selectedHeartLanguage?.let {
@@ -54,61 +56,57 @@ class HomeScreen : Screen {
             }
         }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            Button(
-                onClick = { showDialog = true },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text("Select language")
+        Scaffold(
+            topBar = {
+                TopNavigationBar("", isHome = true)
+            },
+            floatingActionButton = {
+                Button(
+                    onClick = { showDialog = true },
+                    shape = CircleShape,
+                    modifier = Modifier.size(70.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null
+                    )
+                }
+            }
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Text(
+                    text = stringResource(Res.string.select_language_resource_type),
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
 
-            if (verses.isEmpty()) {
-                LazyColumn {
-                    items(usfmForHeartLanguage) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.clickable {
-                                it.url?.let { viewModel.fetchUsfm(it) }
+            if (showDialog) {
+                LanguagesDialog(
+                    languages = heartLanguages,
+                    resourceTypes = resourceTypes,
+                    onLanguageSelected = { selectedHeartLanguage = it },
+                    onResourceTypeSelected = { language, resourceType ->
+                        CoroutineScope(Dispatchers.Default).launch {
+                            val verses =
+                                viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
+                            if (verses.isNotEmpty()) {
+                                navigator.push(
+                                    AnalyzeScreen(language, resourceType, verses)
+                                )
                             }
-                        ) {
-                            Text(it.bookSlug ?: "n/a")
-                            Text(it.bookName ?: "n/a")
-                            Text(it.url ?: "n/a")
                         }
-                    }
-                }
-            } else {
-                LazyColumn {
-                    items(verses) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Text("${it.bookName} ${it.chapter}:${it.number}. ${it.text}")
-                        }
-                    }
-                }
+                    },
+                    onDismiss = { showDialog = false }
+                )
             }
-        }
 
-        if (showDialog) {
-            LanguagesDialog(
-                languages = heartLanguages,
-                resourceTypes = resourceTypes,
-                onLanguageSelected = { selectedHeartLanguage = it },
-                onResourceTypeSelected = { language, resourceType ->
-                    viewModel.clearVerses()
-                    viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
-                },
-                onDismiss = { showDialog = false }
-            )
-        }
+            viewModel.error?.let {
+                ErrorDialog(error = it, onDismiss = { viewModel.clearError() })
+            }
 
-        viewModel.error?.let {
-            ErrorDialog(error = it, onDismiss = { viewModel.clearError() })
-        }
-
-        viewModel.progress?.let {
-            ProgressDialog(it)
+            viewModel.progress?.let {
+                ProgressDialog(it)
+            }
         }
     }
 }

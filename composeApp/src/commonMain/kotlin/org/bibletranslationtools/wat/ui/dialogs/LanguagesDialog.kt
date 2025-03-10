@@ -6,17 +6,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.DrawerDefaults.shape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults.shape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -135,7 +137,6 @@ fun LanguagesDialog(
                         modifier = Modifier
                             .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth(),
-                        readOnly = true,
                         value = selectedResourceType ?: run {
                             if (selectedLanguage != null) {
                                 stringResource(Res.string.no_resource_types)
@@ -144,16 +145,17 @@ fun LanguagesDialog(
                             }
                         },
                         onValueChange = {},
+                        readOnly = true,
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(
                                 expanded = resourceMenuExpanded && resourceTypes.isNotEmpty()
                             )
                         },
-                        shape = shape,
                         colors = ExposedDropdownMenuDefaults.textFieldColors(
                             focusedIndicatorColor = Transparent,
                             unfocusedIndicatorColor = Transparent
-                        )
+                        ),
+                        shape = shape
                     )
                     ExposedDropdownMenu(
                         expanded = resourceMenuExpanded && resourceTypes.isNotEmpty(),
@@ -176,9 +178,15 @@ fun LanguagesDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Button(
-                        onClick = onDismiss
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        )
                     ) {
-                        Text(stringResource(Res.string.dismiss))
+                        Text(
+                            text = stringResource(Res.string.dismiss),
+                            color = MaterialTheme.colorScheme.onSecondary
+                        )
                     }
                     Button(
                         onClick = {
@@ -188,9 +196,15 @@ fun LanguagesDialog(
                                 }
                             }
                             onDismiss()
-                        }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
-                        Text("Show USFM")
+                        Text(
+                            text = "Show USFM",
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                 }
             }

@@ -6,14 +6,15 @@ import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.Dispatchers
-import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.data.ContentInfo
 import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.http.onError
@@ -21,6 +22,8 @@ import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.downloading_usfm
+import wordanalysistool.composeapp.generated.resources.fetching_heart_languages
+import wordanalysistool.composeapp.generated.resources.fetching_resource_types
 import wordanalysistool.composeapp.generated.resources.unknown_error
 
 class HomeViewModel(
@@ -31,69 +34,73 @@ class HomeViewModel(
 
     var error by mutableStateOf<String?>(null)
         private set
-    var progress by mutableStateOf<String?>(null)
+    var progress by mutableStateOf<Progress?>(null)
         private set
 
     private val _heartLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
-    val heartLanguages = _heartLanguages.asStateFlow()
-
-    private val _gatewayLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
-    val gatewayLanguages = _gatewayLanguages.asStateFlow()
-
-    private val _usfmForHeartLanguage = MutableStateFlow<List<ContentInfo>>(emptyList())
-    val usfmForHeartLanguage = _usfmForHeartLanguage.asStateFlow()
-
-    private val _verses = MutableStateFlow<List<Verse>>(emptyList())
-    val verses = _verses.asStateFlow()
+    val heartLanguages = _heartLanguages
+        .onStart { fetchHeartLanguages() }
+        .stateIn(
+            screenModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
 
     fun fetchHeartLanguages() {
         screenModelScope.launch {
+            progress = Progress(0f, getString(Res.string.fetching_heart_languages))
             _heartLanguages.value = bielGraphQlApi.getHeartLanguages()
-        }
-    }
-
-    fun fetchGatewayLanguages() {
-        screenModelScope.launch {
-            _gatewayLanguages.value = bielGraphQlApi.getGatewayLanguages()
+            progress = null
         }
     }
 
     suspend fun fetchResourceTypesForHeartLanguage(
         ietfCode: String
     ): List<String> {
-        return bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
+        progress = Progress(0f, getString(Res.string.fetching_resource_types))
+        val resourceTypes = bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
+        progress = null
+        return resourceTypes
     }
 
-    fun fetchUsfmForHeartLanguage(ietfCode: String, resourceType: String) {
-        screenModelScope.launch {
-            _usfmForHeartLanguage.value =
-                bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
-        }
-    }
+    suspend fun fetchUsfmForHeartLanguage(
+        ietfCode: String,
+        resourceType: String
+    ): List<Verse> {
+        val books = bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
+        val totalBooks = books.size
+        val allVerses = mutableListOf<Verse>()
 
-    fun fetchUsfm(url: String) {
-        screenModelScope.launch {
-            progress = getString(Res.string.downloading_usfm)
-            withContext(Dispatchers.Default) {
-                val response = downloadUsfm(url)
-                response.onSuccess { bytes ->
-                    println(bytes.decodeToString())
-                    //usfmBookSource.import(bytes)
-                    //loadBooks()
-                    _verses.value = usfmBookSource.parse(bytes.decodeToString())
-                }.onError { err ->
-                    error = err.description ?: getString(Res.string.unknown_error)
+        progress = Progress(0f, getString(Res.string.downloading_usfm))
+
+        withContext(Dispatchers.Default) {
+            books.forEachIndexed { index, book ->
+                book.url?.let { url ->
+                    val currentProgress = (index+1)/totalBooks.toFloat()
+                    val response = downloadUsfm(url)
+
+                    response.onSuccess { bytes ->
+                        println(url)
+                        allVerses.addAll(usfmBookSource.parse(bytes.decodeToString()))
+                    }.onError { err ->
+                        error = err.description ?: getString(Res.string.unknown_error)
+                        allVerses.clear()
+                        return@withContext
+                    }
+
+                    progress = Progress(
+                        currentProgress,
+                        getString(Res.string.downloading_usfm)
+                    )
                 }
             }
-            progress = null
         }
+
+        progress = null
+        return allVerses
     }
 
     fun clearError() {
         error = null
-    }
-
-    fun clearVerses() {
-        _verses.value = emptyList()
     }
 }
