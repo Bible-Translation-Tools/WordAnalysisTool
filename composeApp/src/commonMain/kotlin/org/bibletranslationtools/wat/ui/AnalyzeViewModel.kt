@@ -47,6 +47,14 @@ class AnalyzeViewModel(
     var aiResponse by mutableStateOf<String?>(null)
         private set
 
+    var prompt by mutableStateOf("")
+        private set
+
+    private var apostropheIsSeparator by mutableStateOf(false)
+
+    private val apostropheRegex = "[\\p{L}'’]+(?<!['’])".toRegex()
+    private val nonApostropheRegex = "\\p{L}+".toRegex()
+
     private val _singletonWords = MutableStateFlow<Map<String, Word>>(emptyMap())
     val singletonWords = _singletonWords
         .onStart { findSingletonWords() }
@@ -66,9 +74,11 @@ class AnalyzeViewModel(
 
             val totalVerses = verses.size
             val tempMap = mutableMapOf<String, Word>()
+            val wordsRegex = if (apostropheIsSeparator) nonApostropheRegex else apostropheRegex
 
             verses.forEachIndexed { index, verse ->
-                val words = verse.text.split("\\P{L}+".toRegex())
+                val words = wordsRegex.findAll(verse.text).map { it.value }
+
                 words.forEach { word ->
                     if (word.trim().isEmpty()) return@forEach
 
@@ -95,24 +105,14 @@ class AnalyzeViewModel(
         }
     }
 
-    fun askAi(word: String, verse: Verse) {
+    fun askAi() {
         screenModelScope.launch {
             progress = Progress(0f, getString(Res.string.asking_ai))
-
-            val prompt = """
-                Check the word "$word" in the bible verse 
-                ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number}: ${verse.text}.
-                The language is ${language.name} (${language.angName}).
-                Define only whether this a proper name, misspell/typo or 
-                something else. If it's a misspell/typo, provide the correct answer.
-            """.trimIndent()
-
             when {
                 geminiModel != null -> askGemini(prompt)
                 openAiModel != null -> askOpenAi(prompt)
                 else -> error = getString(Res.string.no_ai_model_selected)
             }
-
             progress = null
         }
     }
@@ -178,6 +178,24 @@ class AnalyzeViewModel(
     private fun setupOpenAi(aiModel: String, aiApiKey: String) {
         openAiModel = OpenAI(token = aiApiKey)
         openAiModelId = ModelId(OpenAiModel.getOrDefault(aiModel).value)
+    }
+
+    fun updatePrompt(prompt: String) {
+        this.prompt = prompt
+    }
+
+    fun updatePrompt(word: String, verse: Verse) {
+        prompt = """
+            Check the word "$word" in the bible verse 
+            ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number} ${verse.text}.
+            The language is ${language.name} (${language.angName}).
+            Define only whether this a proper name, misspell/typo or 
+            something else. If it's a misspell/typo, provide the correct answer.
+        """.trimIndent()
+    }
+
+    fun updateApostropheIsSeparator(isSeparator: Boolean) {
+        apostropheIsSeparator = isSeparator
     }
 
     fun clearError() {
