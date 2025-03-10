@@ -5,9 +5,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import com.aallam.openai.api.BetaOpenAI
+import com.aallam.openai.api.chat.ChatCompletionRequest
+import com.aallam.openai.api.chat.ChatMessage
+import com.aallam.openai.api.core.Role
+import com.aallam.openai.api.model.ModelId
+import com.aallam.openai.client.OpenAI
 import dev.shreyaspatil.ai.client.generativeai.GenerativeModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.onStart
@@ -21,6 +26,7 @@ import org.bibletranslationtools.wat.data.Word
 import org.bibletranslationtools.wat.data.sortedByKeyWith
 import org.bibletranslationtools.wat.domain.AiApi
 import org.bibletranslationtools.wat.domain.GeminiModel
+import org.bibletranslationtools.wat.domain.OpenAiModel
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.asking_ai
@@ -51,7 +57,8 @@ class AnalyzeViewModel(
         )
 
     private var geminiModel: GenerativeModel? = null
-    private var openAiModel: Any? = null
+    private var openAiModel: OpenAI? = null
+    private var openAiModelId: ModelId? = null
 
     fun findSingletonWords() {
         screenModelScope.launch {
@@ -121,10 +128,29 @@ class AnalyzeViewModel(
         }
     }
 
+    @OptIn(BetaOpenAI::class)
     private suspend fun askOpenAi(prompt: String) {
         aiResponse = withContext(Dispatchers.Default) {
-            delay(1000)
-            "Not implemented"
+            try {
+                openAiModel?.chatCompletion(
+                    request = ChatCompletionRequest(
+                        model = openAiModelId!!,
+                        messages = listOf(
+                            ChatMessage(
+                                role = Role.User,
+                                content = prompt
+                            )
+                        ),
+                        store = false
+                    )
+                )?.choices
+                    ?.firstOrNull()
+                    ?.message
+                    ?.content
+            } catch (e: Exception) {
+                error = e.message
+                null
+            }
         }
     }
 
@@ -150,7 +176,8 @@ class AnalyzeViewModel(
     }
 
     private fun setupOpenAi(aiModel: String, aiApiKey: String) {
-        openAiModel = null
+        openAiModel = OpenAI(token = aiApiKey)
+        openAiModelId = ModelId(OpenAiModel.getOrDefault(aiModel).value)
     }
 
     fun clearError() {

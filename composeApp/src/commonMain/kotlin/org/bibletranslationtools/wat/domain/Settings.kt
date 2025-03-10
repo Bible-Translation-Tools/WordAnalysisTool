@@ -9,7 +9,11 @@ enum class Settings {
     LOCALE,
     AI_API,
     AI_MODEL,
-    AI_API_KEY
+    GEMINI_MODEL,
+    OPENAI_MODEL,
+    AI_API_KEY,
+    GEMINI_API_KEY,
+    OPENAI_API_KEY
 }
 
 enum class Theme {
@@ -49,7 +53,7 @@ enum class OpenAiModel(override val value: String): AiModel {
 
     companion object {
         fun getOrDefault(name: String): OpenAiModel {
-            return entries.singleOrNull { it.name == name } ?: GPT_4
+            return entries.singleOrNull { it.name == name } ?: GPT_3_5_TURBO
         }
     }
 }
