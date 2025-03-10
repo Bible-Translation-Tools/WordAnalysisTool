@@ -100,10 +100,8 @@ kotlin {
             implementation(libs.voyager.koin)
 
             implementation(libs.gemini.api)
+            implementation(libs.openai.api)
 
-            implementation(libs.multiplatform.settings)
-            implementation(libs.multiplatform.settings.coroutines)
-            implementation(libs.multiplatform.settings.make.observable)
             implementation(libs.compose.remember.setting)
         }
         val desktopMain by getting {

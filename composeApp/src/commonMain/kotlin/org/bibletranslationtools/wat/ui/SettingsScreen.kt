@@ -73,16 +73,42 @@ class SettingsScreen : Screen {
         val aiApiEnum = remember { derivedStateOf { AiApi.valueOf(aiApi.value) } }
 
         var aiModel by rememberStringSetting(Settings.AI_MODEL.name, GeminiModel.FLASH_2.name)
+        var geminiModel by rememberStringSetting(Settings.GEMINI_MODEL.name, GeminiModel.FLASH_2.name)
+        var openAiModel by rememberStringSetting(Settings.OPENAI_MODEL.name, OpenAiModel.GPT_3_5_TURBO.name)
         var aiModels by remember { mutableStateOf<List<String>>(emptyList()) }
 
         var aiApiKey by rememberStringSetting(Settings.AI_API_KEY.name, "")
+        var geminiApiKey by rememberStringSetting(Settings.GEMINI_API_KEY.name, "")
+        var openAiApiKey by rememberStringSetting(Settings.OPENAI_API_KEY.name, "")
+
         var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
 
-        LaunchedEffect(aiApi.value) {
-            aiModel = getModel(aiApiEnum.value, aiModel).name
-            aiModels = when (aiApi.value) {
-                AiApi.OPENAI.name -> OpenAiModel.entries.map { it.name }
-                else -> GeminiModel.entries.map { it.name }
+        LaunchedEffect(aiApiEnum.value) {
+            when (aiApiEnum.value) {
+                AiApi.OPENAI -> {
+                    aiModel = openAiModel
+                    aiModels = OpenAiModel.entries.map { it.name }
+                    aiApiKey = openAiApiKey
+                }
+                else -> {
+                    aiModel = geminiModel
+                    aiModels = GeminiModel.entries.map { it.name }
+                    aiApiKey = geminiApiKey
+                }
+            }
+        }
+
+        LaunchedEffect(aiModel) {
+            when (aiApiEnum.value) {
+                AiApi.OPENAI -> openAiModel = aiModel
+                else -> geminiModel = aiModel
+            }
+        }
+
+        LaunchedEffect(aiApiKey) {
+            when (aiApiEnum.value) {
+                AiApi.OPENAI -> openAiApiKey = aiApiKey
+                else -> geminiApiKey = aiApiKey
             }
         }
 
@@ -117,7 +143,8 @@ class SettingsScreen : Screen {
                                     Theme.DARK -> stringResource(Res.string.theme_dark)
                                     else -> stringResource(Res.string.theme_system)
                                 }
-                            }
+                            },
+                            modifier = Modifier.width(400.dp)
                         )
                     }
 
@@ -136,7 +163,8 @@ class SettingsScreen : Screen {
                                     Locales.RU -> Locales.RU.value
                                     else -> Locales.EN.value
                                 }
-                            }
+                            },
+                            modifier = Modifier.width(400.dp)
                         )
                     }
 
@@ -155,7 +183,8 @@ class SettingsScreen : Screen {
                                     AiApi.OPENAI -> stringResource(Res.string.openai)
                                     else -> stringResource(Res.string.gemini)
                                 }
-                            }
+                            },
+                            modifier = Modifier.width(400.dp)
                         )
                     }
 
@@ -171,7 +200,8 @@ class SettingsScreen : Screen {
                             onOptionSelected = { aiModel = it },
                             valueConverter = { value ->
                                 getModel(aiApiEnum.value, value).value
-                            }
+                            },
+                            modifier = Modifier.width(400.dp)
                         )
                     }
 
@@ -183,7 +213,9 @@ class SettingsScreen : Screen {
                         Text(stringResource(Res.string.ai_api_key))
                         TextField(
                             value = aiApiKey,
-                            onValueChange = { aiApiKey = it },
+                            onValueChange = {
+                                aiApiKey = it
+                            },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             visualTransformation = if (apiKeyVisible)
                                 VisualTransformation.None else PasswordVisualTransformation(),
@@ -196,7 +228,7 @@ class SettingsScreen : Screen {
                                     Icon(imageVector  = image, null)
                                 }
                             },
-                            maxLines = 1
+                            modifier = Modifier.width(400.dp)
                         )
                     }
                 }
