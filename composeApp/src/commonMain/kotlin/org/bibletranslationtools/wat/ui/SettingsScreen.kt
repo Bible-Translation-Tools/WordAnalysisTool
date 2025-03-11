@@ -47,6 +47,7 @@ import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import org.bibletranslationtools.wat.domain.AiApi
 import org.bibletranslationtools.wat.domain.AiModel
+import org.bibletranslationtools.wat.domain.ClaudeAiModel
 import org.bibletranslationtools.wat.domain.GeminiModel
 import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.OpenAiModel
@@ -60,6 +61,8 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.ai_api
 import wordanalysistool.composeapp.generated.resources.ai_api_key
 import wordanalysistool.composeapp.generated.resources.ai_model
+import wordanalysistool.composeapp.generated.resources.claude_ai
+import wordanalysistool.composeapp.generated.resources.claude_api_key_link
 import wordanalysistool.composeapp.generated.resources.color_scheme
 import wordanalysistool.composeapp.generated.resources.don_t_have_key
 import wordanalysistool.composeapp.generated.resources.gemini
@@ -103,6 +106,10 @@ class SettingsScreen : Screen {
             Settings.QWEN_MODEL.name,
             QwenModel.QWEN_PLUS.name
         )
+        var claudeAiModel by rememberStringSetting(
+            Settings.CLAUDEAI_MODEL.name,
+            ClaudeAiModel.CLAUDE_3_7_SONNET.name
+        )
 
         var aiModels by remember { mutableStateOf<List<String>>(emptyList()) }
 
@@ -110,6 +117,7 @@ class SettingsScreen : Screen {
         var geminiApiKey by rememberStringSetting(Settings.GEMINI_API_KEY.name, "")
         var openAiApiKey by rememberStringSetting(Settings.OPENAI_API_KEY.name, "")
         var qwenApiKey by rememberStringSetting(Settings.QWEN_API_KEY.name, "")
+        var claudeAiApiKey by rememberStringSetting(Settings.CLAUDEAI_API_KEY.name, "")
 
         var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
         var apiKeyLink by rememberSaveable { mutableStateOf("") }
@@ -125,6 +133,7 @@ class SettingsScreen : Screen {
         val openAiStr = stringResource(Res.string.openai)
         val geminiStr = stringResource(Res.string.gemini)
         val qwenAiStr = stringResource(Res.string.qwen)
+        val claudeAiStr = stringResource(Res.string.claude_ai)
 
         LaunchedEffect(aiApiEnum.value) {
             when (aiApiEnum.value) {
@@ -140,6 +149,12 @@ class SettingsScreen : Screen {
                     aiApiKey = qwenApiKey
                     apiKeyLink = getString(Res.string.qwen_api_key_link)
                 }
+                AiApi.CLAUDE_AI -> {
+                    aiModel = claudeAiModel
+                    aiModels = ClaudeAiModel.entries.map { it.name }
+                    aiApiKey = claudeAiApiKey
+                    apiKeyLink = getString(Res.string.claude_api_key_link)
+                }
                 else -> {
                     aiModel = geminiModel
                     aiModels = GeminiModel.entries.map { it.name }
@@ -153,6 +168,7 @@ class SettingsScreen : Screen {
             when (aiApiEnum.value) {
                 AiApi.OPENAI -> openAiModel = aiModel
                 AiApi.QWEN -> qwenModel = aiModel
+                AiApi.CLAUDE_AI -> claudeAiModel = aiModel
                 else -> geminiModel = aiModel
             }
         }
@@ -161,6 +177,7 @@ class SettingsScreen : Screen {
             when (aiApiEnum.value) {
                 AiApi.OPENAI -> openAiApiKey = aiApiKey
                 AiApi.QWEN -> qwenApiKey = aiApiKey
+                AiApi.CLAUDE_AI -> claudeAiApiKey = aiApiKey
                 else -> geminiApiKey = aiApiKey
             }
         }
@@ -238,6 +255,7 @@ class SettingsScreen : Screen {
                                 when (value) {
                                     AiApi.OPENAI -> openAiStr
                                     AiApi.QWEN -> qwenAiStr
+                                    AiApi.CLAUDE_AI -> claudeAiStr
                                     else -> geminiStr
                                 }
                             },
@@ -337,6 +355,7 @@ class SettingsScreen : Screen {
         return when (api) {
             AiApi.OPENAI -> OpenAiModel.getOrDefault(model)
             AiApi.QWEN -> QwenModel.getOrDefault(model)
+            AiApi.CLAUDE_AI -> ClaudeAiModel.getOrDefault(model)
             else -> GeminiModel.getOrDefault(model)
         }
     }
