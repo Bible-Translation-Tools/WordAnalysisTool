@@ -189,8 +189,8 @@ class AnalyzeViewModel(
             Check the ${language.angName} word "$word" in the Bible verse 
             ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number}.
             "${verse.text}"
-            Define only whether this is a proper name, misspell/typo or a regular word. 
-            If it's a misspell/typo, provide the correct answer.
+            Define whether this is a proper name, misspell/typo or a something else. 
+            Answer should be "only" one of these options: proper name, misspell/typo, something else.
         """.trimIndent()
     }
 
