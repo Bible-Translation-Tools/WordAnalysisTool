@@ -2,6 +2,7 @@ package org.bibletranslationtools.wat.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -24,9 +25,6 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.ErrorDialog
@@ -45,14 +43,28 @@ class HomeScreen : Screen {
         val navigator = LocalNavigator.currentOrThrow
 
         val heartLanguages by viewModel.heartLanguages.collectAsStateWithLifecycle(emptyList())
+        val verses by viewModel.verses.collectAsStateWithLifecycle(emptyList())
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
         var resourceTypes by remember { mutableStateOf<List<String>>(emptyList()) }
-        var showDialog by remember { mutableStateOf(false) }
+        var selectedResourceType by remember { mutableStateOf<String?>(null) }
+
+        var showLanguagesDialog by remember { mutableStateOf(false) }
 
         LaunchedEffect(selectedHeartLanguage) {
             selectedHeartLanguage?.let {
                 resourceTypes = viewModel.fetchResourceTypesForHeartLanguage(it.ietfCode)
+            }
+        }
+
+        selectedHeartLanguage?.let { language ->
+            selectedResourceType?.let { resourceType ->
+                if (verses.isNotEmpty()) {
+                    navigator.push(
+                        AnalyzeScreen(language, resourceType, verses)
+                    )
+                    viewModel.onBeforeNavigate()
+                }
             }
         }
 
@@ -62,7 +74,7 @@ class HomeScreen : Screen {
             },
             floatingActionButton = {
                 Button(
-                    onClick = { showDialog = true },
+                    onClick = { showLanguagesDialog = true },
                     shape = CircleShape,
                     modifier = Modifier.size(70.dp)
                 ) {
@@ -73,30 +85,26 @@ class HomeScreen : Screen {
                 }
             }
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .padding(32.dp)
+            ) {
                 Text(
                     text = stringResource(Res.string.select_language_resource_type),
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
 
-            if (showDialog) {
+            if (showLanguagesDialog) {
                 LanguagesDialog(
                     languages = heartLanguages,
                     resourceTypes = resourceTypes,
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
-                        CoroutineScope(Dispatchers.Default).launch {
-                            val verses =
-                                viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
-                            if (verses.isNotEmpty()) {
-                                navigator.push(
-                                    AnalyzeScreen(language, resourceType, verses)
-                                )
-                            }
-                        }
+                        selectedResourceType = resourceType
+                        viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
                     },
-                    onDismiss = { showDialog = false }
+                    onDismiss = { showLanguagesDialog = false }
                 )
             }
 

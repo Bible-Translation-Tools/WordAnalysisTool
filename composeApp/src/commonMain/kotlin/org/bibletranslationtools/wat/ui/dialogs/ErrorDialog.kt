@@ -2,6 +2,7 @@ package org.bibletranslationtools.wat.ui.dialogs
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,21 +32,20 @@ fun ErrorDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth()
-                .height(200.dp)
+                .height(IntrinsicSize.Min)
         ) {
             Column(
                 verticalArrangement = Arrangement.SpaceAround,
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(32.dp)
                     .fillMaxHeight()
             ) {
-                Text("")
                 Text(
                     text = error,
                     modifier = Modifier.heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState())
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.width(128.dp)

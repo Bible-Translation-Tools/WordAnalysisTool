@@ -32,4 +32,9 @@
     <string name="apply">Применить</string>
     <string name="edit_prompt">Редактировать запрос</string>
     <string name="use_apostrophe_regex">Считать апостроф (') разделитем слова</string>
+    <string name="preparing_for_analysis">Поготовка к анализу...</string>
+    <string name="don_t_have_key">Нет ключа?</string>
+    <string name="get_one_here">Получите здесь.</string>
+    <string name="openai_api_key_link" translatable="false">https://platform.openai.com/account/api-keys</string>
+    <string name="gemini_api_key_link" translatable="false">https://console.cloud.google.com/apis/credentials</string>
 </resources>

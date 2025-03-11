@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.apply
@@ -36,26 +37,33 @@ fun PromptEditorDialog(
 ) {
     var textFieldValue by remember { mutableStateOf(prompt) }
 
-    Dialog(onDismissRequest = {}) {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
         Surface(
-            modifier = Modifier.width(IntrinsicSize.Min)
+            modifier = Modifier.fillMaxWidth(0.7f)
                 .height(IntrinsicSize.Min),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(32.dp)
+                modifier = Modifier.padding(16.dp)
                     .fillMaxHeight()
             ) {
                 Text(
                     text = stringResource(Res.string.edit_prompt),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
+                    fontSize = 20.sp,
+                    modifier = Modifier.weight(0.1f)
                 )
                 TextField(
                     value = textFieldValue,
                     onValueChange = { textFieldValue = it },
+                    modifier = Modifier.weight(0.7f)
                 )
                 Button(
                     onClick = {

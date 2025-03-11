@@ -20,6 +20,7 @@ koin = "4.0.2"
 kotlin = "2.1.10"
 kotlinx-coroutines = "1.10.1"
 ktorClientCore = "3.0.3"
+multiplatformMarkdownRendererM3 = "0.27.0-rc02"
 multiplatformSettings = "1.3.0"
 openaiClient = "4.0.1"
 usfmtools = "1.9.1"
@@ -50,6 +51,8 @@ kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktorClientCore" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorClientCore" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorClientCore" }
+multiplatform-markdown-renderer = { module = "com.mikepenz:multiplatform-markdown-renderer", version.ref = "multiplatformMarkdownRendererM3" }
+multiplatform-markdown-renderer-m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "multiplatformMarkdownRendererM3" }
 openai-api = { module = "com.aallam.openai:openai-client", version.ref = "openaiClient" }
 usfmtools = { module = "org.wycliffeassociates:usfmtools", version.ref = "usfmtools" }
 voyager-koin = { module = "cafe.adriel.voyager:voyager-koin", version.ref = "voyagerNavigator" }

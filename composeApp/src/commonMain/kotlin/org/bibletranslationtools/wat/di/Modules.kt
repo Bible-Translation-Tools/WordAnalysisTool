@@ -2,6 +2,7 @@ package org.bibletranslationtools.wat.di
 
 import com.russhwolf.settings.ExperimentalSettingsApi
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpRequestRetry
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
@@ -17,7 +18,12 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-private val httpClient = HttpClient(httpClientEngine)
+private val httpClient = HttpClient(httpClientEngine) {
+    install(HttpRequestRetry) {
+        retryOnServerErrors(maxRetries = 5)
+        exponentialDelay()
+    }
+}
 
 @OptIn(ExperimentalSettingsApi::class)
 val sharedModule = module {

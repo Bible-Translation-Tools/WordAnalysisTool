@@ -46,16 +46,19 @@ kotlin {
                 }
             }
         }
-        compilerOptions {
-            freeCompilerArgs.add("-Xwasm-debugger-custom-formatters")
-            freeCompilerArgs.add("-Xwasm-attach-js-exception")
-            freeCompilerArgs.add("-Xwasm-use-new-exception-proposal")
-        }
+        browser()
+//        compilerOptions {
+//            freeCompilerArgs.add("-Xwasm-debugger-custom-formatters")
+//            freeCompilerArgs.add("-Xwasm-attach-js-exception")
+//            freeCompilerArgs.add("-Xwasm-use-new-exception-proposal")
+//        }
         binaries.executable()
     }
     
     sourceSets {
         val commonMain by getting
+        val desktopMain by getting
+        val androidMain by getting
 
         val javaMain by creating {
             dependsOn(commonMain)
@@ -63,18 +66,16 @@ kotlin {
                 implementation(libs.usfmtools)
             }
         }
-        val androidMain by getting {
-            dependsOn(javaMain)
-            dependencies {
-                implementation(compose.preview)
-                implementation(libs.androidx.activity.compose)
+        androidMain.dependencies {
+            implementation(compose.preview)
+            implementation(libs.androidx.activity.compose)
 
-                implementation(libs.koin.android)
-                implementation(libs.koin.androidx.compose)
+            implementation(libs.koin.android)
+            implementation(libs.koin.androidx.compose)
 
-                implementation(libs.ktor.client.android)
-            }
+            implementation(libs.ktor.client.android)
         }
+
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -103,18 +104,21 @@ kotlin {
             implementation(libs.openai.api)
 
             implementation(libs.compose.remember.setting)
+
+            implementation(libs.multiplatform.markdown.renderer)
+            implementation(libs.multiplatform.markdown.renderer.m3)
         }
-        val desktopMain by getting {
-            dependsOn(javaMain)
-            dependencies {
-                implementation(compose.desktop.currentOs)
-                implementation(libs.kotlinx.coroutines.swing)
-                implementation(libs.ktor.client.cio)
-            }
+        desktopMain.dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(libs.kotlinx.coroutines.swing)
+            implementation(libs.ktor.client.cio)
         }
         wasmJsMain.dependencies {
             implementation(npm("usfm-js", "3.4.3"))
         }
+
+        androidMain.dependsOn(javaMain)
+        desktopMain.dependsOn(javaMain)
     }
 }
 

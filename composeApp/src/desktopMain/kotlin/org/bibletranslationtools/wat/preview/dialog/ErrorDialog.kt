@@ -10,7 +10,9 @@ import org.bibletranslationtools.wat.ui.theme.MainAppTheme
 fun ErrorDialogPreview() {
     MainAppTheme {
         ErrorDialog(
-            error = "Something went wrong",
+            error = """
+                Something went wrong
+            """.trimIndent(),
             onDismiss = {}
         )
     }
