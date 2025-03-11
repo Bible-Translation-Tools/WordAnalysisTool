@@ -12,10 +12,12 @@ enum class Settings {
     GEMINI_MODEL,
     OPENAI_MODEL,
     QWEN_MODEL,
+    CLAUDEAI_MODEL,
     AI_API_KEY,
     GEMINI_API_KEY,
     OPENAI_API_KEY,
     QWEN_API_KEY,
+    CLAUDEAI_API_KEY,
     APOSTROPHE_IS_SEPARATOR
 }
 
@@ -28,7 +30,8 @@ enum class Theme {
 enum class AiApi {
     GEMINI,
     OPENAI,
-    QWEN
+    QWEN,
+    CLAUDE_AI
 }
 
 interface AiModel {
@@ -72,6 +75,18 @@ enum class QwenModel(override val value: String): AiModel {
     companion object {
         fun getOrDefault(name: String): QwenModel {
             return entries.singleOrNull { it.name == name } ?: QWEN_PLUS
+        }
+    }
+}
+
+enum class ClaudeAiModel(override val value: String): AiModel {
+    CLAUDE_3_7_SONNET("claude-3-7-sonnet-20250219"),
+    CLAUDE_3_5_SONNET("claude-3-5-sonnet-20241022"),
+    CLAUDE_3_5_HAIKU("claude-3-5-haiku-20241022");
+
+    companion object {
+        fun getOrDefault(name: String): ClaudeAiModel {
+            return entries.singleOrNull { it.name == name } ?: CLAUDE_3_7_SONNET
         }
     }
 }

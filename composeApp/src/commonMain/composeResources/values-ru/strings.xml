@@ -26,6 +26,7 @@
     <string name="openai">OpenAI</string>
     <string name="gemini">Gemini</string>
     <string name="qwen">Qwen</string>
+    <string name="claude_ai">Claude AI</string>
     <string name="ai_model">Модель ИИ</string>
     <string name="ai_api_key">Ключ API</string>
     <string name="no_ai_model_selected">Ни одна модель ИИ не выбрана.</string>

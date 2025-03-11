@@ -26,12 +26,14 @@ import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.data.Word
 import org.bibletranslationtools.wat.data.sortedByKeyWith
 import org.bibletranslationtools.wat.domain.AiApi
+import org.bibletranslationtools.wat.domain.ClaudeAiModel
 import org.bibletranslationtools.wat.domain.GeminiModel
 import org.bibletranslationtools.wat.domain.OpenAiModel
 import org.bibletranslationtools.wat.domain.QwenModel
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.asking_ai
+import wordanalysistool.composeapp.generated.resources.claude_api_link
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.invalid_ai_selected
 import wordanalysistool.composeapp.generated.resources.no_ai_model_selected
@@ -166,7 +168,8 @@ class AnalyzeViewModel(
             when (aiApi) {
                 AiApi.GEMINI.name -> setupGemini(aiModel, aiApiKey)
                 AiApi.OPENAI.name -> setupOpenAi(aiModel, aiApiKey)
-                AiApi.QWEN.name -> setupQwen(aiModel, aiApiKey)
+                AiApi.QWEN.name ->  setupQwen(aiModel, aiApiKey)
+                AiApi.CLAUDE_AI.name -> setupClaudeAi(aiModel, aiApiKey)
                 else -> error = getString(Res.string.invalid_ai_selected)
             }
         }
@@ -190,6 +193,12 @@ class AnalyzeViewModel(
         openAiModelId = ModelId(QwenModel.getOrDefault(aiModel).value)
     }
 
+    private suspend fun setupClaudeAi(aiModel: String, aiApiKey: String) {
+        val host = OpenAIHost(baseUrl = getString(Res.string.claude_api_link))
+        openAiModel = OpenAI(token = aiApiKey, host = host)
+        openAiModelId = ModelId(ClaudeAiModel.getOrDefault(aiModel).value)
+    }
+
     fun updatePrompt(prompt: String) {
         this.prompt = prompt
     }
@@ -200,7 +209,8 @@ class AnalyzeViewModel(
             ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number}.
             "${verse.text}"
             Define whether this is a proper name, misspell/typo or a something else. 
-            Answer should be "only" one of these options: proper name, misspell/typo, something else.
+            The answer "should be only one" of these options: proper name, misspell/typo, something else.
+            Do not explain your answer.
         """.trimIndent()
     }
 
