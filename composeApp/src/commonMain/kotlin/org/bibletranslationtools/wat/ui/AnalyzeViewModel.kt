@@ -11,6 +11,7 @@ import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.core.Role
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
+import com.aallam.openai.client.OpenAIHost
 import dev.shreyaspatil.ai.client.generativeai.GenerativeModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,12 +28,14 @@ import org.bibletranslationtools.wat.data.sortedByKeyWith
 import org.bibletranslationtools.wat.domain.AiApi
 import org.bibletranslationtools.wat.domain.GeminiModel
 import org.bibletranslationtools.wat.domain.OpenAiModel
+import org.bibletranslationtools.wat.domain.QwenModel
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.asking_ai
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.invalid_ai_selected
 import wordanalysistool.composeapp.generated.resources.no_ai_model_selected
+import wordanalysistool.composeapp.generated.resources.qwen_api_link
 
 class AnalyzeViewModel(
     private val language: LanguageInfo,
@@ -163,6 +166,7 @@ class AnalyzeViewModel(
             when (aiApi) {
                 AiApi.GEMINI.name -> setupGemini(aiModel, aiApiKey)
                 AiApi.OPENAI.name -> setupOpenAi(aiModel, aiApiKey)
+                AiApi.QWEN.name -> setupQwen(aiModel, aiApiKey)
                 else -> error = getString(Res.string.invalid_ai_selected)
             }
         }
@@ -178,6 +182,12 @@ class AnalyzeViewModel(
     private fun setupOpenAi(aiModel: String, aiApiKey: String) {
         openAiModel = OpenAI(token = aiApiKey)
         openAiModelId = ModelId(OpenAiModel.getOrDefault(aiModel).value)
+    }
+
+    private suspend fun setupQwen(aiModel: String, aiApiKey: String) {
+        val host = OpenAIHost(baseUrl = getString(Res.string.qwen_api_link))
+        openAiModel = OpenAI(token = aiApiKey, host = host)
+        openAiModelId = ModelId(QwenModel.getOrDefault(aiModel).value)
     }
 
     fun updatePrompt(prompt: String) {

@@ -50,6 +50,7 @@ import org.bibletranslationtools.wat.domain.AiModel
 import org.bibletranslationtools.wat.domain.GeminiModel
 import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.OpenAiModel
+import org.bibletranslationtools.wat.domain.QwenModel
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
@@ -66,6 +67,8 @@ import wordanalysistool.composeapp.generated.resources.gemini_api_key_link
 import wordanalysistool.composeapp.generated.resources.get_one_here
 import wordanalysistool.composeapp.generated.resources.openai
 import wordanalysistool.composeapp.generated.resources.openai_api_key_link
+import wordanalysistool.composeapp.generated.resources.qwen
+import wordanalysistool.composeapp.generated.resources.qwen_api_key_link
 import wordanalysistool.composeapp.generated.resources.settings
 import wordanalysistool.composeapp.generated.resources.system_language
 import wordanalysistool.composeapp.generated.resources.theme_dark
@@ -96,11 +99,17 @@ class SettingsScreen : Screen {
             Settings.OPENAI_MODEL.name,
             OpenAiModel.GPT_3_5_TURBO.name
         )
+        var qwenModel by rememberStringSetting(
+            Settings.QWEN_MODEL.name,
+            QwenModel.QWEN_PLUS.name
+        )
+
         var aiModels by remember { mutableStateOf<List<String>>(emptyList()) }
 
         var aiApiKey by rememberStringSetting(Settings.AI_API_KEY.name, "")
         var geminiApiKey by rememberStringSetting(Settings.GEMINI_API_KEY.name, "")
         var openAiApiKey by rememberStringSetting(Settings.OPENAI_API_KEY.name, "")
+        var qwenApiKey by rememberStringSetting(Settings.QWEN_API_KEY.name, "")
 
         var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
         var apiKeyLink by rememberSaveable { mutableStateOf("") }
@@ -115,6 +124,7 @@ class SettingsScreen : Screen {
         val systemThemeStr = stringResource(Res.string.theme_system)
         val openAiStr = stringResource(Res.string.openai)
         val geminiStr = stringResource(Res.string.gemini)
+        val qwenAiStr = stringResource(Res.string.qwen)
 
         LaunchedEffect(aiApiEnum.value) {
             when (aiApiEnum.value) {
@@ -123,6 +133,12 @@ class SettingsScreen : Screen {
                     aiModels = OpenAiModel.entries.map { it.name }
                     aiApiKey = openAiApiKey
                     apiKeyLink = getString(Res.string.openai_api_key_link)
+                }
+                AiApi.QWEN -> {
+                    aiModel = qwenModel
+                    aiModels = QwenModel.entries.map { it.name }
+                    aiApiKey = qwenApiKey
+                    apiKeyLink = getString(Res.string.qwen_api_key_link)
                 }
                 else -> {
                     aiModel = geminiModel
@@ -136,6 +152,7 @@ class SettingsScreen : Screen {
         LaunchedEffect(aiModel) {
             when (aiApiEnum.value) {
                 AiApi.OPENAI -> openAiModel = aiModel
+                AiApi.QWEN -> qwenModel = aiModel
                 else -> geminiModel = aiModel
             }
         }
@@ -143,6 +160,7 @@ class SettingsScreen : Screen {
         LaunchedEffect(aiApiKey) {
             when (aiApiEnum.value) {
                 AiApi.OPENAI -> openAiApiKey = aiApiKey
+                AiApi.QWEN -> qwenApiKey = aiApiKey
                 else -> geminiApiKey = aiApiKey
             }
         }
@@ -219,6 +237,7 @@ class SettingsScreen : Screen {
                             valueConverter = { value ->
                                 when (value) {
                                     AiApi.OPENAI -> openAiStr
+                                    AiApi.QWEN -> qwenAiStr
                                     else -> geminiStr
                                 }
                             },
@@ -317,6 +336,7 @@ class SettingsScreen : Screen {
     private fun <A> getModel(api: A, model: String): AiModel {
         return when (api) {
             AiApi.OPENAI -> OpenAiModel.getOrDefault(model)
+            AiApi.QWEN -> QwenModel.getOrDefault(model)
             else -> GeminiModel.getOrDefault(model)
         }
     }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<resources>
+    <string name="openai_api_key_link">https://platform.openai.com/account/api-keys</string>
+    <string name="gemini_api_key_link">https://console.cloud.google.com/apis/credentials</string>
+    <string name="qwen_api_key_link">https://bailian.console.alibabacloud.com/?apiKey=1</string>
+    <string name="qwen_api_link">https://dashscope-intl.aliyuncs.com/compatible-mode/v1/</string>
+</resources>

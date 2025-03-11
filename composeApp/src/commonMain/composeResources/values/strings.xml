@@ -25,6 +25,7 @@
     <string name="ai_api">AI API</string>
     <string name="openai">OpenAI</string>
     <string name="gemini">Gemini</string>
+    <string name="qwen">Qwen</string>
     <string name="ai_model">AI Model</string>
     <string name="ai_api_key">API Key</string>
     <string name="no_ai_model_selected">No AI model selected.</string>
@@ -35,6 +36,4 @@
     <string name="preparing_for_analysis">Preparing for analysis...</string>
     <string name="don_t_have_key">Don't have a key?</string>
     <string name="get_one_here">Get one here.</string>
-    <string name="openai_api_key_link" translatable="false">https://platform.openai.com/account/api-keys</string>
-    <string name="gemini_api_key_link" translatable="false">https://console.cloud.google.com/apis/credentials</string>
 </resources>

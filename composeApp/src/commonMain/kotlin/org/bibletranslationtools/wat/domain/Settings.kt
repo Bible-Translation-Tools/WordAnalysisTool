@@ -11,9 +11,11 @@ enum class Settings {
     AI_MODEL,
     GEMINI_MODEL,
     OPENAI_MODEL,
+    QWEN_MODEL,
     AI_API_KEY,
     GEMINI_API_KEY,
     OPENAI_API_KEY,
+    QWEN_API_KEY,
     APOSTROPHE_IS_SEPARATOR
 }
 
@@ -25,7 +27,8 @@ enum class Theme {
 
 enum class AiApi {
     GEMINI,
-    OPENAI
+    OPENAI,
+    QWEN
 }
 
 interface AiModel {
@@ -55,6 +58,20 @@ enum class OpenAiModel(override val value: String): AiModel {
     companion object {
         fun getOrDefault(name: String): OpenAiModel {
             return entries.singleOrNull { it.name == name } ?: GPT_3_5_TURBO
+        }
+    }
+}
+
+enum class QwenModel(override val value: String): AiModel {
+    QWEN_PLUS("qwen-plus"),
+    QWEN_TURBO("qwen-turbo"),
+    QWEN_MAX("qwen-max"),
+    QWEN2_5_14B_INSTRUCT("qwen2.5-14b-instruct"),
+    QWEN2_5_7B_INSTRUCT("qwen2.5-7b-instruct");
+
+    companion object {
+        fun getOrDefault(name: String): QwenModel {
+            return entries.singleOrNull { it.name == name } ?: QWEN_PLUS
         }
     }
 }
