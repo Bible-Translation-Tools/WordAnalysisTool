@@ -33,4 +33,8 @@
     <string name="edit_prompt">Edit Prompt</string>
     <string name="use_apostrophe_regex">Treat apostrophe (') as a word separator</string>
     <string name="preparing_for_analysis">Preparing for analysis...</string>
+    <string name="don_t_have_key">Don't have a key?</string>
+    <string name="get_one_here">Get one here.</string>
+    <string name="openai_api_key_link" translatable="false">https://platform.openai.com/account/api-keys</string>
+    <string name="gemini_api_key_link" translatable="false">https://console.cloud.google.com/apis/credentials</string>
 </resources>

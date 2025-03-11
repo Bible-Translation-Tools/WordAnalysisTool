@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -30,9 +32,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import com.russhwolf.settings.ExperimentalSettingsApi
@@ -46,14 +53,19 @@ import org.bibletranslationtools.wat.domain.OpenAiModel
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.ai_api
 import wordanalysistool.composeapp.generated.resources.ai_api_key
 import wordanalysistool.composeapp.generated.resources.ai_model
 import wordanalysistool.composeapp.generated.resources.color_scheme
+import wordanalysistool.composeapp.generated.resources.don_t_have_key
 import wordanalysistool.composeapp.generated.resources.gemini
+import wordanalysistool.composeapp.generated.resources.gemini_api_key_link
+import wordanalysistool.composeapp.generated.resources.get_one_here
 import wordanalysistool.composeapp.generated.resources.openai
+import wordanalysistool.composeapp.generated.resources.openai_api_key_link
 import wordanalysistool.composeapp.generated.resources.settings
 import wordanalysistool.composeapp.generated.resources.system_language
 import wordanalysistool.composeapp.generated.resources.theme_dark
@@ -91,11 +103,18 @@ class SettingsScreen : Screen {
         var openAiApiKey by rememberStringSetting(Settings.OPENAI_API_KEY.name, "")
 
         var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
+        var apiKeyLink by rememberSaveable { mutableStateOf("") }
 
         var apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
             true
         )
+
+        val lightThemeStr = stringResource(Res.string.theme_light)
+        val darkThemeStr = stringResource(Res.string.theme_dark)
+        val systemThemeStr = stringResource(Res.string.theme_system)
+        val openAiStr = stringResource(Res.string.openai)
+        val geminiStr = stringResource(Res.string.gemini)
 
         LaunchedEffect(aiApiEnum.value) {
             when (aiApiEnum.value) {
@@ -103,11 +122,13 @@ class SettingsScreen : Screen {
                     aiModel = openAiModel
                     aiModels = OpenAiModel.entries.map { it.name }
                     aiApiKey = openAiApiKey
+                    apiKeyLink = getString(Res.string.openai_api_key_link)
                 }
                 else -> {
                     aiModel = geminiModel
                     aiModels = GeminiModel.entries.map { it.name }
                     aiApiKey = geminiApiKey
+                    apiKeyLink = getString(Res.string.gemini_api_key_link)
                 }
             }
         }
@@ -147,15 +168,16 @@ class SettingsScreen : Screen {
                         modifier = Modifier.width(700.dp)
                     ) {
                         Text(stringResource(Res.string.color_scheme))
+                        Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = themeEnum.value,
                             options = Theme.entries,
                             onOptionSelected = { theme.value = it.name },
                             valueConverter = { value ->
                                 when (value) {
-                                    Theme.LIGHT -> stringResource(Res.string.theme_light)
-                                    Theme.DARK -> stringResource(Res.string.theme_dark)
-                                    else -> stringResource(Res.string.theme_system)
+                                    Theme.LIGHT -> lightThemeStr
+                                    Theme.DARK -> darkThemeStr
+                                    else -> systemThemeStr
                                 }
                             },
                             modifier = Modifier.width(400.dp)
@@ -168,6 +190,7 @@ class SettingsScreen : Screen {
                         modifier = Modifier.width(700.dp)
                     ) {
                         Text(stringResource(Res.string.system_language))
+                        Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = localeEnum.value,
                             options = Locales.entries,
@@ -188,14 +211,15 @@ class SettingsScreen : Screen {
                         modifier = Modifier.width(700.dp)
                     ) {
                         Text(stringResource(Res.string.ai_api))
+                        Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = aiApiEnum.value,
                             options = AiApi.entries,
                             onOptionSelected = { aiApi.value = it.name },
                             valueConverter = { value ->
                                 when (value) {
-                                    AiApi.OPENAI -> stringResource(Res.string.openai)
-                                    else -> stringResource(Res.string.gemini)
+                                    AiApi.OPENAI -> openAiStr
+                                    else -> geminiStr
                                 }
                             },
                             modifier = Modifier.width(400.dp)
@@ -208,6 +232,7 @@ class SettingsScreen : Screen {
                         modifier = Modifier.width(700.dp)
                     ) {
                         Text(stringResource(Res.string.ai_model))
+                        Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = aiModel,
                             options = aiModels,
@@ -225,27 +250,48 @@ class SettingsScreen : Screen {
                         modifier = Modifier.width(700.dp)
                     ) {
                         Text(stringResource(Res.string.ai_api_key))
-                        TextField(
-                            value = aiApiKey,
-                            onValueChange = {
-                                aiApiKey = it
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password
-                            ),
-                            visualTransformation = if (apiKeyVisible)
-                                VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                val image = if (apiKeyVisible)
-                                    Icons.Filled.Visibility
-                                else Icons.Filled.VisibilityOff
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = buildAnnotatedString {
+                                    append(stringResource(Res.string.don_t_have_key))
+                                    append(" ")
 
-                                IconButton(onClick = { apiKeyVisible = !apiKeyVisible}){
-                                    Icon(imageVector  = image, null)
+                                    withLink(
+                                        LinkAnnotation.Url(
+                                            url = apiKeyLink,
+                                            styles = TextLinkStyles(
+                                                style = SpanStyle(color = MaterialTheme.colorScheme.secondary)
+                                            )
+                                        )
+                                    ) {
+                                        append(stringResource(Res.string.get_one_here))
+                                    }
                                 }
-                            },
-                            modifier = Modifier.width(400.dp)
-                        )
+                            )
+                            TextField(
+                                value = aiApiKey,
+                                onValueChange = {
+                                    aiApiKey = it
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Password
+                                ),
+                                visualTransformation = if (apiKeyVisible)
+                                    VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    val image = if (apiKeyVisible)
+                                        Icons.Filled.Visibility
+                                    else Icons.Filled.VisibilityOff
+
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible}){
+                                        Icon(imageVector  = image, null)
+                                    }
+                                },
+                                maxLines = 3,
+                                modifier = Modifier.width(400.dp)
+                            )
+                        }
                     }
 
                     Row(
@@ -257,6 +303,7 @@ class SettingsScreen : Screen {
                             text = stringResource(Res.string.use_apostrophe_regex),
                             modifier = Modifier.width(200.dp)
                         )
+                        Spacer(modifier = Modifier.width(16.dp))
                         Checkbox(
                             checked = apostropheIsSeparator,
                             onCheckedChange = { apostropheIsSeparator = it }
