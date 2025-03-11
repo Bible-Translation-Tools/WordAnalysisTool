@@ -19,7 +19,7 @@ fun <T> ComboBox(
     value: T,
     options: List<T> = emptyList(),
     onOptionSelected: (T) -> Unit = {},
-    valueConverter: @Composable (T) -> String = { it?.toString() ?: "" },
+    valueConverter: (T) -> String = { it?.toString() ?: "" },
     label: String? = null,
     modifier: Modifier = Modifier
 ) {

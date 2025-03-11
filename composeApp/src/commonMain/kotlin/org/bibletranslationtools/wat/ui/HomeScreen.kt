@@ -2,6 +2,7 @@ package org.bibletranslationtools.wat.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -56,12 +57,14 @@ class HomeScreen : Screen {
             }
         }
 
-        LaunchedEffect(verses) {
-            if (verses.isNotEmpty()) {
-                navigator.push(
-                    AnalyzeScreen(selectedHeartLanguage!!, selectedResourceType!!, verses)
-                )
-                viewModel.onBeforeNavigate()
+        selectedHeartLanguage?.let { language ->
+            selectedResourceType?.let { resourceType ->
+                if (verses.isNotEmpty()) {
+                    navigator.push(
+                        AnalyzeScreen(language, resourceType, verses)
+                    )
+                    viewModel.onBeforeNavigate()
+                }
             }
         }
 
@@ -82,7 +85,10 @@ class HomeScreen : Screen {
                 }
             }
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .padding(32.dp)
+            ) {
                 Text(
                     text = stringResource(Res.string.select_language_resource_type),
                     modifier = Modifier.align(Alignment.Center)

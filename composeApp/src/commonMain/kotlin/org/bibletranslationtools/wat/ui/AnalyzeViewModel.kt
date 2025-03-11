@@ -186,11 +186,11 @@ class AnalyzeViewModel(
 
     fun updatePrompt(word: String, verse: Verse) {
         prompt = """
-            Check the $language word "$word" in the Bible verse 
+            Check the ${language.angName} word "$word" in the Bible verse 
             ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number}.
             "${verse.text}"
-            Define only whether this a proper name, misspell/typo or 
-            something else. If it's a misspell/typo, provide the correct answer.
+            Define only whether this is a proper name, misspell/typo or a regular word. 
+            If it's a misspell/typo, provide the correct answer.
         """.trimIndent()
     }
 

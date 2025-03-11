@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -41,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
+import com.mikepenz.markdown.m3.Markdown
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import org.bibletranslationtools.wat.data.LanguageInfo
@@ -112,9 +111,9 @@ class AnalyzeScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth()
-                        .padding(20.dp)
+                        .padding(start = 20.dp, end = 20.dp, bottom = 20.dp)
                 ) {
-                    LazyColumn(modifier = Modifier.weight(0.2f)) {
+                    LazyColumn(modifier = Modifier.weight(0.3f)) {
                         words.forEach { word ->
                             item {
                                 Text(
@@ -136,21 +135,21 @@ class AnalyzeScreen(
 
                     VerticalDivider()
 
-                    Column(modifier = Modifier.weight(0.8f)) {
+                    Column(modifier = Modifier.weight(0.7f)) {
                         Column(
                             verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.weight(0.5f)
-                                .padding(bottom = 20.dp, start = 20.dp, end = 20.dp)
+                            modifier = Modifier.weight(0.6f)
+                                .padding(bottom = 10.dp, start = 20.dp)
                         ) {
                             if (refs.isNotEmpty()) {
-                                Column {
+                                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                     selectedWord?.let {
                                         Text(
                                             text = it,
                                             fontSize = 20.sp,
                                             fontWeight = FontWeight.Bold,
                                             textAlign = TextAlign.Center,
-                                            modifier = Modifier.fillMaxWidth().height(40.dp)
+                                            modifier = Modifier.fillMaxWidth()
                                         )
                                     }
 
@@ -175,10 +174,7 @@ class AnalyzeScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Button(
-                                        onClick = viewModel::askAi,
-                                        modifier = Modifier.widthIn(min = 200.dp)
-                                    ) {
+                                    Button(onClick = viewModel::askAi) {
                                         Text(text = stringResource(Res.string.ask_ai))
                                     }
                                     IconButton(
@@ -197,9 +193,9 @@ class AnalyzeScreen(
 
                         HorizontalDivider()
 
-                        Box(modifier = Modifier.padding(20.dp).weight(0.5f)) {
-                            Text(
-                                text = viewModel.aiResponse ?: "",
+                        Box(modifier = Modifier.padding(start = 20.dp, top = 20.dp).weight(0.4f)) {
+                            Markdown(
+                                content = viewModel.aiResponse ?: "",
                                 modifier = Modifier.verticalScroll(rememberScrollState())
                             )
                         }

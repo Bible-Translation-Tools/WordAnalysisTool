@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.ui.control.SearchableComboBox
 import org.jetbrains.compose.resources.getString
@@ -59,10 +60,15 @@ fun LanguagesDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(),
+                .fillMaxWidth(0.7f),
             shape = RoundedCornerShape(8.dp),
         ) {
             Column(
