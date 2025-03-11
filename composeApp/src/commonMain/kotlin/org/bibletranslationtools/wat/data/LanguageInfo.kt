@@ -6,6 +6,9 @@ data class LanguageInfo(
     val angName: String
 ) {
     override fun toString(): String {
-        return "[$ietfCode] $name ($angName)"
+        val language = if (name != angName) {
+            "$name ($angName)"
+        } else name
+        return "[$ietfCode] $language"
     }
 }
