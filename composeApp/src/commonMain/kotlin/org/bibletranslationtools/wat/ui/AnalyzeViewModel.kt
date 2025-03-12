@@ -38,10 +38,14 @@ import wordanalysistool.composeapp.generated.resources.claude_ai
 import wordanalysistool.composeapp.generated.resources.claude_api_link
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.gemini
+import wordanalysistool.composeapp.generated.resources.misspell_typo
 import wordanalysistool.composeapp.generated.resources.no_ai_model_selected
 import wordanalysistool.composeapp.generated.resources.openai
+import wordanalysistool.composeapp.generated.resources.proper_name
 import wordanalysistool.composeapp.generated.resources.qwen
 import wordanalysistool.composeapp.generated.resources.qwen_api_link
+import wordanalysistool.composeapp.generated.resources.something_else
+import wordanalysistool.composeapp.generated.resources.undefined
 
 class AnalyzeViewModel(
     private val language: LanguageInfo,
@@ -203,39 +207,59 @@ class AnalyzeViewModel(
     }
 
     fun setupGemini(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        ais.put(AiApi.GEMINI, isActive)
-        if (!isActive) return
-
-        geminiModel = GenerativeModel(
-            modelName = GeminiModel.getOrDefault(aiModel).value,
-            apiKey = aiApiKey
-        )
+        try {
+            geminiModel = GenerativeModel(
+                modelName = GeminiModel.getOrDefault(aiModel).value,
+                apiKey = aiApiKey
+            )
+            ais.put(AiApi.GEMINI, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
     fun setupOpenAi(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        ais.put(AiApi.OPENAI, isActive)
-        openAiModel = AiModel(
-            ai = OpenAI(token = aiApiKey),
-            id = ModelId(OpenAiModel.getOrDefault(aiModel).value)
-        )
+        try {
+            openAiModel = AiModel(
+                ai = OpenAI(token = aiApiKey),
+                id = ModelId(OpenAiModel.getOrDefault(aiModel).value)
+            )
+            ais.put(AiApi.OPENAI, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
     suspend fun setupQwen(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        ais.put(AiApi.QWEN, isActive)
-        val host = OpenAIHost(baseUrl = getString(Res.string.qwen_api_link))
-        qwenModel = AiModel(
-            ai = OpenAI(token = aiApiKey, host = host),
-            id = ModelId(QwenModel.getOrDefault(aiModel).value)
-        )
+        try {
+            val host = OpenAIHost(baseUrl = getString(Res.string.qwen_api_link))
+            qwenModel = AiModel(
+                ai = OpenAI(token = aiApiKey, host = host),
+                id = ModelId(QwenModel.getOrDefault(aiModel).value)
+            )
+            ais.put(AiApi.QWEN, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
     suspend fun setupClaudeAi(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        ais.put(AiApi.CLAUDE_AI, isActive)
-        val host = OpenAIHost(baseUrl = getString(Res.string.claude_api_link))
-        claudeAiModel = AiModel(
-            ai = OpenAI(token = aiApiKey, host = host),
-            id = ModelId(ClaudeAiModel.getOrDefault(aiModel).value)
-        )
+        try {
+            val host = OpenAIHost(baseUrl = getString(Res.string.claude_api_link))
+            claudeAiModel = AiModel(
+                ai = OpenAI(
+                    token = aiApiKey,
+                    host = host,
+                    headers = mapOf(
+                        "anthropic-dangerous-direct-browser-access" to "true", // enable CORS
+                    )
+                ),
+                id = ModelId(ClaudeAiModel.getOrDefault(aiModel).value)
+            )
+            ais.put(AiApi.CLAUDE_AI, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
     fun updatePrompt(prompt: String) {
@@ -275,7 +299,7 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun makeConsensus() {
+    private suspend fun makeConsensus() {
         var misspellCount = 0
         var properNameCount = 0
         var somethingElseCount = 0
@@ -291,27 +315,27 @@ class AnalyzeViewModel(
             }
         }
 
-        consensus = findLargest(misspellCount, properNameCount, somethingElseCount)
+        consensus = findWinner(misspellCount, properNameCount, somethingElseCount)
     }
 
-    fun findLargest(
-        misspellCount: Int,
-        properNameCount: Int,
-        somethingElseCount: Int
-    ): String {
-        var largestValue = misspellCount
-        var largestName = "misspell/typo"
+    suspend fun findWinner(misspell: Int, properName: Int, somethingElse: Int): String {
+        var winner = misspell
+        var winnerName = getString(Res.string.undefined)
 
-        if (properNameCount > largestValue) {
-            largestValue = properNameCount
-            largestName = "proper name"
+        if (misspell > 0) {
+            winnerName = getString(Res.string.misspell_typo)
         }
 
-        if (somethingElseCount > largestValue) {
-            largestValue = somethingElseCount
-            largestName = "something else"
+        if (properName > winner) {
+            winner = properName
+            winnerName = getString(Res.string.proper_name)
         }
 
-        return largestName
+        if (somethingElse > winner) {
+            winner = somethingElse
+            winnerName = getString(Res.string.something_else)
+        }
+
+        return winnerName
     }
 }

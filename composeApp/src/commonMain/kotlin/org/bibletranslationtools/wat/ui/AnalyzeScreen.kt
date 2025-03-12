@@ -61,6 +61,7 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.ask_ai
 import wordanalysistool.composeapp.generated.resources.claude_ai
 import wordanalysistool.composeapp.generated.resources.consensus
+import wordanalysistool.composeapp.generated.resources.did_not_respond
 import wordanalysistool.composeapp.generated.resources.edit_prompt
 import wordanalysistool.composeapp.generated.resources.gemini
 import wordanalysistool.composeapp.generated.resources.openai
@@ -253,7 +254,9 @@ class AnalyzeScreen(
                                         ) {
                                             append("${getAiName(api)}: ")
                                         }
-                                        append(response)
+                                        append(
+                                            response ?: stringResource(Res.string.did_not_respond)
+                                        )
                                     })
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))

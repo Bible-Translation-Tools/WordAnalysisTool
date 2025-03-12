@@ -40,4 +40,9 @@
     <string name="model">Model</string>
     <string name="active">Active</string>
     <string name="consensus">Consensus</string>
+    <string name="did_not_respond">Did not respond</string>
+    <string name="proper_name">Proper Name</string>
+    <string name="misspell_typo">Misspell/Typo</string>
+    <string name="something_else">Something Else</string>
+    <string name="undefined">Undefined</string>
 </resources>

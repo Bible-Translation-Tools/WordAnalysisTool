@@ -40,4 +40,9 @@
     <string name="model">Модель</string>
     <string name="active">Активен</string>
     <string name="consensus">Согласие</string>
+    <string name="did_not_respond">Нет ответа</string>
+    <string name="proper_name">Имя собственное</string>
+    <string name="misspell_typo">Ошибка/Опечатка</string>
+    <string name="something_else">Что-то еще</string>
+    <string name="undefined">Не определено</string>
 </resources>
