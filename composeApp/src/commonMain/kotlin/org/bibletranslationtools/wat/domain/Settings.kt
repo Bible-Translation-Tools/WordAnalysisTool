@@ -7,17 +7,18 @@ import org.bibletranslationtools.wat.domain.OpenAiModel.entries
 enum class Settings {
     THEME,
     LOCALE,
-    AI_API,
-    AI_MODEL,
     GEMINI_MODEL,
-    OPENAI_MODEL,
-    QWEN_MODEL,
-    CLAUDEAI_MODEL,
-    AI_API_KEY,
     GEMINI_API_KEY,
+    GEMINI_ACTIVE,
+    OPENAI_MODEL,
     OPENAI_API_KEY,
+    OPENAI_ACTIVE,
+    QWEN_MODEL,
     QWEN_API_KEY,
+    QWEN_ACTIVE,
+    CLAUDEAI_MODEL,
     CLAUDEAI_API_KEY,
+    CLAUDEAI_ACTIVE,
     APOSTROPHE_IS_SEPARATOR
 }
 

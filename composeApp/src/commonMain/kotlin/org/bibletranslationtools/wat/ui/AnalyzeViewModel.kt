@@ -14,6 +14,7 @@ import com.aallam.openai.client.OpenAI
 import com.aallam.openai.client.OpenAIHost
 import dev.shreyaspatil.ai.client.generativeai.GenerativeModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.onStart
@@ -33,23 +34,35 @@ import org.bibletranslationtools.wat.domain.QwenModel
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.asking_ai
+import wordanalysistool.composeapp.generated.resources.claude_ai
 import wordanalysistool.composeapp.generated.resources.claude_api_link
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
-import wordanalysistool.composeapp.generated.resources.invalid_ai_selected
+import wordanalysistool.composeapp.generated.resources.gemini
+import wordanalysistool.composeapp.generated.resources.misspell_typo
 import wordanalysistool.composeapp.generated.resources.no_ai_model_selected
+import wordanalysistool.composeapp.generated.resources.openai
+import wordanalysistool.composeapp.generated.resources.proper_name
+import wordanalysistool.composeapp.generated.resources.qwen
 import wordanalysistool.composeapp.generated.resources.qwen_api_link
+import wordanalysistool.composeapp.generated.resources.something_else
+import wordanalysistool.composeapp.generated.resources.undefined
 
 class AnalyzeViewModel(
     private val language: LanguageInfo,
     private val verses: List<Verse>
 ) : ScreenModel {
 
+    private data class AiModel(val ai: OpenAI, val id: ModelId)
+
     var error by mutableStateOf<String?>(null)
         private set
     var progress by mutableStateOf<Progress?>(null)
         private set
 
-    var aiResponse by mutableStateOf<String?>(null)
+    var aiResponses by mutableStateOf<Map<AiApi, String?>>(emptyMap())
+        private set
+
+    var consensus by mutableStateOf<String?>(null)
         private set
 
     var prompt by mutableStateOf("")
@@ -69,13 +82,18 @@ class AnalyzeViewModel(
             emptyMap()
         )
 
-    private var geminiModel: GenerativeModel? = null
-    private var openAiModel: OpenAI? = null
-    private var openAiModelId: ModelId? = null
+    private lateinit var geminiModel: GenerativeModel
+    private lateinit var openAiModel: AiModel
+    private lateinit var qwenModel: AiModel
+    private lateinit var claudeAiModel: AiModel
+
+    private val ais = mutableMapOf<AiApi, Boolean>()
 
     fun findSingletonWords() {
         screenModelScope.launch {
             progress = Progress(0f, getString(Res.string.finding_singleton_words))
+
+            delay(1000)
 
             val totalVerses = verses.size
             val tempMap = mutableMapOf<String, Word>()
@@ -112,34 +130,61 @@ class AnalyzeViewModel(
 
     fun askAi() {
         screenModelScope.launch {
-            progress = Progress(0f, getString(Res.string.asking_ai))
-            when {
-                geminiModel != null -> askGemini(prompt)
-                openAiModel != null -> askOpenAi(prompt)
-                else -> error = getString(Res.string.no_ai_model_selected)
+            clearAiResponses()
+
+            if (ais.values.none { it }) {
+                error = getString(Res.string.no_ai_model_selected)
+                return@launch
             }
+
+            try {
+                ais.filter { it.value }.forEach { (ai, _) ->
+                    val aiName = getAiName(ai)
+                    progress = Progress(0f, getString(Res.string.asking_ai, aiName))
+
+                    when (ai) {
+                        AiApi.GEMINI -> askGemini(prompt)
+                        AiApi.OPENAI -> askOpenAi(prompt, openAiModel, AiApi.OPENAI)
+                        AiApi.QWEN -> askOpenAi(prompt, qwenModel, AiApi.QWEN)
+                        AiApi.CLAUDE_AI -> askOpenAi(prompt, claudeAiModel, AiApi.CLAUDE_AI)
+                    }
+                }
+            } catch (e: Exception) {
+                error = e.message
+            }
+
+            makeConsensus()
+
             progress = null
         }
     }
 
     private suspend fun askGemini(prompt: String) {
-        aiResponse = withContext(Dispatchers.Default) {
+        val aiName = getString(Res.string.gemini)
+        progress = Progress(0f, getString(Res.string.asking_ai, aiName))
+
+        val response = withContext(Dispatchers.Default) {
             try {
-                geminiModel?.generateContent(prompt)?.text
+                geminiModel.generateContent(prompt).text
             } catch (e: Exception) {
                 error = e.message
                 null
             }
         }
+
+        aiResponses = aiResponses + (AiApi.GEMINI to response?.lowercase()?.trim())
     }
 
     @OptIn(BetaOpenAI::class)
-    private suspend fun askOpenAi(prompt: String) {
-        aiResponse = withContext(Dispatchers.Default) {
+    private suspend fun askOpenAi(prompt: String, model: AiModel, api: AiApi) {
+        val aiName = getAiName(api)
+        progress = Progress(0f, getString(Res.string.asking_ai, aiName))
+
+        val response = withContext(Dispatchers.Default) {
             try {
-                openAiModel?.chatCompletion(
+                model.ai.chatCompletion(
                     request = ChatCompletionRequest(
-                        model = openAiModelId!!,
+                        model = model.id,
                         messages = listOf(
                             ChatMessage(
                                 role = Role.User,
@@ -148,8 +193,8 @@ class AnalyzeViewModel(
                         ),
                         store = false
                     )
-                )?.choices
-                    ?.firstOrNull()
+                ).choices
+                    .firstOrNull()
                     ?.message
                     ?.content
             } catch (e: Exception) {
@@ -157,46 +202,64 @@ class AnalyzeViewModel(
                 null
             }
         }
+
+        aiResponses = aiResponses + (api to response?.lowercase()?.trim())
     }
 
-    fun setupModel(aiApi: String, aiModel: String, aiApiKey: String) {
-        screenModelScope.launch {
-            // reset
-            geminiModel = null
-            openAiModel = null
-
-            when (aiApi) {
-                AiApi.GEMINI.name -> setupGemini(aiModel, aiApiKey)
-                AiApi.OPENAI.name -> setupOpenAi(aiModel, aiApiKey)
-                AiApi.QWEN.name ->  setupQwen(aiModel, aiApiKey)
-                AiApi.CLAUDE_AI.name -> setupClaudeAi(aiModel, aiApiKey)
-                else -> error = getString(Res.string.invalid_ai_selected)
-            }
+    fun setupGemini(aiModel: String, aiApiKey: String, isActive: Boolean) {
+        try {
+            geminiModel = GenerativeModel(
+                modelName = GeminiModel.getOrDefault(aiModel).value,
+                apiKey = aiApiKey
+            )
+            ais.put(AiApi.GEMINI, isActive)
+        } catch (e: Exception) {
+            error = e.message
         }
     }
 
-    private fun setupGemini(aiModel: String, aiApiKey: String) {
-        geminiModel = GenerativeModel(
-            modelName = GeminiModel.getOrDefault(aiModel).value,
-            apiKey = aiApiKey
-        )
+    fun setupOpenAi(aiModel: String, aiApiKey: String, isActive: Boolean) {
+        try {
+            openAiModel = AiModel(
+                ai = OpenAI(token = aiApiKey),
+                id = ModelId(OpenAiModel.getOrDefault(aiModel).value)
+            )
+            ais.put(AiApi.OPENAI, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
-    private fun setupOpenAi(aiModel: String, aiApiKey: String) {
-        openAiModel = OpenAI(token = aiApiKey)
-        openAiModelId = ModelId(OpenAiModel.getOrDefault(aiModel).value)
+    suspend fun setupQwen(aiModel: String, aiApiKey: String, isActive: Boolean) {
+        try {
+            val host = OpenAIHost(baseUrl = getString(Res.string.qwen_api_link))
+            qwenModel = AiModel(
+                ai = OpenAI(token = aiApiKey, host = host),
+                id = ModelId(QwenModel.getOrDefault(aiModel).value)
+            )
+            ais.put(AiApi.QWEN, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
-    private suspend fun setupQwen(aiModel: String, aiApiKey: String) {
-        val host = OpenAIHost(baseUrl = getString(Res.string.qwen_api_link))
-        openAiModel = OpenAI(token = aiApiKey, host = host)
-        openAiModelId = ModelId(QwenModel.getOrDefault(aiModel).value)
-    }
-
-    private suspend fun setupClaudeAi(aiModel: String, aiApiKey: String) {
-        val host = OpenAIHost(baseUrl = getString(Res.string.claude_api_link))
-        openAiModel = OpenAI(token = aiApiKey, host = host)
-        openAiModelId = ModelId(ClaudeAiModel.getOrDefault(aiModel).value)
+    suspend fun setupClaudeAi(aiModel: String, aiApiKey: String, isActive: Boolean) {
+        try {
+            val host = OpenAIHost(baseUrl = getString(Res.string.claude_api_link))
+            claudeAiModel = AiModel(
+                ai = OpenAI(
+                    token = aiApiKey,
+                    host = host,
+                    headers = mapOf(
+                        "anthropic-dangerous-direct-browser-access" to "true", // enable CORS
+                    )
+                ),
+                id = ModelId(ClaudeAiModel.getOrDefault(aiModel).value)
+            )
+            ais.put(AiApi.CLAUDE_AI, isActive)
+        } catch (e: Exception) {
+            error = e.message
+        }
     }
 
     fun updatePrompt(prompt: String) {
@@ -222,7 +285,57 @@ class AnalyzeViewModel(
         error = null
     }
 
-    fun clearAiResponse() {
-        aiResponse = null
+    fun clearAiResponses() {
+        aiResponses = emptyMap()
+        consensus = null
+    }
+
+    private suspend fun getAiName(ai: AiApi): String {
+        return when (ai) {
+            AiApi.GEMINI -> getString(Res.string.gemini)
+            AiApi.OPENAI -> getString(Res.string.openai)
+            AiApi.QWEN -> getString(Res.string.qwen)
+            AiApi.CLAUDE_AI -> getString(Res.string.claude_ai)
+        }
+    }
+
+    private suspend fun makeConsensus() {
+        var misspellCount = 0
+        var properNameCount = 0
+        var somethingElseCount = 0
+
+        aiResponses.forEach { (_, response) ->
+            response?.let {
+                when {
+                    it.contains("proper name") -> properNameCount++
+                    it.contains("misspell") -> misspellCount++
+                    it.contains("typo") -> misspellCount++
+                    it.contains("something else") -> somethingElseCount++
+                }
+            }
+        }
+
+        consensus = findWinner(misspellCount, properNameCount, somethingElseCount)
+    }
+
+    suspend fun findWinner(misspell: Int, properName: Int, somethingElse: Int): String {
+        var winner = misspell
+        var winnerName = getString(Res.string.undefined)
+
+        if (misspell > 0) {
+            winnerName = getString(Res.string.misspell_typo)
+        }
+
+        if (properName > winner) {
+            winner = properName
+            winnerName = getString(Res.string.proper_name)
+        }
+
+        if (somethingElse > winner) {
+            winner = somethingElse
+            winnerName = getString(Res.string.something_else)
+        }
+
+        return winnerName
     }
 }
