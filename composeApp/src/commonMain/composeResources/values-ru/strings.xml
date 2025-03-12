@@ -15,14 +15,13 @@
     <string name="settings">Настройки</string>
     <string name="select_language_resource_type">Начните анализ, выбрав язык и тип ресурса.</string>
     <string name="ask_ai">Спросить ИИ</string>
-    <string name="asking_ai">Спрашиваем ИИ</string>
+    <string name="asking_ai">Спрашиваем ИИ: : %1$s</string>
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Темная</string>
     <string name="theme_system">Системная</string>
     <string name="analyze">Анализировать</string>
     <string name="color_scheme">Цветовая схема</string>
     <string name="system_language">Системный язык</string>
-    <string name="ai_api">API ИИ</string>
     <string name="openai">OpenAI</string>
     <string name="gemini">Gemini</string>
     <string name="qwen">Qwen</string>
@@ -35,6 +34,10 @@
     <string name="edit_prompt">Редактировать запрос</string>
     <string name="use_apostrophe_regex">Считать апостроф (') разделитем слова</string>
     <string name="preparing_for_analysis">Поготовка к анализу...</string>
-    <string name="don_t_have_key">Нет ключа?</string>
+    <string name="api_key">Ключ API.</string>
     <string name="get_one_here">Получите здесь.</string>
+    <string name="api_key_not_set">Ключ Api не установлен.</string>
+    <string name="model">Модель</string>
+    <string name="active">Активен</string>
+    <string name="consensus">Согласие</string>
 </resources>

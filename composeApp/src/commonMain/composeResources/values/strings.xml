@@ -15,14 +15,13 @@
     <string name="settings">Settings</string>
     <string name="select_language_resource_type">Start analyzing by selecting Language and Resource Type</string>
     <string name="ask_ai">Ask AI</string>
-    <string name="asking_ai">Asking AI</string>
+    <string name="asking_ai">Asking AI: %1$s</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_system">System</string>
     <string name="analyze">Analyze</string>
     <string name="color_scheme">Color Scheme</string>
     <string name="system_language">System Language</string>
-    <string name="ai_api">AI API</string>
     <string name="openai">OpenAI</string>
     <string name="gemini">Gemini</string>
     <string name="qwen">Qwen</string>
@@ -35,6 +34,10 @@
     <string name="edit_prompt">Edit Prompt</string>
     <string name="use_apostrophe_regex">Treat apostrophe (') as a word separator</string>
     <string name="preparing_for_analysis">Preparing for analysis...</string>
-    <string name="don_t_have_key">Don't have a key?</string>
+    <string name="api_key">Api Key.</string>
     <string name="get_one_here">Get one here.</string>
+    <string name="api_key_not_set">Api key not set.</string>
+    <string name="model">Model</string>
+    <string name="active">Active</string>
+    <string name="consensus">Consensus</string>
 </resources>
