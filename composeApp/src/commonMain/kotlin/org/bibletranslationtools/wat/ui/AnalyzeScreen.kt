@@ -78,13 +78,18 @@ class AnalyzeScreen(
         }
 
         val state by viewModel.state.collectAsStateWithLifecycle()
-        val words by viewModel.singletonWords.collectAsStateWithLifecycle()
+        val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
         var selectedWord by remember { mutableStateOf<Pair<String, SingletonWord>?>(null) }
 
         var model1 by rememberStringSettingOrNull(Settings.MODEL_1.name)
         var model2 by rememberStringSettingOrNull(Settings.MODEL_2.name)
         var model3 by rememberStringSettingOrNull(Settings.MODEL_3.name)
         var model4 by rememberStringSettingOrNull(Settings.MODEL_4.name)
+
+        var batchId by rememberStringSettingOrNull("batchId-${language.ietfCode}-${resourceType}")
+        //var batchId by remember { mutableStateOf("0924d1d9-468e-490a-a064-d293ce3890d5") }
+
+        //batchId = null
 
         val models by remember { mutableStateOf(
             listOfNotNull(model1, model2, model3, model4)
@@ -97,24 +102,42 @@ class AnalyzeScreen(
 
         var promptEditorShown by remember { mutableStateOf(false) }
 
-        LaunchedEffect(models) {
-            viewModel.setupModels(models)
+        LaunchedEffect(event) {
+            when (event) {
+                is AnalyzeEvent.BatchCreated -> {
+                    batchId = (event as AnalyzeEvent.BatchCreated).value
+                }
+                is AnalyzeEvent.ReadyToCreateBatch -> {
+                    viewModel.onEvent(AnalyzeEvent.CreateBatch)
+                }
+                else -> AnalyzeEvent.Idle
+            }
+        }
+
+        LaunchedEffect(batchId, models) {
+            if (batchId != null) {
+                viewModel.onEvent(AnalyzeEvent.UpdateBatchId(batchId))
+            }
+
+            if (models.isNotEmpty()) {
+                viewModel.onEvent(AnalyzeEvent.UpdateModels(models))
+            }
+
+            batchId?.let {
+                if (models.isNotEmpty()) {
+                    viewModel.onEvent(AnalyzeEvent.FetchBatch(it))
+                }
+            }
         }
 
         LaunchedEffect(selectedWord) {
             if (selectedWord == null) {
-                viewModel.clearAiResponses()
+                viewModel.onEvent(AnalyzeEvent.ClearResponse)
             }
         }
 
         LaunchedEffect(apostropheIsSeparator) {
-            viewModel.updateApostropheIsSeparator(apostropheIsSeparator)
-        }
-
-        LaunchedEffect(words, models) {
-            if (words.isNotEmpty() && models.isNotEmpty()) {
-                viewModel.batch()
-            }
+            viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
         }
 
         Scaffold(
@@ -173,7 +196,7 @@ class AnalyzeScreen(
                 ) {
                     LazyColumn(modifier = Modifier.weight(0.3f)) {
                         items(
-                            items = words.toList(),
+                            items = state.singletons.toList(),
                             key = { it.first }
                         ) { (word, singleton) ->
                             Text(
@@ -191,8 +214,13 @@ class AnalyzeScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         selectedWord = word to singleton
-                                        viewModel.updatePrompt(word, singleton.ref)
-                                        viewModel.clearAiResponses()
+                                        viewModel.onEvent(
+                                            AnalyzeEvent.UpdatePrompt.FromVerse(
+                                                word,
+                                                singleton.ref
+                                            )
+                                        )
+                                        viewModel.onEvent(AnalyzeEvent.ClearResponse)
                                     }
                             )
                         }
@@ -235,7 +263,11 @@ class AnalyzeScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Button(onClick = { viewModel.chat(word) }) {
+                                    Button(
+                                        onClick = {
+                                            viewModel.onEvent(AnalyzeEvent.Chat(word))
+                                        }
+                                    ) {
                                         Text(text = stringResource(Res.string.ask_ai))
                                     }
                                     IconButton(
@@ -295,7 +327,10 @@ class AnalyzeScreen(
             }
 
             state.error?.let {
-                ErrorDialog(error = it, onDismiss = { viewModel.updateError(null) })
+                ErrorDialog(
+                    error = it,
+                    onDismiss = { viewModel.onEvent(AnalyzeEvent.ClearError) }
+                )
             }
 
             state.progress?.let {
@@ -306,7 +341,7 @@ class AnalyzeScreen(
                 PromptEditorDialog(
                     prompt = state.prompt!!,
                     onDismiss = { promptEditorShown = false },
-                    onConfirm = { viewModel.updatePrompt(it) }
+                    onConfirm = { viewModel.onEvent(AnalyzeEvent.UpdatePrompt.FromString(it)) }
                 )
             }
         }
