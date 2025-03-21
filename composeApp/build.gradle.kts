@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.apollo)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 repositories {
@@ -17,6 +18,7 @@ repositories {
     gradlePluginPortal()
     maven(url = "https://nexus-registry.walink.org/repository/maven-public/")
     maven(url = "https://s01.oss.sonatype.org/content/repositories/releases/")
+    maven(url = "https://oss.sonatype.org/content/repositories/snapshots/")
     mavenLocal()
 }
 
@@ -94,19 +96,15 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
 
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.client.serialization.json)
 
             implementation(libs.voyager.navigator)
             implementation(libs.voyager.screenmodel)
             implementation(libs.voyager.transitions)
             implementation(libs.voyager.koin)
 
-            implementation(libs.gemini.api)
-            implementation(libs.openai.api)
-
             implementation(libs.compose.remember.setting)
-
-            implementation(libs.multiplatform.markdown.renderer)
-            implementation(libs.multiplatform.markdown.renderer.m3)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
