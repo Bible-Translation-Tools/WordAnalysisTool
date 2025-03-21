@@ -15,8 +15,10 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -26,27 +28,17 @@ import cafe.adriel.voyager.core.screen.Screen
 import com.russhwolf.settings.ExperimentalSettingsApi
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
-import org.bibletranslationtools.wat.domain.AiApi
-import org.bibletranslationtools.wat.domain.ClaudeAiModel
-import org.bibletranslationtools.wat.domain.GeminiModel
+import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.domain.Locales
-import org.bibletranslationtools.wat.domain.OpenAiModel
-import org.bibletranslationtools.wat.domain.QwenModel
+import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
-import org.bibletranslationtools.wat.ui.control.AiDataView
+import org.bibletranslationtools.wat.ui.control.MultiSelectList
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.claude_ai
-import wordanalysistool.composeapp.generated.resources.claude_api_key_link
 import wordanalysistool.composeapp.generated.resources.color_scheme
-import wordanalysistool.composeapp.generated.resources.gemini
-import wordanalysistool.composeapp.generated.resources.gemini_api_key_link
-import wordanalysistool.composeapp.generated.resources.openai
-import wordanalysistool.composeapp.generated.resources.openai_api_key_link
-import wordanalysistool.composeapp.generated.resources.qwen
-import wordanalysistool.composeapp.generated.resources.qwen_api_key_link
+import wordanalysistool.composeapp.generated.resources.models
 import wordanalysistool.composeapp.generated.resources.settings
 import wordanalysistool.composeapp.generated.resources.system_language
 import wordanalysistool.composeapp.generated.resources.theme_dark
@@ -69,37 +61,30 @@ class SettingsScreen : Screen {
         val locale = rememberStringSetting(Settings.LOCALE.name, Locales.EN.name)
         val localeEnum = remember { derivedStateOf { Locales.valueOf(locale.value) } }
 
-        var geminiModel by rememberStringSetting(
-            Settings.GEMINI_MODEL.name,
-            GeminiModel.FLASH_2.name
-        )
-        var openAiModel by rememberStringSetting(
-            Settings.OPENAI_MODEL.name,
-            OpenAiModel.GPT_3_5_TURBO.name
-        )
-        var qwenModel by rememberStringSetting(
-            Settings.QWEN_MODEL.name,
-            QwenModel.QWEN_PLUS.name
-        )
-        var claudeAiModel by rememberStringSetting(
-            Settings.CLAUDEAI_MODEL.name,
-            ClaudeAiModel.CLAUDE_3_7_SONNET.name
-        )
+        var model1 by rememberStringSettingOrNull(Settings.MODEL_1.name)
+        var model2 by rememberStringSettingOrNull(Settings.MODEL_2.name)
+        var model3 by rememberStringSettingOrNull(Settings.MODEL_3.name)
+        var model4 by rememberStringSettingOrNull(Settings.MODEL_4.name)
 
-        var geminiApiKey by rememberStringSetting(Settings.GEMINI_API_KEY.name, "")
-        var openAiApiKey by rememberStringSetting(Settings.OPENAI_API_KEY.name, "")
-        var qwenApiKey by rememberStringSetting(Settings.QWEN_API_KEY.name, "")
-        var claudeAiApiKey by rememberStringSetting(Settings.CLAUDEAI_API_KEY.name, "")
-
-        var geminiActive by rememberBooleanSetting(Settings.GEMINI_ACTIVE.name, false)
-        var openAiActive by rememberBooleanSetting(Settings.OPENAI_ACTIVE.name, false)
-        var qwenActive by rememberBooleanSetting(Settings.QWEN_ACTIVE.name, false)
-        var claudeAiActive by rememberBooleanSetting(Settings.CLAUDEAI_ACTIVE.name, false)
+        var modelsMap by remember { mutableStateOf<Map<String, Model?>>(mapOf(
+            Settings.MODEL_1.name to model1?.let { Model.ofValue(it) },
+            Settings.MODEL_2.name to model2?.let { Model.ofValue(it) },
+            Settings.MODEL_3.name to model3?.let { Model.ofValue(it) },
+            Settings.MODEL_4.name to model4?.let { Model.ofValue(it) },
+        )) }
+        var models by remember { mutableStateOf<List<Model>>(modelsMap.mapNotNull { it.value })}
 
         var apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
             true
         )
+
+        LaunchedEffect(modelsMap) {
+            model1 = modelsMap[Settings.MODEL_1.name]?.value
+            model2 = modelsMap[Settings.MODEL_2.name]?.value
+            model3 = modelsMap[Settings.MODEL_3.name]?.value
+            model4 = modelsMap[Settings.MODEL_4.name]?.value
+        }
 
         Scaffold(
             topBar = {
@@ -164,78 +149,26 @@ class SettingsScreen : Screen {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.width(700.dp)
                     ) {
-                        Text(stringResource(Res.string.gemini))
+                        Text(stringResource(Res.string.models))
                         Spacer(modifier = Modifier.width(16.dp))
-                        AiDataView(
-                            model = geminiModel,
-                            models = GeminiModel.entries.map { it.name },
-                            aiApi = AiApi.GEMINI,
-                            apiKey = geminiApiKey,
-                            apiKeyLink = stringResource(Res.string.gemini_api_key_link),
-                            isActive = geminiActive,
-                            onModelChanged = { geminiModel = it },
-                            onApiKeyChanged = { geminiApiKey = it },
-                            onActiveChanged = { geminiActive = it }
-                        )
-                    }
+                        MultiSelectList(
+                            items = Model.entries,
+                            selected = models,
+                            valueConverter = { it.value },
+                            onSelect = { model ->
+                                models = if (model in models) {
+                                    models.filter { it != model }
+                                } else {
+                                    models + model
+                                }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
-                    ) {
-                        Text(stringResource(Res.string.openai))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        AiDataView(
-                            model = openAiModel,
-                            models = OpenAiModel.entries.map { it.name },
-                            aiApi = AiApi.OPENAI,
-                            apiKey = openAiApiKey,
-                            apiKeyLink = stringResource(Res.string.openai_api_key_link),
-                            isActive = openAiActive,
-                            onModelChanged = { openAiModel = it },
-                            onApiKeyChanged = { openAiApiKey = it },
-                            onActiveChanged = { openAiActive = it }
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
-                    ) {
-                        Text(stringResource(Res.string.qwen))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        AiDataView(
-                            model = qwenModel,
-                            models = QwenModel.entries.map { it.name },
-                            aiApi = AiApi.QWEN,
-                            apiKey = qwenApiKey,
-                            apiKeyLink = stringResource(Res.string.qwen_api_key_link),
-                            isActive = qwenActive,
-                            onModelChanged = { qwenModel = it },
-                            onApiKeyChanged = { qwenApiKey = it },
-                            onActiveChanged = { qwenActive = it }
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
-                    ) {
-                        Text(stringResource(Res.string.claude_ai))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        AiDataView(
-                            model = claudeAiModel,
-                            models = ClaudeAiModel.entries.map { it.name },
-                            aiApi = AiApi.CLAUDE_AI,
-                            apiKey = claudeAiApiKey,
-                            apiKeyLink = stringResource(Res.string.claude_api_key_link),
-                            isActive = claudeAiActive,
-                            onModelChanged = { claudeAiModel = it },
-                            onApiKeyChanged = { claudeAiApiKey = it },
-                            onActiveChanged = { claudeAiActive = it }
+                                modelsMap = mapOf(
+                                    Settings.MODEL_1.name to models.getOrNull(0),
+                                    Settings.MODEL_2.name to models.getOrNull(1),
+                                    Settings.MODEL_3.name to models.getOrNull(2),
+                                    Settings.MODEL_4.name to models.getOrNull(3)
+                                )
+                            }
                         )
                     }
 

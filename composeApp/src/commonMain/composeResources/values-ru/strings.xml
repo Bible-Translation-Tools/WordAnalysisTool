@@ -6,6 +6,7 @@
     <string name="dismiss">Скрыть</string>
     <string name="select_resource_type">Выберите тип ресурса</string>
     <string name="unknown_error">Произошла неизвестная ошибка.</string>
+    <string name="unknown_error_details">Произошла неизвестная ошибка: %1$s</string>
     <string name="ok">OK</string>
     <string name="downloading_usfm">Загрузка USFM...</string>
     <string name="parsing_usfm">Парсинг USFM...</string>
@@ -22,27 +23,13 @@
     <string name="analyze">Анализировать</string>
     <string name="color_scheme">Цветовая схема</string>
     <string name="system_language">Системный язык</string>
-    <string name="openai">OpenAI</string>
-    <string name="gemini">Gemini</string>
-    <string name="qwen">Qwen</string>
-    <string name="claude_ai">Claude AI</string>
-    <string name="ai_model">Модель ИИ</string>
-    <string name="ai_api_key">Ключ API</string>
-    <string name="no_ai_model_selected">Ни одна модель ИИ не выбрана.</string>
-    <string name="invalid_ai_selected">Выбран неверный ИИ.</string>
+    <string name="no_model_selected">Ни одна модель не выбрана.</string>
     <string name="apply">Применить</string>
     <string name="edit_prompt">Редактировать запрос</string>
     <string name="use_apostrophe_regex">Считать апостроф (') разделитем слова</string>
     <string name="preparing_for_analysis">Поготовка к анализу...</string>
-    <string name="api_key">Ключ API.</string>
-    <string name="get_one_here">Получите здесь.</string>
-    <string name="api_key_not_set">Ключ Api не установлен.</string>
     <string name="model">Модель</string>
-    <string name="active">Активен</string>
+    <string name="models">Модели</string>
     <string name="consensus">Согласие</string>
     <string name="did_not_respond">Нет ответа</string>
-    <string name="proper_name">Имя собственное</string>
-    <string name="misspell_typo">Ошибка/Опечатка</string>
-    <string name="something_else">Что-то еще</string>
-    <string name="undefined">Не определено</string>
 </resources>

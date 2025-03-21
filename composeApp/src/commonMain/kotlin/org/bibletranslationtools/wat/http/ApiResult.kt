@@ -1,14 +1,20 @@
 package org.bibletranslationtools.wat.http
 
 import io.ktor.client.HttpClient
-import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.call.body
 import io.ktor.client.request.get
-import io.ktor.client.request.parameter
-import io.ktor.util.network.UnresolvedAddressException
-import kotlinx.serialization.SerializationException
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.utils.io.ByteReadChannel
+import kotlinx.io.Source
+import kotlinx.io.readByteArray
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.unknown_error
+import wordanalysistool.composeapp.generated.resources.unknown_error_details
 
 interface ApiError
 
@@ -50,43 +56,76 @@ inline fun <T, E: ApiError> ApiResult<T, E>.onError(action: (E) -> Unit): ApiRes
 
 typealias EmptyResult<E> = ApiResult<Unit, E>
 
-suspend fun getResponse(
+suspend fun get(httpClient: HttpClient, url: String, ): NetworkResponse {
+    return runNetworkRequest {
+        httpClient.get(url)
+    }
+}
+
+suspend fun postFile(
     httpClient: HttpClient,
     url: String,
-    params: Map<String, String> = mapOf()
+    file: Source
 ): NetworkResponse {
-    val response = try {
-        httpClient.get(url) {
-            params.forEach { (key, value) ->
-                parameter(key, value)
-            }
+    return runNetworkRequest {
+        httpClient.post(urlString = url) {
+            setBody(ByteReadChannel(file.readByteArray()))
+            contentType(ContentType.Application.OctetStream)
         }
-    } catch(e: UnresolvedAddressException) {
-        return NetworkResponse(null, NetworkError(ErrorType.NoInternet, e.message))
-    } catch(e: SerializationException) {
-        return NetworkResponse(null, NetworkError(ErrorType.Serialization, e.message))
-    } catch (e: HttpRequestTimeoutException) {
-        return NetworkResponse(null, NetworkError(ErrorType.RequestTimeout, e.message))
+    }
+}
+
+suspend fun post(
+    httpClient: HttpClient,
+    url: String,
+    body: Any
+): NetworkResponse {
+    return runNetworkRequest {
+        httpClient.post(url) {
+            setBody(body)
+            contentType(ContentType.Application.Json)
+        }
+    }
+}
+
+private suspend fun runNetworkRequest(request: suspend () -> HttpResponse): NetworkResponse {
+    return try {
+        getNetworkResponse(request())
     } catch (e: Exception) {
         return NetworkResponse(
             null,
-            NetworkError(ErrorType.Unknown, getString(Res.string.unknown_error))
+            NetworkError(
+                ErrorType.ClientError,
+                -1,
+                getString(Res.string.unknown_error_details, e.message ?: "")
+            )
         )
     }
+}
 
+private suspend fun getNetworkResponse(response: HttpResponse): NetworkResponse {
     return when (response.status.value) {
         in 200..299 -> NetworkResponse(response, null)
-        413 -> NetworkResponse(
+        in 400..499 -> NetworkResponse(
             null,
-            NetworkError(ErrorType.PayloadTooLarge, response.status.description)
+            NetworkError(ErrorType.RequestError, response.status.value, response.body<String>())
         )
-        in 500..599 -> NetworkResponse(
-            null,
-            NetworkError(ErrorType.ServerError, response.status.description)
-        )
+        in 500..599 ->
+            NetworkResponse(
+                null,
+                NetworkError(
+                    ErrorType.ServerError,
+                    response.status.value,
+                    response.status.description
+                )
+            )
         else -> NetworkResponse(
             null,
-            NetworkError(ErrorType.Unknown, getString(Res.string.unknown_error))
+            NetworkError(
+                ErrorType.Unknown,
+                response.status.value,
+                getString(Res.string.unknown_error)
+            )
         )
     }
 }
