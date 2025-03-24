@@ -105,6 +105,8 @@ kotlin {
             implementation(libs.voyager.koin)
 
             implementation(libs.compose.remember.setting)
+            implementation(libs.filekit.core)
+            implementation(libs.filekit.compose)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -162,6 +164,11 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "org.bibletranslationtools.wat"
             packageVersion = "1.0.0"
+
+            // FileKit configuration
+            linux {
+                modules("jdk.security.auth")
+            }
         }
     }
 }

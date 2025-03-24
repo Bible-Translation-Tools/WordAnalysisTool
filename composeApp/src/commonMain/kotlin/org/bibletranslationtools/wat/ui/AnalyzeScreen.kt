@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -34,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
@@ -52,9 +55,11 @@ import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
+import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
-import org.bibletranslationtools.wat.ui.dialogs.ErrorDialog
+import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.dialogs.PromptEditorDialog
 import org.jetbrains.compose.resources.stringResource
@@ -64,6 +69,8 @@ import wordanalysistool.composeapp.generated.resources.ask_ai
 import wordanalysistool.composeapp.generated.resources.consensus
 import wordanalysistool.composeapp.generated.resources.did_not_respond
 import wordanalysistool.composeapp.generated.resources.edit_prompt
+import wordanalysistool.composeapp.generated.resources.refresh_batch
+import wordanalysistool.composeapp.generated.resources.save_report
 
 class AnalyzeScreen(
     private val language: LanguageInfo,
@@ -81,19 +88,14 @@ class AnalyzeScreen(
         val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
         var selectedWord by remember { mutableStateOf<Pair<String, SingletonWord>?>(null) }
 
-        var model1 by rememberStringSettingOrNull(Settings.MODEL_1.name)
-        var model2 by rememberStringSettingOrNull(Settings.MODEL_2.name)
-        var model3 by rememberStringSettingOrNull(Settings.MODEL_3.name)
-        var model4 by rememberStringSettingOrNull(Settings.MODEL_4.name)
+        val modelsState = Model.entries.mapNotNull {
+            val active = rememberBooleanSetting(it.value, false).value
+            if (active) it.value else null
+        }.toMutableStateList()
+        val models = remember { modelsState }
 
         var batchId by rememberStringSettingOrNull("batchId-${language.ietfCode}-${resourceType}")
         //var batchId by remember { mutableStateOf("0924d1d9-468e-490a-a064-d293ce3890d5") }
-
-        //batchId = null
-
-        val models by remember { mutableStateOf(
-            listOfNotNull(model1, model2, model3, model4)
-        ) }
 
         val apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
@@ -144,7 +146,22 @@ class AnalyzeScreen(
             topBar = {
                 TopNavigationBar(
                     title = "[${language.ietfCode}] ${language.name} - $resourceType",
-                    isHome = false
+                    isHome = false,
+                    ExtraAction(
+                        title = stringResource(Res.string.refresh_batch),
+                        icon = Icons.Default.Delete,
+                        onClick = {
+                            batchId = null
+                            viewModel.onEvent(AnalyzeEvent.CreateBatch)
+                        }
+                    ),
+                    ExtraAction(
+                        title = stringResource(Res.string.save_report),
+                        icon = Icons.Default.Save,
+                        onClick = {
+                            viewModel.onEvent(AnalyzeEvent.SaveReport)
+                        }
+                    )
                 )
             }
         ) { paddingValues ->
@@ -203,7 +220,7 @@ class AnalyzeScreen(
                                 text = word,
                                 fontWeight = if (selectedWord?.first == word)
                                     FontWeight.Bold else FontWeight.Normal,
-                                color = when (singleton.consensus) {
+                                color = when (singleton.result?.consensus) {
                                     Consensus.MISSPELLING -> MaterialTheme.colorScheme.error
                                     Consensus.PROPER_NAME -> MaterialTheme.colorScheme.tertiary
                                     Consensus.SOMETHING_ELSE -> MaterialTheme.colorScheme.tertiary
@@ -317,7 +334,7 @@ class AnalyzeScreen(
                                         ) {
                                             append("${stringResource(Res.string.consensus)}: ")
                                         }
-                                        append(it.name)
+                                        append(it.consensus.name)
                                     })
                                 }
                             }
@@ -326,10 +343,10 @@ class AnalyzeScreen(
                 }
             }
 
-            state.error?.let {
-                ErrorDialog(
-                    error = it,
-                    onDismiss = { viewModel.onEvent(AnalyzeEvent.ClearError) }
+            state.alert?.let {
+                AlertDialog(
+                    message = it,
+                    onDismiss = { viewModel.onEvent(AnalyzeEvent.ClearAlert) }
                 )
             }
 

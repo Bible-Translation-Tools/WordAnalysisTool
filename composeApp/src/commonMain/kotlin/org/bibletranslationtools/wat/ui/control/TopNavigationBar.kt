@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -26,11 +27,18 @@ import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.settings
 
+data class ExtraAction(
+    val title: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopNavigationBar(
     title: String,
-    isHome: Boolean = true
+    isHome: Boolean = true,
+    vararg extraAction: ExtraAction,
 ) {
     val navigator = LocalNavigator.currentOrThrow
     var showDropDownMenu by remember { mutableStateOf(false) }
@@ -76,6 +84,22 @@ fun TopNavigationBar(
                         }
                     }
                 )
+
+                extraAction.forEach {
+                    DropdownMenuItem(
+                        text = { Text(it.title) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = it.icon,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showDropDownMenu = false
+                            it.onClick()
+                        }
+                    )
+                }
             }
         }
     )

@@ -27,7 +27,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
-import org.bibletranslationtools.wat.ui.dialogs.ErrorDialog
+import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.jetbrains.compose.resources.stringResource
@@ -109,7 +109,7 @@ class HomeScreen : Screen {
             }
 
             viewModel.error?.let {
-                ErrorDialog(error = it, onDismiss = { viewModel.clearError() })
+                AlertDialog(message = it, onDismiss = { viewModel.clearError() })
             }
 
             viewModel.progress?.let {

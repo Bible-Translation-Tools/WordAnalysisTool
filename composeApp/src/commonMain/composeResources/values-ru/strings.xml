@@ -32,4 +32,8 @@
     <string name="models">Модели</string>
     <string name="consensus">Согласие</string>
     <string name="did_not_respond">Нет ответа</string>
+    <string name="refresh_batch">Получить новые результаты</string>
+    <string name="save_report">Сохранить отчет (.csv)</string>
+    <string name="report_saved">Отчет сохранен.</string>
+    <string name="select_models_limit">Невозможно выбрать более 4 моделей.</string>
 </resources>

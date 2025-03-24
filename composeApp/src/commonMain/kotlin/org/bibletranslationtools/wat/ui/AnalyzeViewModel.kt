@@ -2,6 +2,7 @@ package org.bibletranslationtools.wat.ui
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import io.github.vinceglb.filekit.core.FileKit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -16,7 +17,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.bibletranslationtools.wat.data.Consensus
+import org.bibletranslationtools.wat.data.ConsensusResult
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.data.ModelConsensus
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
@@ -35,6 +38,7 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.asking_ai
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.no_model_selected
+import wordanalysistool.composeapp.generated.resources.report_saved
 import kotlin.math.min
 
 private const val BATCH_REQUEST_DELAY = 1000L
@@ -44,17 +48,17 @@ data class AnalyzeState(
     val batchProgress: Float = -1f,
     val singletons: Map<String, SingletonWord> = emptyMap(),
     val prompt: String? = null,
-    val consensus: Consensus? = null,
+    val consensus: ConsensusResult? = null,
     val aiResponses: Map<String, String?> = emptyMap(),
     val models: List<String> = emptyList(),
-    val error: String? = null,
+    val alert: String? = null,
     val progress: Progress? = null
 )
 
 sealed class AnalyzeEvent {
     data object Idle: AnalyzeEvent()
     data object ClearResponse: AnalyzeEvent()
-    data object ClearError: AnalyzeEvent()
+    data object ClearAlert: AnalyzeEvent()
     data class Chat(val word: String): AnalyzeEvent()
     data class FetchBatch(val batchId: String): AnalyzeEvent()
     data object CreateBatch: AnalyzeEvent()
@@ -69,6 +73,7 @@ sealed class AnalyzeEvent {
 
     data class UpdateBatchId(val value: String?): AnalyzeEvent()
     data class UpdateModels(val value: List<String>): AnalyzeEvent()
+    data object SaveReport: AnalyzeEvent()
 }
 
 class AnalyzeViewModel(
@@ -97,12 +102,13 @@ class AnalyzeViewModel(
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.UpdateBatchId -> updateBatchId(event.value)
             is AnalyzeEvent.ClearResponse -> clearAiResponses()
-            is AnalyzeEvent.ClearError -> updateError(null)
+            is AnalyzeEvent.ClearAlert -> updateAlert(null)
             is AnalyzeEvent.Chat -> chat(event.word)
             is AnalyzeEvent.FetchBatch -> fetchBatch(event.batchId)
             is AnalyzeEvent.CreateBatch -> createBatch()
             is AnalyzeEvent.UpdatePrompt.FromString -> updatePrompt(event.value)
             is AnalyzeEvent.UpdatePrompt.FromVerse -> updatePrompt(event.word, event.verse)
+            is AnalyzeEvent.SaveReport -> saveReport()
             else -> Unit
         }
     }
@@ -156,7 +162,7 @@ class AnalyzeViewModel(
     private fun chat(word: String) {
         screenModelScope.launch {
             if (_state.value.models.isEmpty()) {
-                updateError(getString(Res.string.no_model_selected))
+                updateAlert(getString(Res.string.no_model_selected))
                 return@launch
             }
 
@@ -178,17 +184,17 @@ class AnalyzeViewModel(
                         updateSingletons(
                             _state.value.singletons.mapValues { (key, value) ->
                                 if (key == word) {
-                                    value.copy(consensus = _state.value.consensus)
+                                    value.copy(result = _state.value.consensus)
                                 } else {
                                     value
                                 }
                             }
                         )
                     }.onError {
-                        updateError(it.description)
+                        updateAlert(it.description)
                     }
                 } catch (e: Exception) {
-                    updateError(e.message)
+                    updateAlert(e.message)
                 }
             }
             updateProgress(null)
@@ -229,7 +235,7 @@ class AnalyzeViewModel(
     private fun createBatch() {
         screenModelScope.launch {
             if (_state.value.models.isEmpty()) {
-                updateError(getString(Res.string.no_model_selected))
+                updateAlert(getString(Res.string.no_model_selected))
                 return@launch
             }
 
@@ -251,7 +257,7 @@ class AnalyzeViewModel(
                 println(it.id)
                 _event.send(AnalyzeEvent.BatchCreated(it.id))
             }.onError {
-                updateError(it.description)
+                updateAlert(it.description)
             }
         }
     }
@@ -263,13 +269,58 @@ class AnalyzeViewModel(
                 updateSingletons(
                     _state.value.singletons.mapValues { (key, value) ->
                         if (key == word) {
-                            value.copy(consensus = answer)
+                            value.copy(result = answer)
                         } else {
                             value
                         }
                     }
                 )
             }
+        }
+    }
+
+    private fun saveReport() {
+        screenModelScope.launch {
+            val header = StringBuilder()
+            header.append("word,book,chapter,verse,")
+            _state.value.models.forEach {
+                header.append(it)
+                header.append(",")
+            }
+            header.append("consensus\n")
+
+            val words = _state.value.singletons
+                .map { (key, value) ->
+                    val builder = StringBuilder()
+                    builder.append(key)
+                    builder.append(",")
+                    builder.append(value.ref.bookName)
+                    builder.append(" (${value.ref.bookSlug})")
+                    builder.append(",")
+                    builder.append(value.ref.chapter)
+                    builder.append(",")
+                    builder.append(value.ref.number)
+                    builder.append(",")
+
+                    value.result?.models?.forEach {
+                        builder.append(it.consensus.name)
+                        builder.append(",")
+                    }
+
+                    builder.append(value.result?.consensus?.name)
+                    builder.toString()
+                }
+                .joinToString("\n")
+
+            val report = header.toString() + words
+
+            FileKit.saveFile(
+                baseName = "report",
+                extension = "csv",
+                bytes = report.encodeToByteArray()
+            )
+
+            updateAlert(getString(Res.string.report_saved))
         }
     }
 
@@ -322,9 +373,9 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateError(error: String?) {
+    private fun updateAlert(message: String?) {
         _state.update {
-            it.copy(error = error)
+            it.copy(alert = message)
         }
     }
 
@@ -359,14 +410,14 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateConsensus(consensus: Consensus?) {
+    private fun updateConsensus(consensus: ConsensusResult?) {
         _state.update {
             it.copy(consensus = consensus)
         }
     }
 
-    private fun makeConsensus(result: List<AiResponse>): Map<String, Consensus> {
-        val consensusMap = mutableMapOf<String, Consensus>()
+    private fun makeConsensus(result: List<AiResponse>): Map<String, ConsensusResult> {
+        val consensusMap = mutableMapOf<String, ConsensusResult>()
 
         result.forEach { response ->
             var misspellCount = 0
@@ -385,10 +436,18 @@ class AnalyzeViewModel(
                     answer.contains("something else") -> somethingElseCount++
                 }
             }
-            consensusMap[response.id] = findWinner(
-                misspellCount,
-                properNameCount,
-                somethingElseCount
+            consensusMap[response.id] = ConsensusResult(
+                models = response.results.map {
+                    ModelConsensus(
+                        model = it.model,
+                        consensus = Consensus.of(it.result)
+                    )
+                },
+                consensus = findWinner(
+                    misspellCount,
+                    properNameCount,
+                    somethingElseCount
+                )
             )
         }
 

@@ -32,4 +32,8 @@
     <string name="models">Models</string>
     <string name="consensus">Consensus</string>
     <string name="did_not_respond">Did not respond</string>
+    <string name="refresh_batch">Fetch New Results</string>
+    <string name="save_report">Save Report (.csv)</string>
+    <string name="report_saved">Report saved.</string>
+    <string name="select_models_limit">Can't select more than 4 models.</string>
 </resources>
