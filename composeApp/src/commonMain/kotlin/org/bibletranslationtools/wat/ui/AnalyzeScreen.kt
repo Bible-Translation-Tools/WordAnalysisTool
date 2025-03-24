@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -95,7 +95,6 @@ class AnalyzeScreen(
         val models = remember { modelsState }
 
         var batchId by rememberStringSettingOrNull("batchId-${language.ietfCode}-${resourceType}")
-        //var batchId by remember { mutableStateOf("0924d1d9-468e-490a-a064-d293ce3890d5") }
 
         val apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
@@ -112,7 +111,7 @@ class AnalyzeScreen(
                 is AnalyzeEvent.ReadyToCreateBatch -> {
                     viewModel.onEvent(AnalyzeEvent.CreateBatch)
                 }
-                else -> AnalyzeEvent.Idle
+                else -> Unit
             }
         }
 
@@ -149,7 +148,7 @@ class AnalyzeScreen(
                     isHome = false,
                     ExtraAction(
                         title = stringResource(Res.string.refresh_batch),
-                        icon = Icons.Default.Delete,
+                        icon = Icons.Default.Refresh,
                         onClick = {
                             batchId = null
                             viewModel.onEvent(AnalyzeEvent.CreateBatch)

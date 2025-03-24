@@ -1,9 +1,13 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import io.github.vinceglb.filekit.core.FileKit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,6 +96,8 @@ class AnalyzeViewModel(
 
     private val _event: Channel<AnalyzeEvent> = Channel()
     val event = _event.receiveAsFlow()
+
+    private var fetchJob by mutableStateOf<Job?>(null)
 
     private val apostropheRegex = "[\\p{L}'’]+(?<!['’])".toRegex()
     private val nonApostropheRegex = "\\p{L}+".toRegex()
@@ -202,19 +208,19 @@ class AnalyzeViewModel(
     }
 
     private fun fetchBatch(batchId: String) {
-        screenModelScope.launch {
+        fetchJob?.cancel() // cancel previous job
+
+        fetchJob = screenModelScope.launch {
             updateBatchProgress(0f)
 
-            println(batchId)
-
             var status = BatchStatus.QUEUED
-            val completeStatuses = listOf(
+            val completionStatuses = listOf(
                 BatchStatus.COMPLETE,
                 BatchStatus.ERRORED,
                 BatchStatus.TERMINATED,
                 BatchStatus.UNKNOWN
             )
-            while (status !in completeStatuses) {
+            while (status !in completionStatuses) {
                 watAiApi.getBatch(batchId).onSuccess { batch ->
                     batch.details.output?.let { parseBatch(batch) }
                     status = batch.details.status
@@ -223,7 +229,7 @@ class AnalyzeViewModel(
                     val total = batch.details.progress.total.toFloat()
                     updateBatchProgress(current / total)
                 }.onError {
-                    println("error occurred: ${it.description}")
+                    println(it.description)
                 }
                 delay(BATCH_REQUEST_DELAY)
             }
@@ -239,8 +245,12 @@ class AnalyzeViewModel(
                 return@launch
             }
 
-            println(_state.value.models.size)
-            println(_state.value.singletons.size)
+            // Clear previous responses
+            updateSingletons(
+                _state.value.singletons.mapValues { (_, value) ->
+                    value.copy(result = null)
+                }
+            )
 
             val requests = _state.value.singletons.map { (key, word) ->
                 BatchRequest(
@@ -252,6 +262,9 @@ class AnalyzeViewModel(
 
             val json = buildJsonlFile(requests)
             val source = json.asSource()
+
+//            delay(1000)
+//            _event.send(AnalyzeEvent.BatchCreated("3cee13bf-91be-4310-8fc1-aa716f524b15"))
 
             watAiApi.createBatch(source).onSuccess {
                 println(it.id)
