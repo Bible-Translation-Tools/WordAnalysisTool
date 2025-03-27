@@ -116,18 +116,12 @@ class AnalyzeScreen(
         }
 
         LaunchedEffect(batchId, models) {
-            if (batchId != null) {
-                viewModel.onEvent(AnalyzeEvent.UpdateBatchId(batchId))
+            batchId?.let {
+                viewModel.onEvent(AnalyzeEvent.UpdateBatchId(it))
+                viewModel.onEvent(AnalyzeEvent.FetchBatch(it))
             }
-
             if (models.isNotEmpty()) {
                 viewModel.onEvent(AnalyzeEvent.UpdateModels(models))
-            }
-
-            batchId?.let {
-                if (models.isNotEmpty()) {
-                    viewModel.onEvent(AnalyzeEvent.FetchBatch(it))
-                }
             }
         }
 

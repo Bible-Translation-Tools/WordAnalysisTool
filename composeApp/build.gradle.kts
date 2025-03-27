@@ -162,7 +162,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.bibletranslationtools.wat"
+            packageName = "WordAnalysisTool"
             packageVersion = "1.0.0"
 
             // FileKit configuration

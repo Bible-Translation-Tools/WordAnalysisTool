@@ -34,6 +34,7 @@ import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.ChatRequest
+import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.WatAiApi
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
@@ -433,22 +434,6 @@ class AnalyzeViewModel(
         val consensusMap = mutableMapOf<String, ConsensusResult>()
 
         result.forEach { response ->
-            var misspellCount = 0
-            var properNameCount = 0
-            var somethingElseCount = 0
-            response.results.forEach { result ->
-                // Limit long answers to 20 characters
-                val limit = min(20, result.result.length)
-                val answer = result.result.substring(0, limit).lowercase()
-
-                when {
-                    answer.contains("proper name") -> properNameCount++
-                    answer.contains("proper noun") -> properNameCount++
-                    answer.contains("misspell") -> misspellCount++
-                    answer.contains("typo") -> misspellCount++
-                    answer.contains("something else") -> somethingElseCount++
-                }
-            }
             consensusMap[response.id] = ConsensusResult(
                 models = response.results.map {
                     ModelConsensus(
@@ -456,18 +441,31 @@ class AnalyzeViewModel(
                         consensus = Consensus.of(it.result)
                     )
                 },
-                consensus = findWinner(
-                    misspellCount,
-                    properNameCount,
-                    somethingElseCount
-                )
+                consensus = findWinner(response.results)
             )
         }
 
         return consensusMap
     }
 
-    private fun findWinner(misspell: Int, properName: Int, somethingElse: Int): Consensus {
+    private fun findWinner(results: List<ModelResponse>): Consensus {
+        var misspell = 0
+        var properName = 0
+        var somethingElse = 0
+        results.forEach { result ->
+            // Limit long answers to 20 characters
+            val limit = min(20, result.result.length)
+            val answer = result.result.substring(0, limit).lowercase()
+
+            when {
+                answer.contains("proper name") -> properName++
+                answer.contains("proper noun") -> properName++
+                answer.contains("misspell") -> misspell++
+                answer.contains("typo") -> misspell++
+                answer.contains("something else") -> somethingElse++
+            }
+        }
+
         var max = maxOf(misspell, properName, somethingElse)
         var winners = 0
         var winnerName = Consensus.UNDEFINED
@@ -487,7 +485,7 @@ class AnalyzeViewModel(
             winnerName = Consensus.SOMETHING_ELSE
         }
 
-        val ratio = max / _state.value.models.size.toFloat()
+        val ratio = max / results.size.toFloat()
         if (ratio < 0.5f || winners > 1) {
             winnerName = Consensus.UNDEFINED
         }
