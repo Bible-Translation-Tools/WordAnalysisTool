@@ -182,3 +182,23 @@ apollo {
         }
     }
 }
+
+val copyWebClient by tasks.registering(Copy::class) {
+    dependsOn("wasmJsBrowserDistribution")
+
+    val buildOutputDir = tasks.named("wasmJsBrowserDistribution").get().outputs.files.singleFile
+    val destDir = File(project.rootDir, "api/client")
+
+    doFirst {
+        delete(destDir)
+    }
+
+    from(buildOutputDir)
+    into(destDir)
+}
+
+val buildWebDistribution by tasks.registering {
+    dependsOn("clean")
+    dependsOn("wasmJsBrowserDistribution")
+    dependsOn(copyWebClient)
+}
