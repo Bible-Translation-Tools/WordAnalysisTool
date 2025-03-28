@@ -29,8 +29,6 @@ import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.data.asSource
 import org.bibletranslationtools.wat.data.formatWith
-import org.bibletranslationtools.wat.data.sortedByKeyWith
-import org.bibletranslationtools.wat.data.sortedByValueWith
 import org.bibletranslationtools.wat.domain.AiResponse
 import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
@@ -45,7 +43,6 @@ import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.prompt_not_set
 import wordanalysistool.composeapp.generated.resources.report_saved
-import kotlin.math.max
 import kotlin.math.min
 
 private const val BATCH_REQUEST_DELAY = 1000L
@@ -53,8 +50,9 @@ private const val BATCH_REQUEST_DELAY = 1000L
 data class AnalyzeState(
     val batchId: String? = null,
     val batchProgress: Float = -1f,
-    val singletons: Map<String, SingletonWord> = emptyMap(),
+    val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
+    val sorting: WordsSorting = WordsSorting.BY_ALPHABET,
     val models: List<String> = emptyList(),
     val alert: String? = null,
     val progress: Progress? = null
@@ -71,8 +69,9 @@ sealed class AnalyzeEvent {
     data class UpdatePrompt(val value: String): AnalyzeEvent()
     data class UpdateBatchId(val value: String?): AnalyzeEvent()
     data class UpdateModels(val value: List<String>): AnalyzeEvent()
+    data class UpdateSorting(val value: WordsSorting): AnalyzeEvent()
+    data object WordsSorted: AnalyzeEvent()
     data object SaveReport: AnalyzeEvent()
-    data class SortWords(val value: WordsSorting): AnalyzeEvent()
 }
 
 enum class WordsSorting(val value: String) {
@@ -112,9 +111,9 @@ class AnalyzeViewModel(
             is AnalyzeEvent.FetchBatch -> fetchBatch(event.batchId)
             is AnalyzeEvent.CreateBatch -> createBatch()
             is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
+            is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
-            is AnalyzeEvent.SortWords -> sortWords(event.value)
-            else -> Unit
+            else -> resetChannel()
         }
     }
 
@@ -125,7 +124,7 @@ class AnalyzeViewModel(
             )
 
             val totalVerses = verses.size
-            val tempMap = mutableMapOf<String, SingletonWord>()
+            val tempMap = mutableMapOf<String, Pair<Int, Verse>>()
             val wordsRegex = if (apostropheIsSeparator) {
                 nonApostropheRegex
             } else apostropheRegex
@@ -137,8 +136,8 @@ class AnalyzeViewModel(
                     words.forEach { word ->
                         if (word.trim().isEmpty()) return@forEach
 
-                        val w = tempMap.getOrElse(word) { SingletonWord(0, verse) }
-                        tempMap[word] = w.copy(count = w.count + 1)
+                        val w = tempMap.getOrElse(word) { 0 to verse }
+                        tempMap[word] = w.copy(first = w.first + 1)
                     }
 
                     updateProgress(
@@ -151,14 +150,11 @@ class AnalyzeViewModel(
             }
 
             updateSingletons(
-                tempMap
-                    .sortedByKeyWith(compareBy { it.lowercase() })
-                    .filterValues { it.count == 1 }
-//                    .entries.take(20)
-//                    .associate { it.key to it.value }
+                tempMap.entries
+                    .filter { it.value.first == 1 }
+                    .map { SingletonWord(it.key, it.value.second) }
+                    .sortedBy { it.word.lowercase() }
             )
-
-            println("words count: ${_state.value.singletons.size}")
 
             updateProgress(null)
         }
@@ -214,20 +210,18 @@ class AnalyzeViewModel(
 
             // Clear previous responses
             updateSingletons(
-                _state.value.singletons.mapValues { (_, value) ->
-                    value.copy(result = null)
-                }
+                _state.value.singletons.map { it.copy(result = null) }
             )
 
-            val requests = _state.value.singletons.map { (key, word) ->
+            val requests = _state.value.singletons.map { singleton ->
                 BatchRequest(
-                    id = key,
-                    prompt = getPrompt(key, word.ref),
+                    id = singleton.word,
+                    prompt = getPrompt(singleton.word, singleton.ref),
                     models = _state.value.models
                 )
             }
                 .shuffled()
-                .take(max(300, _state.value.singletons.size))
+                .take(min(300, _state.value.singletons.size))
 
             val json = buildJsonlFile(requests)
             val source = json.asSource()
@@ -248,12 +242,13 @@ class AnalyzeViewModel(
         batch.details.output?.let { words ->
             val consensusMap: Map<String, ConsensusResult> = makeConsensus(words)
             updateSingletons(
-                _state.value.singletons.mapValues { (key, value) ->
-                    consensusMap[key]?.let { answer ->
-                        value.copy(result = answer)
-                    } ?: value
+                _state.value.singletons.map { singleton ->
+                    consensusMap[singleton.word]?.let { answer ->
+                        singleton.copy(result = answer)
+                    } ?: singleton
                 }
             )
+            sortWords(_state.value.sorting)
         }
     }
 
@@ -267,28 +262,26 @@ class AnalyzeViewModel(
             }
             header.append("consensus\n")
 
-            val words = _state.value.singletons
-                .map { (key, value) ->
-                    val builder = StringBuilder()
-                    builder.append(key)
-                    builder.append(",")
-                    builder.append(value.ref.bookName)
-                    builder.append(" (${value.ref.bookSlug})")
-                    builder.append(",")
-                    builder.append(value.ref.chapter)
-                    builder.append(",")
-                    builder.append(value.ref.number)
-                    builder.append(",")
+            val words = _state.value.singletons.joinToString("\n") { singleton ->
+                val builder = StringBuilder()
+                builder.append(singleton.word)
+                builder.append(",")
+                builder.append(singleton.ref.bookName)
+                builder.append(" (${singleton.ref.bookSlug})")
+                builder.append(",")
+                builder.append(singleton.ref.chapter)
+                builder.append(",")
+                builder.append(singleton.ref.number)
+                builder.append(",")
 
-                    value.result?.models?.forEach {
-                        builder.append(it.consensus.name)
-                        builder.append(",")
-                    }
-
-                    builder.append(value.result?.consensus?.name)
-                    builder.toString()
+                singleton.result?.models?.forEach {
+                    builder.append(it.consensus.name)
+                    builder.append(",")
                 }
-                .joinToString("\n")
+
+                builder.append(singleton.result?.consensus?.name)
+                builder.toString()
+            }
 
             val report = header.toString() + words
 
@@ -303,38 +296,43 @@ class AnalyzeViewModel(
     }
 
     private fun sortWords(sort: WordsSorting) {
-        when (sort) {
-            WordsSorting.BY_ALPHABET -> {
-                updateSingletons(
-                    _state.value.singletons.sortedByKeyWith(
-                        compareBy { it.lowercase() }
-                    ).mapValues { (_, value) ->
-                        value.copy(updateCount = value.updateCount + 1)
-                    }
-                )
+        if (_state.value.singletons.isEmpty()) return
+
+        screenModelScope.launch {
+            when (sort) {
+                WordsSorting.BY_ALPHABET -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedBy { it.word.lowercase() }
+                    )
+                }
+                WordsSorting.BY_ERROR -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedByDescending {
+                            it.result?.consensus == Consensus.MISSPELLING
+                        }
+                    )
+                }
+                WordsSorting.BY_UNDEFINED -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedByDescending {
+                            it.result?.consensus == Consensus.UNDEFINED
+                        }
+                    )
+                }
             }
-            WordsSorting.BY_ERROR -> {
-                updateSingletons(
-                    _state.value.singletons.sortedByValueWith(
-                        compareByDescending { it.result?.consensus == Consensus.MISSPELLING }
-                    ).mapValues { (_, value) ->
-                        value.copy(updateCount = value.updateCount + 1)
-                    }
-                )
-            }
-            WordsSorting.BY_UNDEFINED -> {
-                updateSingletons(
-                    _state.value.singletons.sortedByValueWith(
-                        compareByDescending { it.result?.consensus == Consensus.UNDEFINED }
-                    ).mapValues { (_, value) ->
-                        value.copy(updateCount = value.updateCount + 1)
-                    }
-                )
-            }
+
+            _event.send(AnalyzeEvent.WordsSorted)
         }
     }
 
-    private fun updateSingletons(words: Map<String, SingletonWord>) {
+    private fun updateSorting(sort: WordsSorting) {
+        _state.update {
+            it.copy(sorting = sort)
+        }
+        sortWords(sort)
+    }
+
+    private fun updateSingletons(words: List<SingletonWord>) {
         _state.update {
             it.copy(singletons = words)
         }
@@ -400,6 +398,12 @@ class AnalyzeViewModel(
 
         screenModelScope.launch {
             _event.send(AnalyzeEvent.ReadyToCreateBatch)
+        }
+    }
+
+    private fun resetChannel() {
+        screenModelScope.launch {
+            _event.send(AnalyzeEvent.Idle)
         }
     }
 

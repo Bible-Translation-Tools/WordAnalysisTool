@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -50,8 +51,6 @@ import cafe.adriel.voyager.koin.koinScreenModel
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
@@ -86,7 +85,7 @@ class AnalyzeScreen(
 
         val state by viewModel.state.collectAsStateWithLifecycle()
         val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
-        var selectedWord by remember { mutableStateOf<Pair<String, SingletonWord>?>(null) }
+        var selectedWord by remember { mutableStateOf<SingletonWord?>(null) }
 
         val modelsState = Model.entries.mapNotNull {
             val active = rememberBooleanSetting(it.value, false).value
@@ -122,6 +121,10 @@ class AnalyzeScreen(
                 is AnalyzeEvent.ReadyToCreateBatch -> {
                     viewModel.onEvent(AnalyzeEvent.CreateBatch)
                 }
+                is AnalyzeEvent.WordsSorted -> {
+                    wordsListState.animateScrollToItem(0)
+                    viewModel.onEvent(AnalyzeEvent.Idle)
+                }
                 else -> Unit
             }
         }
@@ -144,8 +147,8 @@ class AnalyzeScreen(
             viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
         }
 
-        LaunchedEffect(state.singletons, wordsSorting) {
-            viewModel.onEvent(AnalyzeEvent.SortWords(
+        LaunchedEffect(wordsSorting) {
+            viewModel.onEvent(AnalyzeEvent.UpdateSorting(
                 WordsSorting.valueOf(wordsSorting)
             ))
         }
@@ -234,7 +237,7 @@ class AnalyzeScreen(
                                 text = stringResource(
                                     Res.string.total_misspellings,
                                     state.singletons.filter {
-                                        it.value.result?.consensus == Consensus.MISSPELLING
+                                        it.result?.consensus == Consensus.MISSPELLING
                                     }.size
                                 ),
                                 fontSize = 16.sp
@@ -243,7 +246,7 @@ class AnalyzeScreen(
                                 text = stringResource(
                                     Res.string.total_undefined,
                                     state.singletons.filter {
-                                        it.value.result?.consensus == Consensus.UNDEFINED
+                                        it.result?.consensus == Consensus.UNDEFINED
                                     }.size
                                 ),
                                 fontSize = 16.sp
@@ -254,10 +257,6 @@ class AnalyzeScreen(
                                 options = WordsSorting.entries,
                                 onOptionSelected = { sort ->
                                     wordsSorting = sort.name
-                                    scope.launch {
-                                        delay(100)
-                                        wordsListState.animateScrollToItem(0)
-                                    }
                                 },
                                 valueConverter = { sort ->
                                     sort.value
@@ -267,27 +266,24 @@ class AnalyzeScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         LazyColumn(state = wordsListState) {
-                            scope.launch { wordsListState.scrollToItem(0) }
-                            state.singletons.forEach { (word, singleton) ->
-                                item(key = word) {
-                                    Text(
-                                        text = word,
-                                        fontWeight = if (selectedWord?.first == word)
-                                            FontWeight.Bold else FontWeight.Normal,
-                                        color = when (singleton.result?.consensus) {
-                                            Consensus.MISSPELLING -> MaterialTheme.colorScheme.error
-                                            Consensus.PROPER_NAME -> MaterialTheme.colorScheme.tertiary
-                                            Consensus.SOMETHING_ELSE -> MaterialTheme.colorScheme.tertiary
-                                            Consensus.UNDEFINED -> MaterialTheme.colorScheme.secondary
-                                            else -> MaterialTheme.colorScheme.onBackground
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selectedWord = word to singleton
-                                            }
-                                    )
-                                }
+                            items(items = state.singletons, key = { it.word }) { singleton ->
+                                Text(
+                                    text = singleton.word,
+                                    fontWeight = if (selectedWord == singleton)
+                                        FontWeight.Bold else FontWeight.Normal,
+                                    color = when (singleton.result?.consensus) {
+                                        Consensus.MISSPELLING -> MaterialTheme.colorScheme.error
+                                        Consensus.PROPER_NAME -> MaterialTheme.colorScheme.tertiary
+                                        Consensus.SOMETHING_ELSE -> MaterialTheme.colorScheme.tertiary
+                                        Consensus.UNDEFINED -> MaterialTheme.colorScheme.secondary
+                                        else -> MaterialTheme.colorScheme.onBackground
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedWord = singleton
+                                        }
+                                )
                             }
                         }
                     }
@@ -300,10 +296,10 @@ class AnalyzeScreen(
                             modifier = Modifier.weight(0.6f)
                                 .padding(bottom = 10.dp, start = 20.dp)
                         ) {
-                            selectedWord?.let { (word, singleton) ->
+                            selectedWord?.let {
                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                     Text(
-                                        text = word,
+                                        text = it.word,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
                                         textAlign = TextAlign.Center,
@@ -316,11 +312,11 @@ class AnalyzeScreen(
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                         ) {
-                                            append("${singleton.ref.bookName} ")
-                                            append("(${singleton.ref.bookSlug.uppercase()}) ")
-                                            append("${singleton.ref.chapter}:${singleton.ref.number} ")
+                                            append("${it.ref.bookName} ")
+                                            append("(${it.ref.bookSlug.uppercase()}) ")
+                                            append("${it.ref.chapter}:${it.ref.number} ")
                                         }
-                                        append(singleton.ref.text)
+                                        append(it.ref.text)
                                     }
                                     Text(annotatedText)
                                 }
