@@ -72,10 +72,10 @@ sealed class AnalyzeEvent {
     data class UpdateBatchId(val value: String?): AnalyzeEvent()
     data class UpdateModels(val value: List<String>): AnalyzeEvent()
     data object SaveReport: AnalyzeEvent()
-    data class SortedWords(val value: SortWords): AnalyzeEvent()
+    data class SortWords(val value: WordsSorting): AnalyzeEvent()
 }
 
-enum class SortWords(val value: String) {
+enum class WordsSorting(val value: String) {
     BY_ALPHABET("By alphabet"),
     BY_ERROR("By misspelling"),
     BY_UNDEFINED("By undefined")
@@ -113,7 +113,7 @@ class AnalyzeViewModel(
             is AnalyzeEvent.CreateBatch -> createBatch()
             is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
-            is AnalyzeEvent.SortedWords -> sortWords(event.value)
+            is AnalyzeEvent.SortWords -> sortWords(event.value)
             else -> Unit
         }
     }
@@ -302,9 +302,9 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun sortWords(sort: SortWords) {
+    private fun sortWords(sort: WordsSorting) {
         when (sort) {
-            SortWords.BY_ALPHABET -> {
+            WordsSorting.BY_ALPHABET -> {
                 updateSingletons(
                     _state.value.singletons.sortedByKeyWith(
                         compareBy { it.lowercase() }
@@ -313,7 +313,7 @@ class AnalyzeViewModel(
                     }
                 )
             }
-            SortWords.BY_ERROR -> {
+            WordsSorting.BY_ERROR -> {
                 updateSingletons(
                     _state.value.singletons.sortedByValueWith(
                         compareByDescending { it.result?.consensus == Consensus.MISSPELLING }
@@ -322,7 +322,7 @@ class AnalyzeViewModel(
                     }
                 )
             }
-            SortWords.BY_UNDEFINED -> {
+            WordsSorting.BY_UNDEFINED -> {
                 updateSingletons(
                     _state.value.singletons.sortedByValueWith(
                         compareByDescending { it.result?.consensus == Consensus.UNDEFINED }

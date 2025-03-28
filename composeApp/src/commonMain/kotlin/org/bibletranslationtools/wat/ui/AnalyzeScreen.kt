@@ -106,9 +106,9 @@ class AnalyzeScreen(
             true
         )
 
-        var sortWords by rememberStringSetting(
+        var wordsSorting by rememberStringSetting(
             Settings.SORT_WORDS.name,
-            SortWords.BY_ALPHABET.name
+            WordsSorting.BY_ALPHABET.name
         )
 
         val wordsListState = rememberLazyListState()
@@ -144,9 +144,9 @@ class AnalyzeScreen(
             viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
         }
 
-        LaunchedEffect(sortWords) {
-            viewModel.onEvent(AnalyzeEvent.SortedWords(
-                SortWords.valueOf(sortWords)
+        LaunchedEffect(state.singletons, wordsSorting) {
+            viewModel.onEvent(AnalyzeEvent.SortWords(
+                WordsSorting.valueOf(wordsSorting)
             ))
         }
 
@@ -250,10 +250,10 @@ class AnalyzeScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ComboBox(
-                                value = SortWords.valueOf(sortWords),
-                                options = SortWords.entries,
+                                value = WordsSorting.valueOf(wordsSorting),
+                                options = WordsSorting.entries,
                                 onOptionSelected = { sort ->
-                                    sortWords = sort.name
+                                    wordsSorting = sort.name
                                     scope.launch {
                                         delay(100)
                                         wordsListState.animateScrollToItem(0)
@@ -267,6 +267,7 @@ class AnalyzeScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         LazyColumn(state = wordsListState) {
+                            scope.launch { wordsListState.scrollToItem(0) }
                             state.singletons.forEach { (word, singleton) ->
                                 item(key = word) {
                                     Text(
