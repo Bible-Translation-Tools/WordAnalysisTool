@@ -26,6 +26,7 @@
     <string name="no_model_selected">Ни одна модель не выбрана.</string>
     <string name="apply">Применить</string>
     <string name="edit_prompt">Редактировать запрос</string>
+    <string name="prompt_not_set">Запрос не установлен.</string>
     <string name="use_apostrophe_regex">Считать апостроф (') разделитем слова</string>
     <string name="preparing_for_analysis">Поготовка к анализу...</string>
     <string name="model">Модель</string>
@@ -36,4 +37,7 @@
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="report_saved">Отчет сохранен.</string>
     <string name="select_models_limit">Невозможно выбрать более 4 моделей.</string>
+    <string name="total_singletons">Всего слов: %1$d</string>
+    <string name="total_misspellings">Ошибок: %1$d</string>
+    <string name="total_undefined">Неопределено: %1$d</string>
 </resources>

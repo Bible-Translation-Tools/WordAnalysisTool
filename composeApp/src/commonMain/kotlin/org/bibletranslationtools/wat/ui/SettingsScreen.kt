@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -42,6 +44,8 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.color_scheme
+import wordanalysistool.composeapp.generated.resources.default_prompt
+import wordanalysistool.composeapp.generated.resources.edit_prompt
 import wordanalysistool.composeapp.generated.resources.models
 import wordanalysistool.composeapp.generated.resources.select_models_limit
 import wordanalysistool.composeapp.generated.resources.settings
@@ -78,6 +82,11 @@ class SettingsScreen : Screen {
         }.toMutableStateList()
         val models = remember { modelsState }
 
+        var prompt by rememberStringSetting(
+            Settings.PROMPT.name,
+            stringResource(Res.string.default_prompt)
+        )
+
         var apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
             true
@@ -101,9 +110,12 @@ class SettingsScreen : Screen {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(stringResource(Res.string.color_scheme))
+                        Text(
+                            text = stringResource(Res.string.color_scheme),
+                            modifier = Modifier.weight(0.5f)
+                        )
                         Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = themeEnum.value,
@@ -116,16 +128,19 @@ class SettingsScreen : Screen {
                                     else -> systemThemeStr
                                 }
                             },
-                            modifier = Modifier.width(400.dp)
+                            modifier = Modifier.weight(0.5f)
                         )
                     }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(stringResource(Res.string.system_language))
+                        Text(
+                            text = stringResource(Res.string.system_language),
+                            modifier = Modifier.weight(0.5f)
+                        )
                         Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = localeEnum.value,
@@ -137,16 +152,19 @@ class SettingsScreen : Screen {
                                     else -> Locales.EN.value
                                 }
                             },
-                            modifier = Modifier.width(400.dp)
+                            modifier = Modifier.weight(0.5f)
                         )
                     }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(stringResource(Res.string.models))
+                        Text(
+                            text = stringResource(Res.string.models),
+                            modifier = Modifier.weight(0.5f)
+                        )
                         Spacer(modifier = Modifier.width(16.dp))
                         MultiSelectList(
                             items = models,
@@ -163,24 +181,44 @@ class SettingsScreen : Screen {
                                 } else {
                                     model.active.value = status
                                 }
-                            }
+                            },
+                            modifier = Modifier.weight(0.5f)
                         )
                     }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.width(700.dp)
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.edit_prompt),
+                            modifier = Modifier.weight(0.5f)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        TextField(
+                            value = prompt,
+                            onValueChange = { prompt = it },
+                            modifier = Modifier.weight(0.5f).width(400.dp)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = stringResource(Res.string.use_apostrophe_regex),
-                            modifier = Modifier.width(200.dp)
+                            modifier = Modifier.weight(0.5f)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
-                        Checkbox(
-                            checked = apostropheIsSeparator,
-                            onCheckedChange = { apostropheIsSeparator = it }
-                        )
+                        Row(modifier = Modifier.weight(0.5f)) {
+                            Checkbox(
+                                checked = apostropheIsSeparator,
+                                onCheckedChange = { apostropheIsSeparator = it }
+                            )
+                        }
                     }
                 }
             }

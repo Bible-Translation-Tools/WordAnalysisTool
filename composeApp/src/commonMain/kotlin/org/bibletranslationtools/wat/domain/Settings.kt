@@ -5,7 +5,9 @@ import androidx.compose.runtime.MutableState
 enum class Settings {
     THEME,
     LOCALE,
-    APOSTROPHE_IS_SEPARATOR
+    PROMPT,
+    APOSTROPHE_IS_SEPARATOR,
+    SORT_WORDS
 }
 
 enum class Theme {

@@ -1,5 +1,6 @@
 package org.bibletranslationtools.wat.ui
 
+import ComboBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,17 +15,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -50,7 +48,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
+import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
@@ -61,16 +62,15 @@ import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
-import org.bibletranslationtools.wat.ui.dialogs.PromptEditorDialog
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.ask_ai
-import wordanalysistool.composeapp.generated.resources.consensus
-import wordanalysistool.composeapp.generated.resources.did_not_respond
-import wordanalysistool.composeapp.generated.resources.edit_prompt
+import wordanalysistool.composeapp.generated.resources.default_prompt
 import wordanalysistool.composeapp.generated.resources.refresh_batch
 import wordanalysistool.composeapp.generated.resources.save_report
+import wordanalysistool.composeapp.generated.resources.total_misspellings
+import wordanalysistool.composeapp.generated.resources.total_singletons
+import wordanalysistool.composeapp.generated.resources.total_undefined
 
 class AnalyzeScreen(
     private val language: LanguageInfo,
@@ -96,12 +96,23 @@ class AnalyzeScreen(
 
         var batchId by rememberStringSettingOrNull("batchId-${language.ietfCode}-${resourceType}")
 
+        val prompt by rememberStringSetting(
+            Settings.PROMPT.name,
+            stringResource(Res.string.default_prompt)
+        )
+
         val apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
             true
         )
 
-        var promptEditorShown by remember { mutableStateOf(false) }
+        var sortWords by rememberStringSetting(
+            Settings.SORT_WORDS.name,
+            SortWords.BY_ALPHABET.name
+        )
+
+        val wordsListState = rememberLazyListState()
+        val scope = rememberCoroutineScope()
 
         LaunchedEffect(event) {
             when (event) {
@@ -125,14 +136,18 @@ class AnalyzeScreen(
             }
         }
 
-        LaunchedEffect(selectedWord) {
-            if (selectedWord == null) {
-                viewModel.onEvent(AnalyzeEvent.ClearResponse)
-            }
+        LaunchedEffect(prompt) {
+            viewModel.onEvent(AnalyzeEvent.UpdatePrompt(prompt))
         }
 
         LaunchedEffect(apostropheIsSeparator) {
             viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
+        }
+
+        LaunchedEffect(sortWords) {
+            viewModel.onEvent(AnalyzeEvent.SortedWords(
+                SortWords.valueOf(sortWords)
+            ))
         }
 
         Scaffold(
@@ -204,35 +219,75 @@ class AnalyzeScreen(
                     modifier = Modifier.fillMaxWidth()
                         .padding(start = 20.dp, end = 20.dp, bottom = 20.dp, top = 4.dp)
                 ) {
-                    LazyColumn(modifier = Modifier.weight(0.3f)) {
-                        items(
-                            items = state.singletons.toList(),
-                            key = { it.first }
-                        ) { (word, singleton) ->
+                    Column(modifier = Modifier.weight(0.3f)) {
+                        Column(
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
                             Text(
-                                text = word,
-                                fontWeight = if (selectedWord?.first == word)
-                                    FontWeight.Bold else FontWeight.Normal,
-                                color = when (singleton.result?.consensus) {
-                                    Consensus.MISSPELLING -> MaterialTheme.colorScheme.error
-                                    Consensus.PROPER_NAME -> MaterialTheme.colorScheme.tertiary
-                                    Consensus.SOMETHING_ELSE -> MaterialTheme.colorScheme.tertiary
-                                    Consensus.UNDEFINED -> MaterialTheme.colorScheme.secondary
-                                    else -> MaterialTheme.colorScheme.onBackground
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedWord = word to singleton
-                                        viewModel.onEvent(
-                                            AnalyzeEvent.UpdatePrompt.FromVerse(
-                                                word,
-                                                singleton.ref
-                                            )
-                                        )
-                                        viewModel.onEvent(AnalyzeEvent.ClearResponse)
-                                    }
+                                text = stringResource(
+                                    Res.string.total_singletons,
+                                    state.singletons.size
+                                ),
+                                fontSize = 16.sp
                             )
+                            Text(
+                                text = stringResource(
+                                    Res.string.total_misspellings,
+                                    state.singletons.filter {
+                                        it.value.result?.consensus == Consensus.MISSPELLING
+                                    }.size
+                                ),
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = stringResource(
+                                    Res.string.total_undefined,
+                                    state.singletons.filter {
+                                        it.value.result?.consensus == Consensus.UNDEFINED
+                                    }.size
+                                ),
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            ComboBox(
+                                value = SortWords.valueOf(sortWords),
+                                options = SortWords.entries,
+                                onOptionSelected = { sort ->
+                                    sortWords = sort.name
+                                    scope.launch {
+                                        delay(100)
+                                        wordsListState.animateScrollToItem(0)
+                                    }
+                                },
+                                valueConverter = { sort ->
+                                    sort.value
+                                },
+                                label = "Sort words"
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LazyColumn(state = wordsListState) {
+                            state.singletons.forEach { (word, singleton) ->
+                                item(key = word) {
+                                    Text(
+                                        text = word,
+                                        fontWeight = if (selectedWord?.first == word)
+                                            FontWeight.Bold else FontWeight.Normal,
+                                        color = when (singleton.result?.consensus) {
+                                            Consensus.MISSPELLING -> MaterialTheme.colorScheme.error
+                                            Consensus.PROPER_NAME -> MaterialTheme.colorScheme.tertiary
+                                            Consensus.SOMETHING_ELSE -> MaterialTheme.colorScheme.tertiary
+                                            Consensus.UNDEFINED -> MaterialTheme.colorScheme.secondary
+                                            else -> MaterialTheme.colorScheme.onBackground
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedWord = word to singleton
+                                            }
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -268,29 +323,6 @@ class AnalyzeScreen(
                                     }
                                     Text(annotatedText)
                                 }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            viewModel.onEvent(AnalyzeEvent.Chat(word))
-                                        }
-                                    ) {
-                                        Text(text = stringResource(Res.string.ask_ai))
-                                    }
-                                    IconButton(
-                                        onClick = { promptEditorShown = true }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = stringResource(
-                                                Res.string.edit_prompt
-                                            )
-                                        )
-                                    }
-                                }
                             }
                         }
 
@@ -302,34 +334,7 @@ class AnalyzeScreen(
                                 modifier = Modifier.verticalScroll(rememberScrollState())
                                     .fillMaxWidth()
                             ) {
-                                state.aiResponses.forEach { (model, response) ->
-                                    Text(text = buildAnnotatedString {
-                                        withStyle(
-                                            style = SpanStyle(
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        ) {
-                                            append("$model: ")
-                                        }
-                                        append(
-                                            response ?: stringResource(Res.string.did_not_respond)
-                                        )
-                                    })
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                state.consensus?.let {
-                                    Text(text = buildAnnotatedString {
-                                        withStyle(
-                                            style = SpanStyle(
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        ) {
-                                            append("${stringResource(Res.string.consensus)}: ")
-                                        }
-                                        append(it.consensus.name)
-                                    })
-                                }
+
                             }
                         }
                     }
@@ -345,14 +350,6 @@ class AnalyzeScreen(
 
             state.progress?.let {
                 ProgressDialog(it)
-            }
-
-            if (promptEditorShown) {
-                PromptEditorDialog(
-                    prompt = state.prompt!!,
-                    onDismiss = { promptEditorShown = false },
-                    onConfirm = { viewModel.onEvent(AnalyzeEvent.UpdatePrompt.FromString(it)) }
-                )
             }
         }
     }

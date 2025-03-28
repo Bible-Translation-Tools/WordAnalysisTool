@@ -28,22 +28,24 @@ import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.data.asSource
+import org.bibletranslationtools.wat.data.formatWith
 import org.bibletranslationtools.wat.data.sortedByKeyWith
+import org.bibletranslationtools.wat.data.sortedByValueWith
 import org.bibletranslationtools.wat.domain.AiResponse
 import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
-import org.bibletranslationtools.wat.domain.ChatRequest
 import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.WatAiApi
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.asking_ai
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.no_model_selected
+import wordanalysistool.composeapp.generated.resources.prompt_not_set
 import wordanalysistool.composeapp.generated.resources.report_saved
+import kotlin.math.max
 import kotlin.math.min
 
 private const val BATCH_REQUEST_DELAY = 1000L
@@ -53,8 +55,6 @@ data class AnalyzeState(
     val batchProgress: Float = -1f,
     val singletons: Map<String, SingletonWord> = emptyMap(),
     val prompt: String? = null,
-    val consensus: ConsensusResult? = null,
-    val aiResponses: Map<String, String?> = emptyMap(),
     val models: List<String> = emptyList(),
     val alert: String? = null,
     val progress: Progress? = null
@@ -62,23 +62,23 @@ data class AnalyzeState(
 
 sealed class AnalyzeEvent {
     data object Idle: AnalyzeEvent()
-    data object ClearResponse: AnalyzeEvent()
     data object ClearAlert: AnalyzeEvent()
-    data class Chat(val word: String): AnalyzeEvent()
     data class FetchBatch(val batchId: String): AnalyzeEvent()
     data object CreateBatch: AnalyzeEvent()
     data class BatchCreated(val value: String): AnalyzeEvent()
     data object ReadyToCreateBatch: AnalyzeEvent()
     data class FindSingletons(val apostropheIsSeparator: Boolean): AnalyzeEvent()
-
-    sealed class UpdatePrompt: AnalyzeEvent() {
-        data class FromString(val value: String): UpdatePrompt()
-        data class FromVerse(val word: String, val verse: Verse): UpdatePrompt()
-    }
-
+    data class UpdatePrompt(val value: String): AnalyzeEvent()
     data class UpdateBatchId(val value: String?): AnalyzeEvent()
     data class UpdateModels(val value: List<String>): AnalyzeEvent()
     data object SaveReport: AnalyzeEvent()
+    data class SortedWords(val value: SortWords): AnalyzeEvent()
+}
+
+enum class SortWords(val value: String) {
+    BY_ALPHABET("By alphabet"),
+    BY_ERROR("By misspelling"),
+    BY_UNDEFINED("By undefined")
 }
 
 class AnalyzeViewModel(
@@ -108,14 +108,12 @@ class AnalyzeViewModel(
             is AnalyzeEvent.FindSingletons -> findSingletonWords(event.apostropheIsSeparator)
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.UpdateBatchId -> updateBatchId(event.value)
-            is AnalyzeEvent.ClearResponse -> clearAiResponses()
             is AnalyzeEvent.ClearAlert -> updateAlert(null)
-            is AnalyzeEvent.Chat -> chat(event.word)
             is AnalyzeEvent.FetchBatch -> fetchBatch(event.batchId)
             is AnalyzeEvent.CreateBatch -> createBatch()
-            is AnalyzeEvent.UpdatePrompt.FromString -> updatePrompt(event.value)
-            is AnalyzeEvent.UpdatePrompt.FromVerse -> updatePrompt(event.word, event.verse)
+            is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
+            is AnalyzeEvent.SortedWords -> sortWords(event.value)
             else -> Unit
         }
     }
@@ -166,48 +164,6 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun chat(word: String) {
-        screenModelScope.launch {
-            if (_state.value.models.isEmpty()) {
-                updateAlert(getString(Res.string.no_model_selected))
-                return@launch
-            }
-
-            updateProgress(Progress(0f, getString(Res.string.asking_ai)))
-            clearAiResponses()
-            withContext(Dispatchers.Default) {
-                try {
-                    val chatResult = watAiApi.chat(ChatRequest(
-                        models = _state.value.models,
-                        prompt = _state.value.prompt!!
-                    ))
-                    chatResult.onSuccess {
-                        updateAiResponses(it.associateBy({ it.model }, { it.result }))
-                        updateConsensus(
-                            makeConsensus(listOf(AiResponse(word, it)))
-                                .firstNotNullOf { it.value }
-                        )
-
-                        updateSingletons(
-                            _state.value.singletons.mapValues { (key, value) ->
-                                if (key == word) {
-                                    value.copy(result = _state.value.consensus)
-                                } else {
-                                    value
-                                }
-                            }
-                        )
-                    }.onError {
-                        updateAlert(it.description)
-                    }
-                } catch (e: Exception) {
-                    updateAlert(e.message)
-                }
-            }
-            updateProgress(null)
-        }
-    }
-
     private fun fetchBatch(batchId: String) {
         fetchJob?.cancel() // cancel previous job
 
@@ -246,6 +202,16 @@ class AnalyzeViewModel(
                 return@launch
             }
 
+            if (_state.value.prompt == null) {
+                updateAlert(getString(Res.string.prompt_not_set))
+                return@launch
+            }
+
+            // TODO Temporary limitation
+            if (_state.value.singletons.size > 300) {
+                updateAlert("Temporarily maximum of 300 words per batch supported.")
+            }
+
             // Clear previous responses
             updateSingletons(
                 _state.value.singletons.mapValues { (_, value) ->
@@ -260,6 +226,8 @@ class AnalyzeViewModel(
                     models = _state.value.models
                 )
             }
+                .shuffled()
+                .take(max(300, _state.value.singletons.size))
 
             val json = buildJsonlFile(requests)
             val source = json.asSource()
@@ -278,18 +246,14 @@ class AnalyzeViewModel(
 
     private fun parseBatch(batch: Batch) {
         batch.details.output?.let { words ->
-            val consensusMap = makeConsensus(words)
-            consensusMap.forEach { (word, answer) ->
-                updateSingletons(
-                    _state.value.singletons.mapValues { (key, value) ->
-                        if (key == word) {
-                            value.copy(result = answer)
-                        } else {
-                            value
-                        }
-                    }
-                )
-            }
+            val consensusMap: Map<String, ConsensusResult> = makeConsensus(words)
+            updateSingletons(
+                _state.value.singletons.mapValues { (key, value) ->
+                    consensusMap[key]?.let { answer ->
+                        value.copy(result = answer)
+                    } ?: value
+                }
+            )
         }
     }
 
@@ -338,6 +302,32 @@ class AnalyzeViewModel(
         }
     }
 
+    private fun sortWords(sort: SortWords) {
+        when (sort) {
+            SortWords.BY_ALPHABET -> {
+                updateSingletons(
+                    _state.value.singletons.sortedByKeyWith(
+                        compareBy { it.lowercase() }
+                    ) + ("test${(1..1_000_000).random()}" to SingletonWord(0, Verse(111, "test", "ttt", "Test", 3), null))
+                )
+            }
+            SortWords.BY_ERROR -> {
+                updateSingletons(
+                    _state.value.singletons.sortedByValueWith(
+                        compareByDescending { it.result?.consensus == Consensus.MISSPELLING }
+                    ) + ("test${(1..1_000_000).random()}" to SingletonWord(0, Verse(111, "test", "ttt", "Test", 3), null))
+                )
+            }
+            SortWords.BY_UNDEFINED -> {
+                updateSingletons(
+                    _state.value.singletons.sortedByValueWith(
+                        compareByDescending { it.result?.consensus == Consensus.UNDEFINED }
+                    ) + ("test${(1..1_000_000).random()}" to SingletonWord(0, Verse(111, "test", "ttt", "Test", 3), null))
+                )
+            }
+        }
+    }
+
     private fun updateSingletons(words: Map<String, SingletonWord>) {
         _state.update {
             it.copy(singletons = words)
@@ -363,22 +353,19 @@ class AnalyzeViewModel(
         _state.update {
             it.copy(prompt = prompt)
         }
-    }
-
-    private fun updatePrompt(word: String, verse: Verse) {
-        _state.update {
-            it.copy(prompt = getPrompt(word, verse))
-        }
+        checkBatchCreateReady()
     }
 
     private fun getPrompt(word: String, verse: Verse): String {
-        return """
-            In the ${language.angName} translation of the Bible verse
-            ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number},
-            the word '$word' appears. Determine if '$word' in this context is a proper noun,
-            a misspelling/typo, or something else. Provide only one of the following answers:
-            proper noun, misspelling/typo, something else. Do not provide any explanation.
-        """.trimIndent().replace("\n", " ")
+        return _state.value.prompt!!.formatWith(mapOf<String, String>(
+            "language" to language.angName,
+            "book_name" to verse.bookName,
+            "book_code" to verse.bookSlug,
+            "chapter" to verse.chapter.toString(),
+            "verse" to verse.number.toString(),
+            "word" to word,
+            "text" to verse.text
+        ))
     }
 
     private fun updateProgress(progress: Progress?) {
@@ -393,24 +380,9 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun clearAiResponses() {
-        _state.update {
-            it.copy(
-                aiResponses = emptyMap(),
-                consensus = null
-            )
-        }
-    }
-
     private fun updateBatchProgress(progress: Float) {
         _state.update {
             it.copy(batchProgress = progress)
-        }
-    }
-
-    private fun updateAiResponses(responses: Map<String, String>) {
-        _state.update {
-            it.copy(aiResponses = responses)
         }
     }
 
@@ -418,15 +390,10 @@ class AnalyzeViewModel(
         if (_state.value.batchId != null) return
         if (_state.value.models.isEmpty()) return
         if (_state.value.singletons.isEmpty()) return
+        if (_state.value.prompt == null) return
 
         screenModelScope.launch {
             _event.send(AnalyzeEvent.ReadyToCreateBatch)
-        }
-    }
-
-    private fun updateConsensus(consensus: ConsensusResult?) {
-        _state.update {
-            it.copy(consensus = consensus)
         }
     }
 
