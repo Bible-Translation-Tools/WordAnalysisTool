@@ -5,15 +5,15 @@ import kotlinx.io.Source
 import kotlinx.io.writeString
 
 fun <K : Comparable<K>, V> Map<K, V>.sortedByKey(): Map<K, V> {
-    return entries.sortedBy { it.key }.associate { it.toPair() }
+    return entries.sortedBy { it.key }.associate { it.key to it.value }
 }
 
 fun <K, V> Map<K, V>.sortedByKeyWith(comparator: Comparator<K>): Map<K, V> {
-    return entries.sortedWith(compareBy(comparator) { it.key }).associate { it.toPair() }
+    return entries.sortedWith(compareBy(comparator) { it.key }).associate { it.key to it.value }
 }
 
 fun <K, V> Map<K, V>.sortedByValueWith(comparator: Comparator<V>): Map<K, V> {
-    return entries.sortedWith(compareBy(comparator) { it.value }).associate { it.toPair() }
+    return entries.sortedWith(compareBy(comparator) { it.value }).associate { it.key to it.value }
 }
 
 fun String.asSource(): Source {

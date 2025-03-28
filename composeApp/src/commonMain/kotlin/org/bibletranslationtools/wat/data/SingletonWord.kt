@@ -33,5 +33,6 @@ data class ConsensusResult(
 data class SingletonWord(
     val count: Int,
     val ref: Verse,
-    var result: ConsensusResult? = null
+    var result: ConsensusResult? = null,
+    val updateCount: Int = 0
 )

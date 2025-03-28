@@ -308,21 +308,27 @@ class AnalyzeViewModel(
                 updateSingletons(
                     _state.value.singletons.sortedByKeyWith(
                         compareBy { it.lowercase() }
-                    ) + ("test${(1..1_000_000).random()}" to SingletonWord(0, Verse(111, "test", "ttt", "Test", 3), null))
+                    ).mapValues { (_, value) ->
+                        value.copy(updateCount = value.updateCount + 1)
+                    }
                 )
             }
             SortWords.BY_ERROR -> {
                 updateSingletons(
                     _state.value.singletons.sortedByValueWith(
                         compareByDescending { it.result?.consensus == Consensus.MISSPELLING }
-                    ) + ("test${(1..1_000_000).random()}" to SingletonWord(0, Verse(111, "test", "ttt", "Test", 3), null))
+                    ).mapValues { (_, value) ->
+                        value.copy(updateCount = value.updateCount + 1)
+                    }
                 )
             }
             SortWords.BY_UNDEFINED -> {
                 updateSingletons(
                     _state.value.singletons.sortedByValueWith(
                         compareByDescending { it.result?.consensus == Consensus.UNDEFINED }
-                    ) + ("test${(1..1_000_000).random()}" to SingletonWord(0, Verse(111, "test", "ttt", "Test", 3), null))
+                    ).mapValues { (_, value) ->
+                        value.copy(updateCount = value.updateCount + 1)
+                    }
                 )
             }
         }
