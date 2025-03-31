@@ -115,7 +115,7 @@ class SettingsScreen(private val user: User) : Screen {
                         icon = Icons.AutoMirrored.Filled.Logout,
                         onClick = {
                             accessToken = null
-                            navigator.pop()
+                            navigator.popUntilRoot()
                         }
                     )
                 )

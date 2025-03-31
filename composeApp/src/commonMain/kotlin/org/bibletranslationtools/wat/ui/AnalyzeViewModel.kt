@@ -27,8 +27,8 @@ import org.bibletranslationtools.wat.data.ModelConsensus
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
-import org.bibletranslationtools.wat.data.asSource
-import org.bibletranslationtools.wat.data.formatWith
+import org.bibletranslationtools.wat.asSource
+import org.bibletranslationtools.wat.formatWith
 import org.bibletranslationtools.wat.domain.AiResponse
 import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
