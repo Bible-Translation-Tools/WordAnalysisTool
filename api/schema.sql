@@ -13,3 +13,17 @@ CREATE TABLE
         batch_id TEXT,
         FOREIGN KEY (batch_id) REFERENCES Batches (id) ON DELETE CASCADE
     );
+
+DROP TABLE IF EXISTS Logins;
+
+CREATE TABLE
+    IF NOT EXISTS Logins (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL,
+        email TEXT NOT NULL,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        state TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );

@@ -40,4 +40,7 @@
     <string name="total_singletons">Всего слов: %1$d</string>
     <string name="total_misspellings">Ошибок: %1$d</string>
     <string name="total_undefined">Неопределено: %1$d</string>
+    <string name="login">Войти с помощью WACS</string>
+    <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
+    <string name="logout">Выйти</string>
 </resources>

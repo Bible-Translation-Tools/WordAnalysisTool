@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -25,52 +26,72 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.domain.Settings
+import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.ui.control.ExtraAction
+import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.select_language_resource_type
+import kotlin.uuid.ExperimentalUuidApi
 
-class HomeScreen : Screen {
+class HomeScreen(private val user: User) : Screen {
 
+    @OptIn(ExperimentalUuidApi::class)
     @Composable
     override fun Content() {
 
         val viewModel = koinScreenModel<HomeViewModel>()
         val navigator = LocalNavigator.currentOrThrow
 
-        val heartLanguages by viewModel.heartLanguages.collectAsStateWithLifecycle(emptyList())
-        val verses by viewModel.verses.collectAsStateWithLifecycle(emptyList())
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val event by viewModel.event.collectAsStateWithLifecycle(HomeEvent.Idle)
+
+        var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
-        var resourceTypes by remember { mutableStateOf<List<String>>(emptyList()) }
         var selectedResourceType by remember { mutableStateOf<String?>(null) }
-
         var showLanguagesDialog by remember { mutableStateOf(false) }
 
         LaunchedEffect(selectedHeartLanguage) {
             selectedHeartLanguage?.let {
-                resourceTypes = viewModel.fetchResourceTypesForHeartLanguage(it.ietfCode)
+                viewModel.onEvent(HomeEvent.FetchResourceTypes(it.ietfCode))
             }
         }
 
         selectedHeartLanguage?.let { language ->
             selectedResourceType?.let { resourceType ->
-                if (verses.isNotEmpty()) {
+                if (state.verses.isNotEmpty()) {
                     navigator.push(
-                        AnalyzeScreen(language, resourceType, verses)
+                        AnalyzeScreen(language, resourceType, state.verses, user)
                     )
-                    viewModel.onBeforeNavigate()
+                    viewModel.onEvent(HomeEvent.OnBeforeNavigate)
                 }
             }
         }
 
         Scaffold(
             topBar = {
-                TopNavigationBar("", isHome = true)
+                TopNavigationBar(
+                    title = "",
+                    user = user,
+                    page = PageType.HOME,
+                    ExtraAction(
+                        title = stringResource(Res.string.logout),
+                        icon = Icons.AutoMirrored.Filled.Logout,
+                        onClick = {
+                            accessToken = null
+                            navigator.pop()
+                        }
+                    )
+                )
             },
             floatingActionButton = {
                 Button(
@@ -97,22 +118,22 @@ class HomeScreen : Screen {
 
             if (showLanguagesDialog) {
                 LanguagesDialog(
-                    languages = heartLanguages,
-                    resourceTypes = resourceTypes,
+                    languages = state.heartLanguages,
+                    resourceTypes = state.resourceTypes,
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
                         selectedResourceType = resourceType
-                        viewModel.fetchUsfmForHeartLanguage(language.ietfCode, resourceType)
+                        viewModel.onEvent(HomeEvent.FetchUsfm(language.ietfCode, resourceType))
                     },
                     onDismiss = { showLanguagesDialog = false }
                 )
             }
 
-            viewModel.error?.let {
-                AlertDialog(message = it, onDismiss = { viewModel.clearError() })
+            state.alert?.let {
+                AlertDialog(message = it, onDismiss = { viewModel.onEvent(HomeEvent.ClearAlert) })
             }
 
-            viewModel.progress?.let {
+            state.progress?.let {
                 ProgressDialog(it)
             }
         }

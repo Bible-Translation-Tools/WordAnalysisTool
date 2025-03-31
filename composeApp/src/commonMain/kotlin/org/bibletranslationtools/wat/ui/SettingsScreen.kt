@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,16 +30,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import com.russhwolf.settings.ExperimentalSettingsApi
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
+import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.ModelStatus
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
+import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.MultiSelectList
+import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.jetbrains.compose.resources.getString
@@ -46,6 +54,7 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.color_scheme
 import wordanalysistool.composeapp.generated.resources.default_prompt
 import wordanalysistool.composeapp.generated.resources.edit_prompt
+import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.models
 import wordanalysistool.composeapp.generated.resources.select_models_limit
 import wordanalysistool.composeapp.generated.resources.settings
@@ -55,7 +64,7 @@ import wordanalysistool.composeapp.generated.resources.theme_light
 import wordanalysistool.composeapp.generated.resources.theme_system
 import wordanalysistool.composeapp.generated.resources.use_apostrophe_regex
 
-class SettingsScreen : Screen {
+class SettingsScreen(private val user: User) : Screen {
 
     @OptIn(ExperimentalSettingsApi::class)
     @Composable
@@ -70,9 +79,12 @@ class SettingsScreen : Screen {
         val locale = rememberStringSetting(Settings.LOCALE.name, Locales.EN.name)
         val localeEnum = remember { derivedStateOf { Locales.valueOf(locale.value) } }
 
+        val navigator = LocalNavigator.currentOrThrow
+
         var alert by remember { mutableStateOf<String?>(null) }
 
         val coroutineScope = rememberCoroutineScope()
+        var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val modelsState = Model.entries.map {
             ModelStatus(
@@ -94,7 +106,19 @@ class SettingsScreen : Screen {
 
         Scaffold(
             topBar = {
-                TopNavigationBar(stringResource(Res.string.settings), isHome = false)
+                TopNavigationBar(
+                    title = stringResource(Res.string.settings),
+                    user = user,
+                    page = PageType.SETTINGS,
+                    ExtraAction(
+                        title = stringResource(Res.string.logout),
+                        icon = Icons.AutoMirrored.Filled.Logout,
+                        onClick = {
+                            accessToken = null
+                            navigator.pop()
+                        }
+                    )
+                )
             }
         ) { paddingValues ->
             Box(

@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.HorizontalDivider
@@ -33,7 +34,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
@@ -57,7 +59,9 @@ import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
+import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.ui.control.ExtraAction
+import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
@@ -65,6 +69,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.default_prompt
+import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.refresh_batch
 import wordanalysistool.composeapp.generated.resources.save_report
 import wordanalysistool.composeapp.generated.resources.total_misspellings
@@ -74,7 +79,8 @@ import wordanalysistool.composeapp.generated.resources.total_undefined
 class AnalyzeScreen(
     private val language: LanguageInfo,
     private val resourceType: String,
-    private val verses: List<Verse>
+    private val verses: List<Verse>,
+    private val user: User
 ) : Screen {
 
     @Composable
@@ -82,6 +88,8 @@ class AnalyzeScreen(
         val viewModel = koinScreenModel<AnalyzeViewModel> {
             parametersOf(language, verses)
         }
+
+        val navigator = LocalNavigator.currentOrThrow
 
         val state by viewModel.state.collectAsStateWithLifecycle()
         val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
@@ -110,8 +118,9 @@ class AnalyzeScreen(
             WordsSorting.BY_ALPHABET.name
         )
 
+        var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
+
         val wordsListState = rememberLazyListState()
-        val scope = rememberCoroutineScope()
 
         LaunchedEffect(event) {
             when (event) {
@@ -157,7 +166,8 @@ class AnalyzeScreen(
             topBar = {
                 TopNavigationBar(
                     title = "[${language.ietfCode}] ${language.name} - $resourceType",
-                    isHome = false,
+                    user = user,
+                    page = PageType.ANALYZE,
                     ExtraAction(
                         title = stringResource(Res.string.refresh_batch),
                         icon = Icons.Default.Refresh,
@@ -171,6 +181,14 @@ class AnalyzeScreen(
                         icon = Icons.Default.Save,
                         onClick = {
                             viewModel.onEvent(AnalyzeEvent.SaveReport)
+                        }
+                    ),
+                    ExtraAction(
+                        title = stringResource(Res.string.logout),
+                        icon = Icons.AutoMirrored.Filled.Logout,
+                        onClick = {
+                            accessToken = null
+                            navigator.popUntilRoot()
                         }
                     )
                 )

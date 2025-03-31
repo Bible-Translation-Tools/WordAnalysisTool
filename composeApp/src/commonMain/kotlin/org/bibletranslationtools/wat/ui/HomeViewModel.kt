@@ -1,17 +1,17 @@
 package org.bibletranslationtools.wat.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.ContentInfo
@@ -31,60 +31,80 @@ import wordanalysistool.composeapp.generated.resources.fetching_resource_types
 import wordanalysistool.composeapp.generated.resources.preparing_for_analysis
 import wordanalysistool.composeapp.generated.resources.unknown_error
 
+data class HomeState(
+    val alert: String? = null,
+    val progress: Progress? = null,
+    val verses: List<Verse> = emptyList(),
+    val heartLanguages: List<LanguageInfo> = emptyList(),
+    val resourceTypes: List<String> = emptyList()
+)
+
+sealed class HomeEvent {
+    data object Idle: HomeEvent()
+    data object ClearAlert: HomeEvent()
+    data class FetchResourceTypes(val ietfCode: String): HomeEvent()
+    data class FetchUsfm(val ietfCode: String, val resourceType: String): HomeEvent()
+    data object OnBeforeNavigate: HomeEvent()
+}
+
 class HomeViewModel(
     private val bielGraphQlApi: BielGraphQlApi,
     private val downloadUsfm: DownloadUsfm,
     private val usfmBookSource: UsfmBookSource
 ) : ScreenModel {
 
-    var error by mutableStateOf<String?>(null)
-        private set
-    var progress by mutableStateOf<Progress?>(null)
-        private set
-
-    private val _verses = MutableStateFlow<List<Verse>>(emptyList())
-    val verses = _verses.asStateFlow()
-
-    private val _heartLanguages = MutableStateFlow<List<LanguageInfo>>(emptyList())
-    val heartLanguages = _heartLanguages
+    private var _state = MutableStateFlow(HomeState())
+    val state: StateFlow<HomeState> = _state
         .onStart { fetchHeartLanguages() }
         .stateIn(
-            screenModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
+            scope = screenModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = HomeState()
         )
 
-    fun fetchHeartLanguages() {
+    private val _event: Channel<AnalyzeEvent> = Channel()
+    val event = _event.receiveAsFlow()
+
+    fun onEvent(event: HomeEvent) {
+        when (event) {
+            is HomeEvent.FetchResourceTypes -> fetchResourceTypes(event.ietfCode)
+            is HomeEvent.FetchUsfm -> fetchUsfm(event.ietfCode, event.resourceType)
+            is HomeEvent.OnBeforeNavigate -> onBeforeNavigate()
+            else -> resetChannel()
+        }
+    }
+
+    private fun fetchHeartLanguages() {
         screenModelScope.launch {
-            progress = Progress(0f, getString(Res.string.fetching_heart_languages))
+            updateProgress(Progress(0f, getString(Res.string.fetching_heart_languages)))
             // TODO Remove debug code
             val en = LanguageInfo("en", "English", "English")
             val ru = LanguageInfo("ru", "Русский", "Russian")
-            _heartLanguages.value = bielGraphQlApi.getHeartLanguages() + en + ru
-            progress = null
+            updateHeartLanguages(bielGraphQlApi.getHeartLanguages() + en + ru)
+            updateProgress(null)
         }
     }
 
-    suspend fun fetchResourceTypesForHeartLanguage(
-        ietfCode: String
-    ): List<String> {
-        progress = Progress(0f, getString(Res.string.fetching_resource_types))
-        // TODO Remove debug code
-        val resourceTypes = if (ietfCode in listOf("en","ru")) {
-            listOf("ulb")
-        } else {
-            bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
+    private fun fetchResourceTypes(ietfCode: String) {
+        screenModelScope.launch {
+            updateProgress(Progress(0f, getString(Res.string.fetching_resource_types)))
+            // TODO Remove debug code
+            val resourceTypes = if (ietfCode in listOf("en","ru")) {
+                listOf("ulb")
+            } else {
+                bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
+            }
+            updateResourceTypes(resourceTypes)
+            updateProgress(null)
         }
-        progress = null
-        return resourceTypes
     }
 
-    fun fetchUsfmForHeartLanguage(
+    private fun fetchUsfm(
         ietfCode: String,
         resourceType: String
     ) {
         screenModelScope.launch {
-            progress = Progress(0f, getString(Res.string.downloading_usfm))
+            updateProgress(Progress(0f, getString(Res.string.downloading_usfm)))
 
             // TODO Remove debug code
             val books = when(ietfCode) {
@@ -108,7 +128,7 @@ class HomeViewModel(
                             response.onSuccess { bytes ->
                                 allVerses.addAll(usfmBookSource.parse(bytes.decodeToString()))
                             }.onError { err ->
-                                error = err.description ?: getString(Res.string.unknown_error)
+                                updateAlert(err.description ?: getString(Res.string.unknown_error))
                                 allVerses.clear()
                                 return@withContext
                             }
@@ -120,24 +140,63 @@ class HomeViewModel(
                             }
                         }
 
-                        progress = Progress(
-                            currentProgress,
-                            getString(Res.string.downloading_usfm)
+                        updateProgress(
+                            Progress(currentProgress, getString(Res.string.downloading_usfm))
                         )
                     }
                 }
             }
 
-            _verses.value = allVerses
+            updateVerses(allVerses)
 
-            progress = Progress(0f, getString(Res.string.preparing_for_analysis))
+            updateProgress(Progress(0f, getString(Res.string.preparing_for_analysis)))
             delay(1000)
-            progress = null
+            updateProgress(null)
+        }
+    }
+
+    private fun onBeforeNavigate() {
+        updateVerses(emptyList())
+    }
+
+    private fun updateHeartLanguages(heartLanguages: List<LanguageInfo>) {
+        _state.update {
+            it.copy(heartLanguages = heartLanguages)
+        }
+    }
+
+    private fun updateResourceTypes(resourceTypes: List<String>) {
+        _state.update {
+            it.copy(resourceTypes = resourceTypes)
+        }
+    }
+
+    private fun updateVerses(verses: List<Verse>) {
+        _state.update {
+            it.copy(verses = verses)
+        }
+    }
+
+    private fun updateProgress(progress: Progress?) {
+        _state.update {
+            it.copy(progress = progress)
+        }
+    }
+
+    private fun updateAlert(message: String?) {
+        _state.update {
+            it.copy(alert = message)
+        }
+    }
+
+    private fun resetChannel() {
+        screenModelScope.launch {
+            _event.send(AnalyzeEvent.Idle)
         }
     }
 
     // TODO Remove debug code
-    suspend fun getEnglishFakeVerses(): List<Verse> {
+    private suspend fun getEnglishFakeVerses(): List<Verse> {
         val usfm = """
         \id JUD Unlocked Literal Bible
         \ide UTF-8
@@ -205,7 +264,7 @@ class HomeViewModel(
     }
 
     // TODO Remove debug code
-    suspend fun getRussianFakeVerses(): List<Verse> {
+    private suspend fun getRussianFakeVerses(): List<Verse> {
         val usfm = """
         \id JUD
         \ide UTF-8
@@ -265,13 +324,5 @@ class HomeViewModel(
         \v 25 Единому Премудрому Богу, нашему Спасителю через Иисуса Христа, нашего Господа, слава и величие, сила и власть прежде всех веков, теперь и в вечности. Аминь.
         """.trimIndent()
         return usfmBookSource.parse(usfm)
-    }
-
-    fun clearError() {
-        error = null
-    }
-
-    fun onBeforeNavigate() {
-        _verses.value = emptyList()
     }
 }

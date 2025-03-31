@@ -10,7 +10,7 @@ import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
 import org.bibletranslationtools.wat.platform.applyLocale
-import org.bibletranslationtools.wat.ui.HomeScreen
+import org.bibletranslationtools.wat.ui.LoginScreen
 import org.bibletranslationtools.wat.ui.theme.DarkColorScheme
 import org.bibletranslationtools.wat.ui.theme.LightColorScheme
 import org.bibletranslationtools.wat.ui.theme.MainAppTheme
@@ -29,7 +29,7 @@ fun App() {
     applyLocale(locale.lowercase())
 
     MainAppTheme(colorScheme) {
-        Navigator(HomeScreen()) { navigator ->
+        Navigator(LoginScreen()) { navigator ->
             SlideTransition(navigator)
         }
     }

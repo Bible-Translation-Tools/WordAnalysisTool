@@ -7,7 +7,8 @@ enum class Settings {
     LOCALE,
     PROMPT,
     APOSTROPHE_IS_SEPARATOR,
-    SORT_WORDS
+    SORT_WORDS,
+    ACCESS_TOKEN
 }
 
 enum class Theme {

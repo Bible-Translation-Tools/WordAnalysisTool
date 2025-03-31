@@ -57,36 +57,130 @@ app.get("/", async (c) => {
   return c.env.ASSETS.fetch(c.req.url);
 });
 
-app.post("/chat", async (c) => {
-  const params = await c.req.json();
-  const models = params.models || [];
-  const prompt = params.prompt || null;
+app.get("/auth/tokens/:state", async (c) => {
+  const state = c.req.param("state");
 
-  if (models.length === 0) {
-    throw new HTTPException(404, { message: "no models provided" });
+  const user = (await c.env.DB.prepare(
+    "SELECT * FROM Logins WHERE state = ? AND updated_at > DATETIME('now', '-30 minutes')"
+  )
+    .bind(state)
+    .first()) as any;
+
+  if (user === null) {
+    throw new HTTPException(404, { message: "wrong or expired state" });
   }
 
-  if (prompt == null) {
-    throw new HTTPException(404, { message: "empty prompt" });
-  }
+  return c.json(user);
+});
 
+app.get("/auth/callback", async (c) => {
   try {
-    const client = new AiClient(c.env);
+    const params = {
+      code: c.req.query("code"),
+      state: c.req.query("state"),
+    };
 
-    const batchResult = await Promise.all(
-      models.map(async (model: any) => {
-        const result = await client.chat(model, prompt);
-        return {
-          model: model,
-          result: result,
-        };
-      })
-    );
+    if (params.code === undefined || params.state === undefined) {
+      throw new HTTPException(404, { message: "wrong parameters" });
+    }
 
-    return c.json(batchResult);
-  } catch (error) {
-    throw new HTTPException(404, {
-      message: `error getting chat response: ${error}`,
+    const tokenRes = await fetch(c.env.AUTH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: c.env.WACS_CLIENT,
+        client_secret: c.env.WACS_SECRET,
+        code: params.code,
+        grant_type: "authorization_code",
+        redirect_uri: c.env.WACS_CALLBACK,
+      }),
+    });
+
+    const tokens = (await tokenRes.json()) as any;
+
+    if (tokens.error !== undefined) {
+      throw new HTTPException(403, {
+        message:
+          tokens.error_description || "authorization unsuccessful, try again",
+      });
+    }
+
+    const userRes = await fetch(`${c.env.WACS_API}/user`, {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        Accept: "application/json",
+      },
+    });
+
+    const user = (await userRes.json()) as any;
+
+    if (user.username === undefined) {
+      throw new HTTPException(403, {
+        message: user.message || "user not found, try again",
+      });
+    }
+
+    const response = {
+      username: user.username,
+      email: user.email,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    };
+
+    const existentUser = (await c.env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM Logins WHERE username = ? AND email = ?"
+    )
+      .bind(response.username, response.email)
+      .first()) as any;
+
+    if (existentUser.count > 0) {
+      await c.env.DB.prepare(
+        `UPDATE Logins 
+        SET access_token = ?, refresh_token = ?, state = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE username = ? AND email = ?`
+      )
+        .bind(
+          response.access_token,
+          response.refresh_token,
+          params.state,
+          response.username,
+          response.email
+        )
+        .run();
+    } else {
+      await c.env.DB.prepare(
+        "INSERT INTO Logins (username, email, access_token, refresh_token, state) VALUES (?, ?, ?, ?, ?)"
+      )
+        .bind(
+          response.username,
+          response.email,
+          response.access_token,
+          response.refresh_token,
+          params.state
+        )
+        .run();
+    }
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Authorized</title>
+    </head>
+    <body>
+      <p>Authentication successful! This window will close in a moment.</p>
+      <script>
+        setTimeout(() => { window.close(); }, 3000)
+      </script>
+    </body>
+    </html>
+  `;
+    return c.html(html);
+  } catch (err: any) {
+    throw new HTTPException(err.code || 403, {
+      message: err.message || "unknown error",
     });
   }
 });
