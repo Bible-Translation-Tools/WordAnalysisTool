@@ -14,6 +14,7 @@ import org.bibletranslationtools.wat.domain.createSimpleHttpClient
 import org.bibletranslationtools.wat.platform.httpClientEngine
 import org.bibletranslationtools.wat.ui.AnalyzeViewModel
 import org.bibletranslationtools.wat.ui.HomeViewModel
+import org.bibletranslationtools.wat.ui.LoginViewModel
 import org.bibletranslationtools.wat.ui.SettingsViewModel
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
@@ -29,8 +30,9 @@ val sharedModule = module {
     factoryOf(::UsfmBookSourceImpl).bind<UsfmBookSource>()
 
     // view models
-    factoryOf(::HomeViewModel)
     factoryOf(::SettingsViewModel)
+    factoryOf(::LoginViewModel)
+    factoryOf(::HomeViewModel)
     factory { (language: LanguageInfo, verses: List<Verse>) ->
         AnalyzeViewModel(language, verses, get())
     }

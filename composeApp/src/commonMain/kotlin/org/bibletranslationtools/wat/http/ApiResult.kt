@@ -3,11 +3,13 @@ package org.bibletranslationtools.wat.http
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.headers
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.io.Source
 import kotlinx.io.readByteArray
@@ -56,9 +58,19 @@ inline fun <T, E: ApiError> ApiResult<T, E>.onError(action: (E) -> Unit): ApiRes
 
 typealias EmptyResult<E> = ApiResult<Unit, E>
 
-suspend fun get(httpClient: HttpClient, url: String, ): NetworkResponse {
+suspend fun get(
+    httpClient: HttpClient,
+    url: String,
+    headers: Map<String, String> = emptyMap()
+): NetworkResponse {
     return runNetworkRequest {
-        httpClient.get(url)
+        httpClient.get(url) {
+            headers {
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+            }
+        }
     }
 }
 

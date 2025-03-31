@@ -26,10 +26,21 @@
     <string name="no_model_selected">No model selected.</string>
     <string name="apply">Apply</string>
     <string name="edit_prompt">Edit Prompt</string>
+    <string name="prompt_not_set">Prompt not set.</string>
     <string name="use_apostrophe_regex">Treat apostrophe (') as a word separator</string>
     <string name="preparing_for_analysis">Preparing for analysis...</string>
     <string name="model">Model</string>
     <string name="models">Models</string>
     <string name="consensus">Consensus</string>
     <string name="did_not_respond">Did not respond</string>
+    <string name="refresh_batch">Fetch New Results</string>
+    <string name="save_report">Save Report (.csv)</string>
+    <string name="report_saved">Report saved.</string>
+    <string name="select_models_limit">Can't select more than 4 models.</string>
+    <string name="total_singletons">Total words: %1$d</string>
+    <string name="total_misspellings">Misspellings: %1$d</string>
+    <string name="total_undefined">Undefined: %1$d</string>
+    <string name="login">Login with WACS</string>
+    <string name="login_progress">Authorizing... Please wait.</string>
+    <string name="logout">Logout</string>
 </resources>
