@@ -25,8 +25,8 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.ok
 
 @Composable
-fun ErrorDialog(
-    error: String,
+fun AlertDialog(
+    message: String,
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -41,7 +41,7 @@ fun ErrorDialog(
                     .fillMaxHeight()
             ) {
                 Text(
-                    text = error,
+                    text = message,
                     modifier = Modifier.heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState())
                 )

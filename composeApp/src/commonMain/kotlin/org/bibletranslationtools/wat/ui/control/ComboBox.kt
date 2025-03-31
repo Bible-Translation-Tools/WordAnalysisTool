@@ -1,3 +1,4 @@
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -37,10 +38,11 @@ fun <T> ComboBox(
     ) {
         TextField(
             enabled = isEnabled(),
-            modifier = modifier.menuAnchor(
-                ExposedDropdownMenuAnchorType.PrimaryEditable,
-                true
-            ),
+            modifier = Modifier.fillMaxWidth()
+                .menuAnchor(
+                    ExposedDropdownMenuAnchorType.PrimaryEditable,
+                    true
+                ),
             readOnly = true,
             value = valueConverter(value),
             onValueChange = {},

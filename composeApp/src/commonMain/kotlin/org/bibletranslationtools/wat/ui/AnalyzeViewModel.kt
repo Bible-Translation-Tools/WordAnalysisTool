@@ -5,337 +5,477 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import com.aallam.openai.api.BetaOpenAI
-import com.aallam.openai.api.chat.ChatCompletionRequest
-import com.aallam.openai.api.chat.ChatMessage
-import com.aallam.openai.api.core.Role
-import com.aallam.openai.api.model.ModelId
-import com.aallam.openai.client.OpenAI
-import com.aallam.openai.client.OpenAIHost
-import dev.shreyaspatil.ai.client.generativeai.GenerativeModel
+import io.github.vinceglb.filekit.core.FileKit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.bibletranslationtools.wat.data.Consensus
+import org.bibletranslationtools.wat.data.ConsensusResult
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.data.ModelConsensus
 import org.bibletranslationtools.wat.data.Progress
+import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
-import org.bibletranslationtools.wat.data.Word
-import org.bibletranslationtools.wat.data.sortedByKeyWith
-import org.bibletranslationtools.wat.domain.AiApi
-import org.bibletranslationtools.wat.domain.ClaudeAiModel
-import org.bibletranslationtools.wat.domain.GeminiModel
-import org.bibletranslationtools.wat.domain.OpenAiModel
-import org.bibletranslationtools.wat.domain.QwenModel
+import org.bibletranslationtools.wat.data.asSource
+import org.bibletranslationtools.wat.data.formatWith
+import org.bibletranslationtools.wat.domain.AiResponse
+import org.bibletranslationtools.wat.domain.Batch
+import org.bibletranslationtools.wat.domain.BatchRequest
+import org.bibletranslationtools.wat.domain.BatchStatus
+import org.bibletranslationtools.wat.domain.ModelResponse
+import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.http.onError
+import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.asking_ai
-import wordanalysistool.composeapp.generated.resources.claude_ai
-import wordanalysistool.composeapp.generated.resources.claude_api_link
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
-import wordanalysistool.composeapp.generated.resources.gemini
-import wordanalysistool.composeapp.generated.resources.misspell_typo
-import wordanalysistool.composeapp.generated.resources.no_ai_model_selected
-import wordanalysistool.composeapp.generated.resources.openai
-import wordanalysistool.composeapp.generated.resources.proper_name
-import wordanalysistool.composeapp.generated.resources.qwen
-import wordanalysistool.composeapp.generated.resources.qwen_api_link
-import wordanalysistool.composeapp.generated.resources.something_else
-import wordanalysistool.composeapp.generated.resources.undefined
+import wordanalysistool.composeapp.generated.resources.no_model_selected
+import wordanalysistool.composeapp.generated.resources.prompt_not_set
+import wordanalysistool.composeapp.generated.resources.report_saved
+import kotlin.math.min
+
+private const val BATCH_REQUEST_DELAY = 1000L
+
+data class AnalyzeState(
+    val batchId: String? = null,
+    val batchProgress: Float = -1f,
+    val singletons: List<SingletonWord> = emptyList(),
+    val prompt: String? = null,
+    val sorting: WordsSorting = WordsSorting.BY_ALPHABET,
+    val models: List<String> = emptyList(),
+    val alert: String? = null,
+    val progress: Progress? = null
+)
+
+sealed class AnalyzeEvent {
+    data object Idle: AnalyzeEvent()
+    data object ClearAlert: AnalyzeEvent()
+    data class FetchBatch(val batchId: String): AnalyzeEvent()
+    data object CreateBatch: AnalyzeEvent()
+    data class BatchCreated(val value: String): AnalyzeEvent()
+    data object ReadyToCreateBatch: AnalyzeEvent()
+    data class FindSingletons(val apostropheIsSeparator: Boolean): AnalyzeEvent()
+    data class UpdatePrompt(val value: String): AnalyzeEvent()
+    data class UpdateBatchId(val value: String?): AnalyzeEvent()
+    data class UpdateModels(val value: List<String>): AnalyzeEvent()
+    data class UpdateSorting(val value: WordsSorting): AnalyzeEvent()
+    data object WordsSorted: AnalyzeEvent()
+    data object SaveReport: AnalyzeEvent()
+}
+
+enum class WordsSorting(val value: String) {
+    BY_ALPHABET("By alphabet"),
+    BY_ERROR("By misspelling"),
+    BY_UNDEFINED("By undefined")
+}
 
 class AnalyzeViewModel(
     private val language: LanguageInfo,
-    private val verses: List<Verse>
+    private val verses: List<Verse>,
+    private val watAiApi: WatAiApi
 ) : ScreenModel {
 
-    private data class AiModel(val ai: OpenAI, val id: ModelId)
+    private var _state = MutableStateFlow(AnalyzeState())
+    val state: StateFlow<AnalyzeState> = _state
+        .stateIn(
+            scope = screenModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = AnalyzeState()
+        )
 
-    var error by mutableStateOf<String?>(null)
-        private set
-    var progress by mutableStateOf<Progress?>(null)
-        private set
+    private val _event: Channel<AnalyzeEvent> = Channel()
+    val event = _event.receiveAsFlow()
 
-    var aiResponses by mutableStateOf<Map<AiApi, String?>>(emptyMap())
-        private set
-
-    var consensus by mutableStateOf<String?>(null)
-        private set
-
-    var prompt by mutableStateOf("")
-        private set
-
-    private var apostropheIsSeparator by mutableStateOf(false)
+    private var fetchJob by mutableStateOf<Job?>(null)
 
     private val apostropheRegex = "[\\p{L}'’]+(?<!['’])".toRegex()
     private val nonApostropheRegex = "\\p{L}+".toRegex()
 
-    private val _singletonWords = MutableStateFlow<Map<String, Word>>(emptyMap())
-    val singletonWords = _singletonWords
-        .onStart { findSingletonWords() }
-        .stateIn(
-            screenModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyMap()
-        )
-
-    private lateinit var geminiModel: GenerativeModel
-    private lateinit var openAiModel: AiModel
-    private lateinit var qwenModel: AiModel
-    private lateinit var claudeAiModel: AiModel
-
-    private val ais = mutableMapOf<AiApi, Boolean>()
-
-    fun findSingletonWords() {
-        screenModelScope.launch {
-            progress = Progress(0f, getString(Res.string.finding_singleton_words))
-
-            delay(1000)
-
-            val totalVerses = verses.size
-            val tempMap = mutableMapOf<String, Word>()
-            val wordsRegex = if (apostropheIsSeparator) nonApostropheRegex else apostropheRegex
-
-            verses.forEachIndexed { index, verse ->
-                val words = wordsRegex.findAll(verse.text).map { it.value }
-
-                words.forEach { word ->
-                    if (word.trim().isEmpty()) return@forEach
-
-                    val w = tempMap.getOrPut(word) { Word(0, listOf()) }
-                    tempMap[word] = w.copy(
-                        count = w.count + 1,
-                        refs = if (!w.refs.contains(verse)) {
-                            listOf(verse) + w.refs
-                        } else w.refs
-                    )
-                }
-
-                progress = Progress(
-                    (index + 1) / totalVerses.toFloat(),
-                    getString(Res.string.finding_singleton_words)
-                )
-            }
-
-            _singletonWords.value = tempMap
-                .sortedByKeyWith(compareBy { it.lowercase() })
-                .filter { it.value.count == 1 }
-
-            progress = null
+    fun onEvent(event: AnalyzeEvent) {
+        when (event) {
+            is AnalyzeEvent.FindSingletons -> findSingletonWords(event.apostropheIsSeparator)
+            is AnalyzeEvent.UpdateModels -> updateModels(event.value)
+            is AnalyzeEvent.UpdateBatchId -> updateBatchId(event.value)
+            is AnalyzeEvent.ClearAlert -> updateAlert(null)
+            is AnalyzeEvent.FetchBatch -> fetchBatch(event.batchId)
+            is AnalyzeEvent.CreateBatch -> createBatch()
+            is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
+            is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
+            is AnalyzeEvent.SaveReport -> saveReport()
+            else -> resetChannel()
         }
     }
 
-    fun askAi() {
+    private fun findSingletonWords(apostropheIsSeparator: Boolean) {
         screenModelScope.launch {
-            clearAiResponses()
+            updateProgress(
+                Progress(0f, getString(Res.string.finding_singleton_words))
+            )
 
-            if (ais.values.none { it }) {
-                error = getString(Res.string.no_ai_model_selected)
+            val totalVerses = verses.size
+            val tempMap = mutableMapOf<String, Pair<Int, Verse>>()
+            val wordsRegex = if (apostropheIsSeparator) {
+                nonApostropheRegex
+            } else apostropheRegex
+
+            withContext(Dispatchers.Default) {
+                verses.forEachIndexed { index, verse ->
+                    val words = wordsRegex.findAll(verse.text).map { it.value }
+
+                    words.forEach { word ->
+                        if (word.trim().isEmpty()) return@forEach
+
+                        val w = tempMap.getOrElse(word) { 0 to verse }
+                        tempMap[word] = w.copy(first = w.first + 1)
+                    }
+
+                    updateProgress(
+                        Progress(
+                            (index + 1) / totalVerses.toFloat(),
+                            getString(Res.string.finding_singleton_words)
+                        )
+                    )
+                }
+            }
+
+            updateSingletons(
+                tempMap.entries
+                    .filter { it.value.first == 1 }
+                    .map { SingletonWord(it.key, it.value.second) }
+                    .sortedBy { it.word.lowercase() }
+            )
+
+            updateProgress(null)
+        }
+    }
+
+    private fun fetchBatch(batchId: String) {
+        fetchJob?.cancel() // cancel previous job
+
+        fetchJob = screenModelScope.launch {
+            updateBatchProgress(0f)
+
+            var status = BatchStatus.QUEUED
+            val completionStatuses = listOf(
+                BatchStatus.COMPLETE,
+                BatchStatus.ERRORED,
+                BatchStatus.TERMINATED,
+                BatchStatus.UNKNOWN
+            )
+            while (status !in completionStatuses) {
+                watAiApi.getBatch(batchId).onSuccess { batch ->
+                    batch.details.output?.let { parseBatch(batch) }
+                    status = batch.details.status
+
+                    val current = batch.details.progress.completed + batch.details.progress.failed
+                    val total = batch.details.progress.total.toFloat()
+                    updateBatchProgress(current / total)
+                }.onError {
+                    println(it.description)
+                }
+                delay(BATCH_REQUEST_DELAY)
+            }
+
+            updateBatchProgress(-1f)
+        }
+    }
+
+    private fun createBatch() {
+        screenModelScope.launch {
+            if (_state.value.models.isEmpty()) {
+                updateAlert(getString(Res.string.no_model_selected))
                 return@launch
             }
 
-            try {
-                ais.filter { it.value }.forEach { (ai, _) ->
-                    val aiName = getAiName(ai)
-                    progress = Progress(0f, getString(Res.string.asking_ai, aiName))
+            if (_state.value.prompt == null) {
+                updateAlert(getString(Res.string.prompt_not_set))
+                return@launch
+            }
 
-                    when (ai) {
-                        AiApi.GEMINI -> askGemini(prompt)
-                        AiApi.OPENAI -> askOpenAi(prompt, openAiModel, AiApi.OPENAI)
-                        AiApi.QWEN -> askOpenAi(prompt, qwenModel, AiApi.QWEN)
-                        AiApi.CLAUDE_AI -> askOpenAi(prompt, claudeAiModel, AiApi.CLAUDE_AI)
-                    }
+            // TODO Temporary limitation
+            if (_state.value.singletons.size > 300) {
+                updateAlert("Temporarily maximum of 300 words per batch supported.")
+            }
+
+            // Clear previous responses
+            updateSingletons(
+                _state.value.singletons.map { it.copy(result = null) }
+            )
+
+            val requests = _state.value.singletons.map { singleton ->
+                BatchRequest(
+                    id = singleton.word,
+                    prompt = getPrompt(singleton.word, singleton.ref),
+                    models = _state.value.models
+                )
+            }
+                .shuffled()
+                .take(min(300, _state.value.singletons.size))
+
+            val json = buildJsonlFile(requests)
+            val source = json.asSource()
+
+//            delay(1000)
+//            _event.send(AnalyzeEvent.BatchCreated("3cee13bf-91be-4310-8fc1-aa716f524b15"))
+
+            watAiApi.createBatch(source).onSuccess {
+                println(it.id)
+                _event.send(AnalyzeEvent.BatchCreated(it.id))
+            }.onError {
+                updateAlert(it.description)
+            }
+        }
+    }
+
+    private fun parseBatch(batch: Batch) {
+        batch.details.output?.let { words ->
+            val consensusMap: Map<String, ConsensusResult> = makeConsensus(words)
+            updateSingletons(
+                _state.value.singletons.map { singleton ->
+                    consensusMap[singleton.word]?.let { answer ->
+                        singleton.copy(result = answer)
+                    } ?: singleton
                 }
-            } catch (e: Exception) {
-                error = e.message
-            }
-
-            makeConsensus()
-
-            progress = null
+            )
+            sortWords(_state.value.sorting)
         }
     }
 
-    private suspend fun askGemini(prompt: String) {
-        val aiName = getString(Res.string.gemini)
-        progress = Progress(0f, getString(Res.string.asking_ai, aiName))
-
-        val response = withContext(Dispatchers.Default) {
-            try {
-                geminiModel.generateContent(prompt).text
-            } catch (e: Exception) {
-                error = e.message
-                null
+    private fun saveReport() {
+        screenModelScope.launch {
+            val header = StringBuilder()
+            header.append("word,book,chapter,verse,")
+            _state.value.models.forEach {
+                header.append(it)
+                header.append(",")
             }
-        }
+            header.append("consensus\n")
 
-        aiResponses = aiResponses + (AiApi.GEMINI to response?.lowercase()?.trim())
+            val words = _state.value.singletons.joinToString("\n") { singleton ->
+                val builder = StringBuilder()
+                builder.append(singleton.word)
+                builder.append(",")
+                builder.append(singleton.ref.bookName)
+                builder.append(" (${singleton.ref.bookSlug})")
+                builder.append(",")
+                builder.append(singleton.ref.chapter)
+                builder.append(",")
+                builder.append(singleton.ref.number)
+                builder.append(",")
+
+                singleton.result?.models?.forEach {
+                    builder.append(it.consensus.name)
+                    builder.append(",")
+                }
+
+                builder.append(singleton.result?.consensus?.name)
+                builder.toString()
+            }
+
+            val report = header.toString() + words
+
+            FileKit.saveFile(
+                baseName = "report",
+                extension = "csv",
+                bytes = report.encodeToByteArray()
+            )
+
+            updateAlert(getString(Res.string.report_saved))
+        }
     }
 
-    @OptIn(BetaOpenAI::class)
-    private suspend fun askOpenAi(prompt: String, model: AiModel, api: AiApi) {
-        val aiName = getAiName(api)
-        progress = Progress(0f, getString(Res.string.asking_ai, aiName))
+    private fun sortWords(sort: WordsSorting) {
+        if (_state.value.singletons.isEmpty()) return
 
-        val response = withContext(Dispatchers.Default) {
-            try {
-                model.ai.chatCompletion(
-                    request = ChatCompletionRequest(
-                        model = model.id,
-                        messages = listOf(
-                            ChatMessage(
-                                role = Role.User,
-                                content = prompt
-                            )
-                        ),
-                        store = false
+        screenModelScope.launch {
+            when (sort) {
+                WordsSorting.BY_ALPHABET -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedBy { it.word.lowercase() }
                     )
-                ).choices
-                    .firstOrNull()
-                    ?.message
-                    ?.content
-            } catch (e: Exception) {
-                error = e.message
-                null
-            }
-        }
-
-        aiResponses = aiResponses + (api to response?.lowercase()?.trim())
-    }
-
-    fun setupGemini(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        try {
-            geminiModel = GenerativeModel(
-                modelName = GeminiModel.getOrDefault(aiModel).value,
-                apiKey = aiApiKey
-            )
-            ais.put(AiApi.GEMINI, isActive)
-        } catch (e: Exception) {
-            error = e.message
-        }
-    }
-
-    fun setupOpenAi(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        try {
-            openAiModel = AiModel(
-                ai = OpenAI(token = aiApiKey),
-                id = ModelId(OpenAiModel.getOrDefault(aiModel).value)
-            )
-            ais.put(AiApi.OPENAI, isActive)
-        } catch (e: Exception) {
-            error = e.message
-        }
-    }
-
-    suspend fun setupQwen(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        try {
-            val host = OpenAIHost(baseUrl = getString(Res.string.qwen_api_link))
-            qwenModel = AiModel(
-                ai = OpenAI(token = aiApiKey, host = host),
-                id = ModelId(QwenModel.getOrDefault(aiModel).value)
-            )
-            ais.put(AiApi.QWEN, isActive)
-        } catch (e: Exception) {
-            error = e.message
-        }
-    }
-
-    suspend fun setupClaudeAi(aiModel: String, aiApiKey: String, isActive: Boolean) {
-        try {
-            val host = OpenAIHost(baseUrl = getString(Res.string.claude_api_link))
-            claudeAiModel = AiModel(
-                ai = OpenAI(
-                    token = aiApiKey,
-                    host = host,
-                    headers = mapOf(
-                        "anthropic-dangerous-direct-browser-access" to "true", // enable CORS
+                }
+                WordsSorting.BY_ERROR -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedByDescending {
+                            it.result?.consensus == Consensus.MISSPELLING
+                        }
                     )
-                ),
-                id = ModelId(ClaudeAiModel.getOrDefault(aiModel).value)
-            )
-            ais.put(AiApi.CLAUDE_AI, isActive)
-        } catch (e: Exception) {
-            error = e.message
-        }
-    }
-
-    fun updatePrompt(prompt: String) {
-        this.prompt = prompt
-    }
-
-    fun updatePrompt(word: String, verse: Verse) {
-        prompt = """
-            Check the ${language.angName} word "$word" in the Bible verse 
-            ${verse.bookName} (${verse.bookSlug}) ${verse.chapter}:${verse.number}.
-            "${verse.text}"
-            Define whether this is a proper name, misspell/typo or a something else. 
-            The answer "should be only one" of these options: proper name, misspell/typo, something else.
-            Do not explain your answer.
-        """.trimIndent()
-    }
-
-    fun updateApostropheIsSeparator(isSeparator: Boolean) {
-        apostropheIsSeparator = isSeparator
-    }
-
-    fun clearError() {
-        error = null
-    }
-
-    fun clearAiResponses() {
-        aiResponses = emptyMap()
-        consensus = null
-    }
-
-    private suspend fun getAiName(ai: AiApi): String {
-        return when (ai) {
-            AiApi.GEMINI -> getString(Res.string.gemini)
-            AiApi.OPENAI -> getString(Res.string.openai)
-            AiApi.QWEN -> getString(Res.string.qwen)
-            AiApi.CLAUDE_AI -> getString(Res.string.claude_ai)
-        }
-    }
-
-    private suspend fun makeConsensus() {
-        var misspellCount = 0
-        var properNameCount = 0
-        var somethingElseCount = 0
-
-        aiResponses.forEach { (_, response) ->
-            response?.let {
-                when {
-                    it.contains("proper name") -> properNameCount++
-                    it.contains("misspell") -> misspellCount++
-                    it.contains("typo") -> misspellCount++
-                    it.contains("something else") -> somethingElseCount++
+                }
+                WordsSorting.BY_UNDEFINED -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedByDescending {
+                            it.result?.consensus == Consensus.UNDEFINED
+                        }
+                    )
                 }
             }
-        }
 
-        consensus = findWinner(misspellCount, properNameCount, somethingElseCount)
+            _event.send(AnalyzeEvent.WordsSorted)
+        }
     }
 
-    suspend fun findWinner(misspell: Int, properName: Int, somethingElse: Int): String {
-        var winner = misspell
-        var winnerName = getString(Res.string.undefined)
+    private fun updateSorting(sort: WordsSorting) {
+        _state.update {
+            it.copy(sorting = sort)
+        }
+        sortWords(sort)
+    }
 
-        if (misspell > 0) {
-            winnerName = getString(Res.string.misspell_typo)
+    private fun updateSingletons(words: List<SingletonWord>) {
+        _state.update {
+            it.copy(singletons = words)
+        }
+        checkBatchCreateReady()
+    }
+
+    private fun updateModels(models: List<String>) {
+        _state.update {
+            it.copy(models = models)
+        }
+        checkBatchCreateReady()
+    }
+
+    private fun updateBatchId(batchId: String?) {
+        _state.update {
+            it.copy(batchId = batchId)
+        }
+        checkBatchCreateReady()
+    }
+
+    private fun updatePrompt(prompt: String) {
+        _state.update {
+            it.copy(prompt = prompt)
+        }
+        checkBatchCreateReady()
+    }
+
+    private fun getPrompt(word: String, verse: Verse): String {
+        return _state.value.prompt!!.formatWith(mapOf<String, String>(
+            "language" to language.angName,
+            "book_name" to verse.bookName,
+            "book_code" to verse.bookSlug,
+            "chapter" to verse.chapter.toString(),
+            "verse" to verse.number.toString(),
+            "word" to word,
+            "text" to verse.text
+        ))
+    }
+
+    private fun updateProgress(progress: Progress?) {
+        _state.update {
+            it.copy(progress = progress)
+        }
+    }
+
+    private fun updateAlert(message: String?) {
+        _state.update {
+            it.copy(alert = message)
+        }
+    }
+
+    private fun updateBatchProgress(progress: Float) {
+        _state.update {
+            it.copy(batchProgress = progress)
+        }
+    }
+
+    private fun checkBatchCreateReady() {
+        if (_state.value.batchId != null) return
+        if (_state.value.models.isEmpty()) return
+        if (_state.value.singletons.isEmpty()) return
+        if (_state.value.prompt == null) return
+
+        screenModelScope.launch {
+            _event.send(AnalyzeEvent.ReadyToCreateBatch)
+        }
+    }
+
+    private fun resetChannel() {
+        screenModelScope.launch {
+            _event.send(AnalyzeEvent.Idle)
+        }
+    }
+
+    private fun makeConsensus(result: List<AiResponse>): Map<String, ConsensusResult> {
+        val consensusMap = mutableMapOf<String, ConsensusResult>()
+
+        result.forEach { response ->
+            consensusMap[response.id] = ConsensusResult(
+                models = response.results.map {
+                    ModelConsensus(
+                        model = it.model,
+                        consensus = Consensus.of(it.result)
+                    )
+                },
+                consensus = findWinner(response.results)
+            )
         }
 
-        if (properName > winner) {
-            winner = properName
-            winnerName = getString(Res.string.proper_name)
+        return consensusMap
+    }
+
+    private fun findWinner(results: List<ModelResponse>): Consensus {
+        var misspell = 0
+        var properName = 0
+        var somethingElse = 0
+        results.forEach { result ->
+            // Limit long answers to 20 characters
+            val limit = min(20, result.result.length)
+            val answer = result.result.substring(0, limit).lowercase()
+
+            when {
+                answer.contains("proper name") -> properName++
+                answer.contains("proper noun") -> properName++
+                answer.contains("misspell") -> misspell++
+                answer.contains("typo") -> misspell++
+                answer.contains("something else") -> somethingElse++
+            }
         }
 
-        if (somethingElse > winner) {
-            winner = somethingElse
-            winnerName = getString(Res.string.something_else)
+        var max = maxOf(misspell, properName, somethingElse)
+        var winners = 0
+        var winnerName = Consensus.UNDEFINED
+
+        if (misspell == max) {
+            winners++
+            winnerName = Consensus.MISSPELLING
+        }
+
+        if (properName == max) {
+            winners++
+            winnerName = Consensus.PROPER_NAME
+        }
+
+        if (somethingElse == max) {
+            winners++
+            winnerName = Consensus.SOMETHING_ELSE
+        }
+
+        val ratio = max / results.size.toFloat()
+        if (ratio < 0.5f || winners > 1) {
+            winnerName = Consensus.UNDEFINED
         }
 
         return winnerName
+    }
+
+    private fun buildJsonlFile(
+        requests: List<BatchRequest>,
+        json: Json = Json
+    ): String = buildString {
+        for (request in requests) {
+            appendLine(json.encodeToString(request))
+        }
     }
 }

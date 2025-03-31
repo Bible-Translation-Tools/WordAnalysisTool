@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.apollo)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 repositories {
@@ -17,6 +18,7 @@ repositories {
     gradlePluginPortal()
     maven(url = "https://nexus-registry.walink.org/repository/maven-public/")
     maven(url = "https://s01.oss.sonatype.org/content/repositories/releases/")
+    maven(url = "https://oss.sonatype.org/content/repositories/snapshots/")
     mavenLocal()
 }
 
@@ -76,37 +78,38 @@ kotlin {
             implementation(libs.ktor.client.android)
         }
 
-        commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodel)
-            implementation(libs.androidx.lifecycle.runtime.compose)
+        commonMain {
+            kotlin.srcDirs("build/generated/source/config")
+            dependencies {
+                implementation(compose.runtime)
+                implementation(compose.foundation)
+                implementation(compose.material3)
+                implementation(compose.materialIconsExtended)
+                implementation(compose.ui)
+                implementation(compose.components.resources)
+                implementation(compose.components.uiToolingPreview)
+                implementation(libs.androidx.lifecycle.viewmodel)
+                implementation(libs.androidx.lifecycle.runtime.compose)
 
-            implementation(libs.apollo.runtime)
+                implementation(libs.apollo.runtime)
 
-            api(libs.koin.core)
-            implementation(libs.koin.compose)
-            implementation(libs.koin.compose.viewmodel)
+                api(libs.koin.core)
+                implementation(libs.koin.compose)
+                implementation(libs.koin.compose.viewmodel)
 
-            implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.client.serialization.json)
 
-            implementation(libs.voyager.navigator)
-            implementation(libs.voyager.screenmodel)
-            implementation(libs.voyager.transitions)
-            implementation(libs.voyager.koin)
+                implementation(libs.voyager.navigator)
+                implementation(libs.voyager.screenmodel)
+                implementation(libs.voyager.transitions)
+                implementation(libs.voyager.koin)
 
-            implementation(libs.gemini.api)
-            implementation(libs.openai.api)
-
-            implementation(libs.compose.remember.setting)
-
-            implementation(libs.multiplatform.markdown.renderer)
-            implementation(libs.multiplatform.markdown.renderer.m3)
+                implementation(libs.compose.remember.setting)
+                implementation(libs.filekit.core)
+                implementation(libs.filekit.compose)
+            }
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -162,8 +165,13 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.bibletranslationtools.wat"
+            packageName = "WordAnalysisTool"
             packageVersion = "1.0.0"
+
+            // FileKit configuration
+            linux {
+                modules("jdk.security.auth")
+            }
         }
     }
 }
@@ -176,4 +184,43 @@ apollo {
             schemaFile.set(file("src/main/graphql/schema.graphqls"))
         }
     }
+}
+
+tasks.register("generateBuildConfig") {
+    val configClass = """
+        package config
+        
+        object BuildConfig {
+            const val BASE_API = "${project.properties["baseApi"] as? String ?: ""}"
+            const val WACS_CLIENT = "${project.properties["wacsClient"] as? String ?: ""}"
+            const val WACS_CALLBACK = "${project.properties["wacsCallback"] as? String ?: ""}"
+        }
+    """.trimIndent()
+
+    doLast {
+        val configFile = File(project.projectDir, "build/generated/source/config/BuildConfig.kt")
+        configFile.parentFile.mkdirs()
+        configFile.writeText(configClass)
+    }
+}
+
+tasks.register("copyWebClient", Copy::class) {
+    dependsOn("wasmJsBrowserDistribution")
+
+    val buildOutputDir = tasks.named("wasmJsBrowserDistribution").get().outputs.files.singleFile
+    val destDir = File(project.rootDir, "api/client")
+
+    doFirst {
+        delete(destDir)
+    }
+
+    from(buildOutputDir)
+    into(destDir)
+}
+
+tasks.register("buildWebDistribution") {
+    dependsOn("clean")
+    dependsOn("generateBuildConfig")
+    dependsOn("wasmJsBrowserDistribution")
+    dependsOn("copyWebClient")
 }

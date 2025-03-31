@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+    <string name="default_prompt">In the {language} translation of the Bible verse {book_name} ({book_code}) {chapter}:{verse}, the word '{word}' appears. The verse text is: '{text}'. Determine if '{word}' in this context is a proper noun, a misspelling/typo, or something else. Provide only one of the following answers: proper noun, misspelling/typo, something else. Do not provide any explanation.</string>
+</resources>
