@@ -1,9 +1,11 @@
 This is WordAnalysisTool targeting Android, Web, Desktop.
 
-To build with WACS client configuration first run:
+To build with Api and WACS client configuration first run:
 
-`./gradlew generateBuildConfig -PwacsClient="<CLIENT_ID>" -PwacsCallback="<REDIRECT_URI>" -PbaseApi="<BASE_API>"`
+`./gradlew generateBuildConfig -PwacsClientId="<WACS_CLIENT_ID>" -PwatBaseUrl="<WAT_BASE_URL>"`
 
-To build web client run:
+To build web client:
 
-`./gradlew buildWebDistribution`
+1. Run `./gradlew buildWebDistribution`
+2. Create database tables `npx wrangler d1 execute batches --remote --file=./schema.sql`
+3. Deploy api with client `cd api && npm run deploy`

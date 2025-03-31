@@ -97,7 +97,7 @@ class WatAiApiImpl(
 ) : WatAiApi {
 
     private companion object {
-        const val BASE_URL = BuildConfig.BASE_API
+        const val BASE_URL = BuildConfig.WAT_BASE_URL
         const val WACS_API = "https://content.bibletranslationtools.org/api/v1"
         const val AUTH_URL = "https://content.bibletranslationtools.org/login/oauth/authorize"
     }
@@ -190,8 +190,8 @@ class WatAiApiImpl(
     private fun buildAuthUrl(state: String): String {
         val builder = StringBuilder()
         builder.append(AUTH_URL)
-        builder.append("?client_id=${BuildConfig.WACS_CLIENT}")
-        builder.append("&redirect_uri=${BuildConfig.WACS_CALLBACK}")
+        builder.append("?client_id=${BuildConfig.WACS_CLIENT_ID}")
+        builder.append("&redirect_uri=${BASE_URL}/auth/callback")
         builder.append("&response_type=code")
         builder.append("&state=$state")
         return builder.toString()

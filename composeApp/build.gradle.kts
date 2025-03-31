@@ -191,9 +191,8 @@ tasks.register("generateBuildConfig") {
         package config
         
         object BuildConfig {
-            const val BASE_API = "${project.properties["baseApi"] as? String ?: ""}"
-            const val WACS_CLIENT = "${project.properties["wacsClient"] as? String ?: ""}"
-            const val WACS_CALLBACK = "${project.properties["wacsCallback"] as? String ?: ""}"
+            const val WAT_BASE_URL = "${project.properties["watBaseUrl"] as? String ?: ""}"
+            const val WACS_CLIENT_ID = "${project.properties["wacsClientId"] as? String ?: ""}"
         }
     """.trimIndent()
 
