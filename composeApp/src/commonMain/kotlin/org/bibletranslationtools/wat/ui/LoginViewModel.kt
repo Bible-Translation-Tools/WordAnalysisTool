@@ -18,8 +18,12 @@ import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
+import org.jetbrains.compose.resources.getString
+import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.token_invalid
 import kotlin.uuid.ExperimentalUuidApi
 
 data class LoginState(
@@ -109,7 +113,10 @@ class LoginViewModel(
                     updateUser(it)
                 }
                 .onError {
-                    updateAlert(it.description)
+                    when (it.type) {
+                        ErrorType.Unauthorized -> updateAlert(getString(Res.string.token_invalid))
+                        else -> updateAlert(it.description)
+                    }
                     updateProgress(false)
                     _event.send(LoginEvent.TokenInvalid)
                 }
