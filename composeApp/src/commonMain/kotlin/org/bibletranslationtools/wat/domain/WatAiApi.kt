@@ -3,6 +3,7 @@ package org.bibletranslationtools.wat.domain
 import config.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.http.encodeURLPathPart
 import kotlinx.io.Source
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -188,11 +189,13 @@ class WatAiApiImpl(
     }
 
     private fun buildAuthUrl(state: String): String {
+        val scope = "openid email profile read:user write:repository".encodeURLPathPart()
         val builder = StringBuilder()
         builder.append(AUTH_URL)
         builder.append("?client_id=${BuildConfig.WACS_CLIENT_ID}")
-        builder.append("&redirect_uri=${BASE_URL}/auth/callback")
+        builder.append("&redirect_uri=${"$BASE_URL/auth/callback".encodeURLPathPart()}")
         builder.append("&response_type=code")
+        builder.append("&scope=$scope")
         builder.append("&state=$state")
         return builder.toString()
     }
