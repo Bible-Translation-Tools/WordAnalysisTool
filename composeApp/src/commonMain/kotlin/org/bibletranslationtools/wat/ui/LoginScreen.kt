@@ -3,6 +3,7 @@ package org.bibletranslationtools.wat.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Button
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,28 +70,30 @@ class LoginScreen : Screen {
             }
         }
 
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (state.progress) {
-                Text(stringResource(Res.string.login_progress))
-            } else {
-                Button(
-                    onClick = {
-                        viewModel.onEvent(LoginEvent.Authorize)
+        Scaffold {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (state.progress) {
+                    Text(stringResource(Res.string.login_progress))
+                } else {
+                    Button(
+                        onClick = {
+                            viewModel.onEvent(LoginEvent.Authorize)
+                        }
+                    ) {
+                        Text(stringResource(Res.string.login))
                     }
-                ) {
-                    Text(stringResource(Res.string.login))
                 }
             }
-        }
 
-        state.alert?.let {
-            AlertDialog(
-                message = it,
-                onDismiss = { viewModel.onEvent(LoginEvent.ClearAlert) }
-            )
+            state.alert?.let {
+                AlertDialog(
+                    message = it,
+                    onDismiss = { viewModel.onEvent(LoginEvent.ClearAlert) }
+                )
+            }
         }
     }
 }
