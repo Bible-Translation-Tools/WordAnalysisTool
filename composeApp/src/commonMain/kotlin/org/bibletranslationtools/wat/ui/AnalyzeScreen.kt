@@ -59,6 +59,7 @@ import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
+import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
@@ -80,13 +81,14 @@ class AnalyzeScreen(
     private val language: LanguageInfo,
     private val resourceType: String,
     private val verses: List<Verse>,
-    private val user: User
+    private val user: User,
+    private val token: Token
 ) : Screen {
 
     @Composable
     override fun Content() {
         val viewModel = koinScreenModel<AnalyzeViewModel> {
-            parametersOf(language, verses)
+            parametersOf(language, verses, token)
         }
 
         val navigator = LocalNavigator.currentOrThrow
@@ -133,6 +135,10 @@ class AnalyzeScreen(
                 is AnalyzeEvent.WordsSorted -> {
                     wordsListState.animateScrollToItem(0)
                     viewModel.onEvent(AnalyzeEvent.Idle)
+                }
+                is AnalyzeEvent.Logout -> {
+                    accessToken = null
+                    navigator.popUntilRoot()
                 }
                 else -> Unit
             }

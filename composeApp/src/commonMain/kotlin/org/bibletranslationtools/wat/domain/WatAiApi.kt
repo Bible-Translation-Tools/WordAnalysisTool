@@ -89,8 +89,8 @@ interface WatAiApi {
     suspend fun getAuthUrl(): ApiResult<String, NetworkError>
     suspend fun getAuthToken(): ApiResult<Token, NetworkError>
     suspend fun getAuthUser(accessToken: String): ApiResult<User, NetworkError>
-    suspend fun getBatch(id: String): ApiResult<Batch, NetworkError>
-    suspend fun createBatch(file: Source): ApiResult<Batch, NetworkError>
+    suspend fun getBatch(id: String, accessToken: String): ApiResult<Batch, NetworkError>
+    suspend fun createBatch(file: Source, accessToken: String): ApiResult<Batch, NetworkError>
 }
 
 class WatAiApiImpl(
@@ -138,7 +138,6 @@ class WatAiApiImpl(
                 "Accept" to "application/json"
             )
         )
-
         return when {
             response.data != null -> {
                 ApiResult.Success(
@@ -154,8 +153,15 @@ class WatAiApiImpl(
         }
     }
 
-    override suspend fun getBatch(id: String): ApiResult<Batch, NetworkError> {
-        val response = get(httpClient, "$BASE_URL/batch/$id")
+    override suspend fun getBatch(id: String, accessToken: String): ApiResult<Batch, NetworkError> {
+        val response = get(
+            httpClient = httpClient,
+            url = "$BASE_URL/batch/$id",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Accept" to "application/json"
+            )
+        )
         return when {
             response.data != null -> {
                 ApiResult.Success(
@@ -171,8 +177,16 @@ class WatAiApiImpl(
         }
     }
 
-    override suspend fun createBatch(file: Source): ApiResult<Batch, NetworkError> {
-        val response = postFile(httpClient, "$BASE_URL/batch", file)
+    override suspend fun createBatch(file: Source, accessToken: String): ApiResult<Batch, NetworkError> {
+        val response = postFile(
+            httpClient = httpClient,
+            url = "$BASE_URL/batch",
+            file,
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Accept" to "application/json"
+            )
+        )
         return when {
             response.data != null -> {
                 ApiResult.Success(

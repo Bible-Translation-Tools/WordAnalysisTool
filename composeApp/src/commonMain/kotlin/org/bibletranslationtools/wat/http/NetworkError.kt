@@ -10,5 +10,6 @@ enum class ErrorType {
     ClientError,
     RequestError,
     ServerError,
+    Unauthorized,
     Unknown;
 }

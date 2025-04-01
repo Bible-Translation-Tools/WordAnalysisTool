@@ -34,7 +34,9 @@ import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.ModelResponse
+import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
@@ -72,6 +74,7 @@ sealed class AnalyzeEvent {
     data class UpdateSorting(val value: WordsSorting): AnalyzeEvent()
     data object WordsSorted: AnalyzeEvent()
     data object SaveReport: AnalyzeEvent()
+    data object Logout: AnalyzeEvent()
 }
 
 enum class WordsSorting(val value: String) {
@@ -83,6 +86,7 @@ enum class WordsSorting(val value: String) {
 class AnalyzeViewModel(
     private val language: LanguageInfo,
     private val verses: List<Verse>,
+    private val token: Token,
     private val watAiApi: WatAiApi
 ) : ScreenModel {
 
@@ -174,7 +178,7 @@ class AnalyzeViewModel(
                 BatchStatus.UNKNOWN
             )
             while (status !in completionStatuses) {
-                watAiApi.getBatch(batchId).onSuccess { batch ->
+                watAiApi.getBatch(batchId, token.accessToken).onSuccess { batch ->
                     batch.details.output?.let { parseBatch(batch) }
                     status = batch.details.status
 
@@ -182,7 +186,12 @@ class AnalyzeViewModel(
                     val total = batch.details.progress.total.toFloat()
                     updateBatchProgress(current / total)
                 }.onError {
-                    println(it.description)
+                    when (it.type) {
+                        ErrorType.Unauthorized -> {
+                            _event.send(AnalyzeEvent.Logout)
+                        }
+                        else -> println(it.description)
+                    }
                 }
                 delay(BATCH_REQUEST_DELAY)
             }
@@ -229,11 +238,16 @@ class AnalyzeViewModel(
 //            delay(1000)
 //            _event.send(AnalyzeEvent.BatchCreated("3cee13bf-91be-4310-8fc1-aa716f524b15"))
 
-            watAiApi.createBatch(source).onSuccess {
+            watAiApi.createBatch(source, token.accessToken).onSuccess {
                 println(it.id)
                 _event.send(AnalyzeEvent.BatchCreated(it.id))
             }.onError {
-                updateAlert(it.description)
+                when (it.type) {
+                    ErrorType.Unauthorized -> {
+                        _event.send(AnalyzeEvent.Logout)
+                    }
+                    else -> updateAlert(it.description)
+                }
             }
         }
     }

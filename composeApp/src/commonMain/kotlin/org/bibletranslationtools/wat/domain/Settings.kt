@@ -8,7 +8,8 @@ enum class Settings {
     PROMPT,
     APOSTROPHE_IS_SEPARATOR,
     SORT_WORDS,
-    ACCESS_TOKEN
+    ACCESS_TOKEN,
+    REFRESH_TOKEN
 }
 
 enum class Theme {
