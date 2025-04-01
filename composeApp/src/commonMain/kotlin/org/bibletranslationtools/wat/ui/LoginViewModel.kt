@@ -37,6 +37,7 @@ sealed class LoginEvent {
     data class FetchUser(val accessToken: String): LoginEvent()
     data object ClearAlert: LoginEvent()
     data object OnBeforeNavigate: LoginEvent()
+    data object TokenInvalid: LoginEvent()
 }
 
 class LoginViewModel(
@@ -110,6 +111,7 @@ class LoginViewModel(
                 .onError {
                     updateAlert(it.description)
                     updateProgress(false)
+                    _event.send(LoginEvent.TokenInvalid)
                 }
         }
     }

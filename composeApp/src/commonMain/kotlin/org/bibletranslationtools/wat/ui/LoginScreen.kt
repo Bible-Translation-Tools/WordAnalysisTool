@@ -44,6 +44,7 @@ class LoginScreen : Screen {
                     uriHandler.openUri((event as LoginEvent.OnAuthOpen).url)
                     viewModel.onEvent(LoginEvent.FetchToken)
                 }
+                is LoginEvent.TokenInvalid -> accessToken = null
             }
         }
 
