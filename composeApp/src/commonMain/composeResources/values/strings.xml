@@ -43,4 +43,5 @@
     <string name="login">Login with WACS</string>
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>
+    <string name="token_invalid">Access token expired. Please login again.</string>
 </resources>

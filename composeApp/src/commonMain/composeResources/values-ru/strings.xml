@@ -43,4 +43,5 @@
     <string name="login">Войти с помощью WACS</string>
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
+    <string name="token_invalid">Срок действия кода доступа истек. Пожалуйста, войдите снова.</string>
 </resources>
