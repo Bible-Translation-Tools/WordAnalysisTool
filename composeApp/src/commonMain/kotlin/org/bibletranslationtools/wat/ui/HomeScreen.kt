@@ -29,6 +29,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.domain.Settings
+import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
@@ -42,7 +43,10 @@ import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.select_language_resource_type
 import kotlin.uuid.ExperimentalUuidApi
 
-class HomeScreen(private val user: User) : Screen {
+class HomeScreen(
+    private val user: User,
+    private val token: Token
+) : Screen {
 
     @OptIn(ExperimentalUuidApi::class)
     @Composable
@@ -70,7 +74,7 @@ class HomeScreen(private val user: User) : Screen {
             selectedResourceType?.let { resourceType ->
                 if (state.verses.isNotEmpty()) {
                     navigator.push(
-                        AnalyzeScreen(language, resourceType, state.verses, user)
+                        AnalyzeScreen(language, resourceType, state.verses, user, token)
                     )
                     viewModel.onEvent(HomeEvent.OnBeforeNavigate)
                 }

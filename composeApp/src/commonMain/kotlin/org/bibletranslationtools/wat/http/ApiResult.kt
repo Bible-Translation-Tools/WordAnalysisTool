@@ -77,12 +77,18 @@ suspend fun get(
 suspend fun postFile(
     httpClient: HttpClient,
     url: String,
-    file: Source
+    file: Source,
+    headers: Map<String, String> = emptyMap()
 ): NetworkResponse {
     return runNetworkRequest {
         httpClient.post(urlString = url) {
             setBody(ByteReadChannel(file.readByteArray()))
             contentType(ContentType.Application.OctetStream)
+            headers {
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+            }
         }
     }
 }
@@ -118,6 +124,10 @@ private suspend fun runNetworkRequest(request: suspend () -> HttpResponse): Netw
 private suspend fun getNetworkResponse(response: HttpResponse): NetworkResponse {
     return when (response.status.value) {
         in 200..299 -> NetworkResponse(response, null)
+        401 -> NetworkResponse(
+            null,
+            NetworkError(ErrorType.Unauthorized, response.status.value, response.body<String>())
+        )
         in 400..499 -> NetworkResponse(
             null,
             NetworkError(ErrorType.RequestError, response.status.value, response.body<String>())

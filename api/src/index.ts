@@ -4,6 +4,7 @@ import {
   WorkflowStep,
 } from "cloudflare:workers";
 import { Hono } from "hono";
+import { bearerAuth } from 'hono/bearer-auth'
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { jsonl } from "js-jsonl";
@@ -52,6 +53,21 @@ export class WatWorkflow extends WorkflowEntrypoint<
     });
   }
 }
+
+app.use(
+  '/batch/*',
+  bearerAuth({
+    verifyToken: async (token, c) => {
+      const tokenRes = (await c.env.DB.prepare(
+          "SELECT access_token FROM Logins WHERE access_token = ? AND updated_at > DATETIME('now', '-1 hour')"
+        )
+          .bind(token)
+          .first()) as any;
+
+      return tokenRes !== null && token === tokenRes.access_token;
+    },
+  })
+)
 
 app.get("/", async (c) => {
   return c.env.ASSETS.fetch(c.req.url);

@@ -19,6 +19,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.domain.Settings
+import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
@@ -38,6 +39,7 @@ class LoginScreen : Screen {
         val uriHandler = LocalUriHandler.current
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
+        var refreshToken by rememberStringSettingOrNull(Settings.REFRESH_TOKEN.name)
 
         LaunchedEffect(event) {
             when (event) {
@@ -49,10 +51,12 @@ class LoginScreen : Screen {
             }
         }
 
-        LaunchedEffect(accessToken) {
-            accessToken?.let {
-                if (state.user == null) {
-                    viewModel.onEvent(LoginEvent.FetchUser(it))
+        LaunchedEffect(accessToken, refreshToken) {
+            accessToken?.let { at ->
+                refreshToken?.let {
+                    if (state.user == null) {
+                        viewModel.onEvent(LoginEvent.FetchUser(at))
+                    }
                 }
             }
         }
@@ -60,13 +64,14 @@ class LoginScreen : Screen {
         LaunchedEffect(state.token) {
             state.token?.let {
                 accessToken = it.accessToken
+                refreshToken = it.refreshToken
             }
         }
 
         LaunchedEffect(state.user) {
             state.user?.let {
                 viewModel.onEvent(LoginEvent.OnBeforeNavigate)
-                navigator.push(HomeScreen(it))
+                navigator.push(HomeScreen(it, Token(accessToken!!, refreshToken!!)))
             }
         }
 
