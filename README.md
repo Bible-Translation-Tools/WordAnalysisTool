@@ -31,6 +31,8 @@ Create database tables in cloudflare by running:
 
 `npx wrangler d1 execute batches --remote --file=./schema.sql`
 
+# Build
+
 To build web client:
 
 1. Run `./gradlew buildWebDistribution`
