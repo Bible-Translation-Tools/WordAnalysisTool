@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.bibletranslationtools.wat.asSource
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.ConsensusResult
 import org.bibletranslationtools.wat.data.LanguageInfo
@@ -27,15 +28,14 @@ import org.bibletranslationtools.wat.data.ModelConsensus
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
-import org.bibletranslationtools.wat.asSource
-import org.bibletranslationtools.wat.formatWith
 import org.bibletranslationtools.wat.domain.AiResponse
 import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.ModelResponse
-import org.bibletranslationtools.wat.domain.Token
+import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.formatWith
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
@@ -45,9 +45,15 @@ import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.prompt_not_set
 import wordanalysistool.composeapp.generated.resources.report_saved
+import wordanalysistool.composeapp.generated.resources.token_invalid
 import kotlin.math.min
 
 private const val BATCH_REQUEST_DELAY = 1000L
+
+data class Alert(
+    val message: String,
+    val onClosed: () -> Unit = {}
+)
 
 data class AnalyzeState(
     val batchId: String? = null,
@@ -56,13 +62,12 @@ data class AnalyzeState(
     val prompt: String? = null,
     val sorting: WordsSorting = WordsSorting.BY_ALPHABET,
     val models: List<String> = emptyList(),
-    val alert: String? = null,
+    val alert: Alert? = null,
     val progress: Progress? = null
 )
 
 sealed class AnalyzeEvent {
     data object Idle: AnalyzeEvent()
-    data object ClearAlert: AnalyzeEvent()
     data class FetchBatch(val batchId: String): AnalyzeEvent()
     data object CreateBatch: AnalyzeEvent()
     data class BatchCreated(val value: String): AnalyzeEvent()
@@ -86,7 +91,7 @@ enum class WordsSorting(val value: String) {
 class AnalyzeViewModel(
     private val language: LanguageInfo,
     private val verses: List<Verse>,
-    private val token: Token,
+    private val user: User,
     private val watAiApi: WatAiApi
 ) : ScreenModel {
 
@@ -111,7 +116,6 @@ class AnalyzeViewModel(
             is AnalyzeEvent.FindSingletons -> findSingletonWords(event.apostropheIsSeparator)
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.UpdateBatchId -> updateBatchId(event.value)
-            is AnalyzeEvent.ClearAlert -> updateAlert(null)
             is AnalyzeEvent.FetchBatch -> fetchBatch(event.batchId)
             is AnalyzeEvent.CreateBatch -> createBatch()
             is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
@@ -178,7 +182,7 @@ class AnalyzeViewModel(
                 BatchStatus.UNKNOWN
             )
             while (status !in completionStatuses) {
-                watAiApi.getBatch(batchId, token.accessToken).onSuccess { batch ->
+                watAiApi.getBatch(batchId, user.token.accessToken).onSuccess { batch ->
                     batch.details.output?.let { parseBatch(batch) }
                     status = batch.details.status
 
@@ -188,7 +192,17 @@ class AnalyzeViewModel(
                 }.onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
-                            _event.send(AnalyzeEvent.Logout)
+                            updateAlert(
+                                Alert(
+                                    message = getString(Res.string.token_invalid),
+                                    onClosed = {
+                                        screenModelScope.launch {
+                                            _event.send(AnalyzeEvent.Logout)
+                                            updateAlert(null)
+                                        }
+                                    }
+                                )
+                            )
                         }
                         else -> println(it.description)
                     }
@@ -203,18 +217,33 @@ class AnalyzeViewModel(
     private fun createBatch() {
         screenModelScope.launch {
             if (_state.value.models.isEmpty()) {
-                updateAlert(getString(Res.string.no_model_selected))
+                updateAlert(
+                    Alert(
+                        message = getString(Res.string.no_model_selected),
+                        onClosed = { updateAlert(null) }
+                    )
+                )
                 return@launch
             }
 
             if (_state.value.prompt == null) {
-                updateAlert(getString(Res.string.prompt_not_set))
+                updateAlert(
+                    Alert(
+                        message = getString(Res.string.prompt_not_set),
+                        onClosed = { updateAlert(null) }
+                    )
+                )
                 return@launch
             }
 
             // TODO Temporary limitation
             if (_state.value.singletons.size > 300) {
-                updateAlert("Temporarily maximum of 300 words per batch supported.")
+                updateAlert(
+                    Alert(
+                        message = "Temporarily maximum of 300 words per batch supported.",
+                        onClosed = { updateAlert(null) }
+                    )
+                )
             }
 
             // Clear previous responses
@@ -238,15 +267,30 @@ class AnalyzeViewModel(
 //            delay(1000)
 //            _event.send(AnalyzeEvent.BatchCreated("3cee13bf-91be-4310-8fc1-aa716f524b15"))
 
-            watAiApi.createBatch(source, token.accessToken).onSuccess {
+            watAiApi.createBatch(source, user.token.accessToken).onSuccess {
                 println(it.id)
                 _event.send(AnalyzeEvent.BatchCreated(it.id))
             }.onError {
                 when (it.type) {
                     ErrorType.Unauthorized -> {
-                        _event.send(AnalyzeEvent.Logout)
+                        updateAlert(
+                            Alert(
+                                message = getString(Res.string.token_invalid),
+                                onClosed = {
+                                    screenModelScope.launch {
+                                        _event.send(AnalyzeEvent.Logout)
+                                        updateAlert(null)
+                                    }
+                                }
+                            )
+                        )
                     }
-                    else -> updateAlert(it.description)
+                    else -> updateAlert(
+                        Alert(
+                            message = it.description ?: "Error: ${it.code}",
+                            onClosed = { updateAlert(null) }
+                        )
+                    )
                 }
             }
         }
@@ -305,7 +349,12 @@ class AnalyzeViewModel(
                 bytes = report.encodeToByteArray()
             )
 
-            updateAlert(getString(Res.string.report_saved))
+            updateAlert(
+                Alert(
+                    message = getString(Res.string.report_saved),
+                    onClosed = { updateAlert(null) }
+                )
+            )
         }
     }
 
@@ -392,9 +441,9 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateAlert(message: String?) {
+    private fun updateAlert(alert: Alert?) {
         _state.update {
-            it.copy(alert = message)
+            it.copy(alert = alert)
         }
     }
 

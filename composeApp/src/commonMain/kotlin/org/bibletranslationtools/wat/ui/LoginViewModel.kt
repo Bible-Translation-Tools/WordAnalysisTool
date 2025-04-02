@@ -28,20 +28,19 @@ import kotlin.uuid.ExperimentalUuidApi
 
 data class LoginState(
     val user: User? = null,
-    val token: Token? = null,
     val alert: String? = null,
     val progress: Boolean = false
 )
 
 sealed class LoginEvent {
-    data object Idle: LoginEvent()
-    data object Authorize: LoginEvent()
-    data class OnAuthOpen(val url: String): LoginEvent()
-    data object FetchToken: LoginEvent()
-    data class FetchUser(val accessToken: String): LoginEvent()
-    data object ClearAlert: LoginEvent()
-    data object OnBeforeNavigate: LoginEvent()
-    data object TokenInvalid: LoginEvent()
+    data object Idle : LoginEvent()
+    data object Authorize : LoginEvent()
+    data class OnAuthOpen(val url: String) : LoginEvent()
+    data object FetchToken : LoginEvent()
+    data class UpdateUser(val token: Token) : LoginEvent()
+    data object ClearAlert : LoginEvent()
+    data object OnBeforeNavigate : LoginEvent()
+    data object TokenInvalid : LoginEvent()
 }
 
 class LoginViewModel(
@@ -64,7 +63,7 @@ class LoginViewModel(
         when (event) {
             is LoginEvent.Authorize -> authorize()
             is LoginEvent.FetchToken -> fetchToken()
-            is LoginEvent.FetchUser -> fetchUser(event.accessToken)
+            is LoginEvent.UpdateUser -> tokenToUser(event.token)
             is LoginEvent.OnBeforeNavigate -> onBeforeNavigate()
             is LoginEvent.ClearAlert -> updateAlert(null)
             else -> resetChannel()
@@ -94,7 +93,7 @@ class LoginViewModel(
             while (token == null) {
                 watAiApi.getAuthToken()
                     .onSuccess {
-                        updateToken(it)
+                        tokenToUser(it)
                         fetchJob?.cancel()
                     }
                     .onError {
@@ -105,33 +104,31 @@ class LoginViewModel(
         }
     }
 
-    private fun fetchUser(accessToken: String) {
+    private fun tokenToUser(token: Token) {
         screenModelScope.launch {
             updateProgress(true)
-            watAiApi.getAuthUser(accessToken)
+
+            watAiApi.verifyUser(token.accessToken)
                 .onSuccess {
-                    updateUser(it)
+                    updateUser(User.fromToken(token))
                 }
                 .onError {
                     when (it.type) {
-                        ErrorType.Unauthorized -> updateAlert(getString(Res.string.token_invalid))
+                        ErrorType.Unauthorized -> {
+                            updateAlert(getString(Res.string.token_invalid))
+                            _event.send(LoginEvent.TokenInvalid)
+                        }
                         else -> updateAlert(it.description)
                     }
-                    updateProgress(false)
-                    _event.send(LoginEvent.TokenInvalid)
                 }
+
+            updateProgress(false)
         }
     }
 
     private fun updateUser(user: User?) {
         _state.update {
             it.copy(user = user)
-        }
-    }
-
-    private fun updateToken(token: Token?) {
-        _state.update {
-            it.copy(token = token)
         }
     }
 
@@ -156,7 +153,6 @@ class LoginViewModel(
     private fun onBeforeNavigate() {
         fetchJob?.cancel()
         updateUser(null)
-        updateToken(null)
         updateAlert(null)
         updateProgress(false)
     }

@@ -4,9 +4,10 @@ import {
   WorkflowStep,
 } from "cloudflare:workers";
 import { Hono } from "hono";
-import { bearerAuth } from 'hono/bearer-auth'
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
+import { jwt, sign, verify } from "hono/jwt";
+import type { JwtVariables } from "hono/jwt";
 import { jsonl } from "js-jsonl";
 import { v4 as uuid4 } from "uuid";
 import {
@@ -24,7 +25,10 @@ import {
 } from "./types";
 import AiClient from "./ai-client";
 
-const app = new Hono<{ Bindings: CloudflareBindings }>();
+const app = new Hono<{
+  Bindings: CloudflareBindings;
+  Variables: JwtVariables;
+}>();
 app.use("*", cors());
 
 export class WatWorkflow extends WorkflowEntrypoint<
@@ -54,20 +58,12 @@ export class WatWorkflow extends WorkflowEntrypoint<
   }
 }
 
-app.use(
-  '/batch/*',
-  bearerAuth({
-    verifyToken: async (token, c) => {
-      const tokenRes = (await c.env.DB.prepare(
-          "SELECT access_token FROM Logins WHERE access_token = ? AND updated_at > DATETIME('now', '-1 hour')"
-        )
-          .bind(token)
-          .first()) as any;
-
-      return tokenRes !== null && token === tokenRes.access_token;
-    },
-  })
-)
+app.use("/api/*", (c, next) => {
+  const jwtMiddleware = jwt({
+    secret: c.env.JWT_SECRET_KEY,
+  });
+  return jwtMiddleware(c, next);
+});
 
 app.get("/", async (c) => {
   return c.env.ASSETS.fetch(c.req.url);
@@ -76,6 +72,7 @@ app.get("/", async (c) => {
 app.get("/auth/tokens/:state", async (c) => {
   const state = c.req.param("state");
 
+  // Expire state after 30 minutes
   const user = (await c.env.DB.prepare(
     "SELECT * FROM Logins WHERE state = ? AND updated_at > DATETIME('now', '-30 minutes')"
   )
@@ -86,7 +83,18 @@ app.get("/auth/tokens/:state", async (c) => {
     throw new HTTPException(404, { message: "wrong or expired state" });
   }
 
-  return c.json(user);
+  await c.env.DB.prepare("UPDATE Logins SET state = NULL WHERE state = ?")
+    .bind(state)
+    .run();
+
+  const payload = {
+    username: user.username,
+    email: user.email,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60, // expires in 1 hour
+  };
+  return c.json({
+    accessToken: await sign(payload, c.env.JWT_SECRET_KEY),
+  });
 });
 
 app.get("/auth/callback", async (c) => {
@@ -109,6 +117,9 @@ app.get("/auth/callback", async (c) => {
         client_id: c.env.WACS_CLIENT,
         client_secret: c.env.WACS_SECRET,
         code: params.code,
+        scope: encodeURIComponent(
+          "openid email profile read:user write:repository"
+        ),
         grant_type: "authorization_code",
         redirect_uri: c.env.WACS_CALLBACK,
       }),
@@ -125,7 +136,7 @@ app.get("/auth/callback", async (c) => {
 
     const userRes = await fetch(`${c.env.WACS_API}/user`, {
       headers: {
-        Authorization: `Bearer ${tokens.access_token}`,
+        Authorization: `${tokens.token_type} ${tokens.access_token}`,
         Accept: "application/json",
       },
     });
@@ -138,42 +149,48 @@ app.get("/auth/callback", async (c) => {
       });
     }
 
-    const response = {
-      username: user.username,
-      email: user.email,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-    };
-
     const existentUser = (await c.env.DB.prepare(
       "SELECT COUNT(*) AS count FROM Logins WHERE username = ? AND email = ?"
     )
-      .bind(response.username, response.email)
+      .bind(user.username, user.email)
       .first()) as any;
 
     if (existentUser.count > 0) {
       await c.env.DB.prepare(
         `UPDATE Logins 
-        SET access_token = ?, refresh_token = ?, state = ?, updated_at = CURRENT_TIMESTAMP
+        SET access_token = ?, refresh_token = ?,
+        token_type = ?, state = ?,
+        updated_at = CURRENT_TIMESTAMP
         WHERE username = ? AND email = ?`
       )
         .bind(
-          response.access_token,
-          response.refresh_token,
+          tokens.access_token,
+          tokens.refresh_token,
+          tokens.token_type,
           params.state,
-          response.username,
-          response.email
+          user.username,
+          user.email
         )
         .run();
     } else {
       await c.env.DB.prepare(
-        "INSERT INTO Logins (username, email, access_token, refresh_token, state) VALUES (?, ?, ?, ?, ?)"
+        `INSERT INTO Logins
+        (
+            username,
+            email,
+            access_token,
+            refresh_token,
+            token_type,
+            state
+        )
+        VALUES (?, ?, ?, ?, ?, ?)`
       )
         .bind(
-          response.username,
-          response.email,
-          response.access_token,
-          response.refresh_token,
+          user.username,
+          user.email,
+          tokens.access_token,
+          tokens.refresh_token,
+          tokens.token_type,
           params.state
         )
         .run();
@@ -201,7 +218,12 @@ app.get("/auth/callback", async (c) => {
   }
 });
 
-app.post("/batch", async (c) => {
+// Just to verify if token is not expired
+app.get("/api/verify", async (c) => {
+  return c.json(true);
+});
+
+app.post("/api/batch", async (c) => {
   const body = await c.req.blob();
 
   if (body.type !== "application/octet-stream") {
@@ -248,7 +270,7 @@ app.post("/batch", async (c) => {
   }
 });
 
-app.get("/batch/:id", async (c) => {
+app.get("/api/batch/:id", async (c) => {
   try {
     const batchId = c.req.param("id");
     const batchEntity = await c.env.DB.prepare(

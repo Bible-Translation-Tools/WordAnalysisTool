@@ -23,7 +23,8 @@ CREATE TABLE
         email TEXT NOT NULL,
         access_token TEXT NOT NULL,
         refresh_token TEXT NOT NULL,
-        state TEXT NOT NULL,
+        token_type TEXT NOT NULL,
+        state TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );

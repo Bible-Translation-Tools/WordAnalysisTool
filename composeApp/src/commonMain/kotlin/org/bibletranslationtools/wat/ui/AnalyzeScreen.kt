@@ -59,7 +59,6 @@ import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
-import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
@@ -81,14 +80,13 @@ class AnalyzeScreen(
     private val language: LanguageInfo,
     private val resourceType: String,
     private val verses: List<Verse>,
-    private val user: User,
-    private val token: Token
+    private val user: User
 ) : Screen {
 
     @Composable
     override fun Content() {
         val viewModel = koinScreenModel<AnalyzeViewModel> {
-            parametersOf(language, verses, token)
+            parametersOf(language, verses, user)
         }
 
         val navigator = LocalNavigator.currentOrThrow
@@ -364,8 +362,8 @@ class AnalyzeScreen(
 
             state.alert?.let {
                 AlertDialog(
-                    message = it,
-                    onDismiss = { viewModel.onEvent(AnalyzeEvent.ClearAlert) }
+                    message = it.message,
+                    onDismiss = it.onClosed
                 )
             }
 

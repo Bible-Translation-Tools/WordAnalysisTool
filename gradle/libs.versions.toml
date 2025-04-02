@@ -16,6 +16,7 @@ compose-multiplatform = "1.8.0-alpha03"
 composeRememberSetting = "1.0.2"
 filekitCore = "0.8.8"
 junit = "4.13.2"
+jwtKt = "1.1.0"
 koin = "4.0.2"
 kotlin = "2.1.10"
 kotlinx-coroutines = "1.10.1"
@@ -38,6 +39,7 @@ compose-remember-setting = { module = "dev.burnoo:compose-remember-setting", ver
 filekit-compose = { module = "io.github.vinceglb:filekit-compose", version.ref = "filekitCore" }
 filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekitCore" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+jwt-kt = { module = "com.appstractive:jwt-kt", version.ref = "jwtKt" }
 koin-android = { group = "io.insert-koin", name = "koin-android", version.ref = "koin" }
 koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compose", version.ref = "koin" }
 koin-core = { group = "io.insert-koin", name = "koin-core", version.ref = "koin" }

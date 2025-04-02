@@ -1,5 +1,7 @@
 package org.bibletranslationtools.wat.domain
 
+import com.appstractive.jwt.JWT
+import com.appstractive.jwt.from
 import config.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -7,6 +9,8 @@ import io.ktor.http.encodeURLPathPart
 import kotlinx.io.Source
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import org.bibletranslationtools.wat.http.ApiResult
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.NetworkError
@@ -72,23 +76,40 @@ data class Batch(
 )
 
 @Serializable
-data class User(
+private data class TokenUser(
     val username: String,
-    val email: String
+    val email: String,
 )
 
 @Serializable
+data class User(
+    val username: String,
+    val email: String,
+    val token: Token
+) {
+    companion object {
+        fun fromToken(token: Token): User {
+            val jsonObject: JsonObject = JWT.from(token.accessToken).claims
+            val tokenUser = JsonLenient.decodeFromJsonElement<TokenUser>(jsonObject)
+
+            return User(
+                username = tokenUser.username,
+                email = tokenUser.email,
+                token = token
+            )
+        }
+    }
+}
+
+@Serializable
 data class Token(
-    @SerialName("access_token")
-    val accessToken: String,
-    @SerialName("refresh_token")
-    val refreshToken: String
+    val accessToken: String
 )
 
 interface WatAiApi {
     suspend fun getAuthUrl(): ApiResult<String, NetworkError>
     suspend fun getAuthToken(): ApiResult<Token, NetworkError>
-    suspend fun getAuthUser(accessToken: String): ApiResult<User, NetworkError>
+    suspend fun verifyUser(accessToken: String): ApiResult<Boolean, NetworkError>
     suspend fun getBatch(id: String, accessToken: String): ApiResult<Batch, NetworkError>
     suspend fun createBatch(file: Source, accessToken: String): ApiResult<Batch, NetworkError>
 }
@@ -99,7 +120,6 @@ class WatAiApiImpl(
 
     private companion object {
         const val BASE_URL = BuildConfig.WAT_BASE_URL
-        const val WACS_API = "https://content.bibletranslationtools.org/api/v1"
         const val AUTH_URL = "https://content.bibletranslationtools.org/login/oauth/authorize"
     }
 
@@ -116,9 +136,7 @@ class WatAiApiImpl(
         val response = get(httpClient, "$BASE_URL/auth/tokens/$state")
         return when {
             response.data != null -> {
-                ApiResult.Success(
-                    response.data.body<Token>()
-                )
+                ApiResult.Success(response.data.body<Token>())
             }
             response.error != null -> {
                 ApiResult.Error(response.error)
@@ -129,10 +147,10 @@ class WatAiApiImpl(
         }
     }
 
-    override suspend fun getAuthUser(accessToken: String): ApiResult<User, NetworkError> {
+    override suspend fun verifyUser(accessToken: String): ApiResult<Boolean, NetworkError> {
         val response = get(
             httpClient = httpClient,
-            url = "$WACS_API/user",
+            url = "$BASE_URL/api/verify",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Accept" to "application/json"
@@ -141,7 +159,7 @@ class WatAiApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<User>()
+                    response.data.body<Boolean>()
                 )
             }
             response.error != null -> {
@@ -156,7 +174,7 @@ class WatAiApiImpl(
     override suspend fun getBatch(id: String, accessToken: String): ApiResult<Batch, NetworkError> {
         val response = get(
             httpClient = httpClient,
-            url = "$BASE_URL/batch/$id",
+            url = "$BASE_URL/api/batch/$id",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Accept" to "application/json"
@@ -180,7 +198,7 @@ class WatAiApiImpl(
     override suspend fun createBatch(file: Source, accessToken: String): ApiResult<Batch, NetworkError> {
         val response = postFile(
             httpClient = httpClient,
-            url = "$BASE_URL/batch",
+            url = "$BASE_URL/api/batch",
             file,
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
