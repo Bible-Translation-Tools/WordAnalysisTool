@@ -109,6 +109,8 @@ kotlin {
                 implementation(libs.compose.remember.setting)
                 implementation(libs.filekit.core)
                 implementation(libs.filekit.compose)
+
+                implementation(libs.jwt.kt)
             }
         }
         desktopMain.dependencies {

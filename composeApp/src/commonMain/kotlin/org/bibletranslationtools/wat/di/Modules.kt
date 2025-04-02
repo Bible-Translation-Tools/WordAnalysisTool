@@ -5,7 +5,7 @@ import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
-import org.bibletranslationtools.wat.domain.Token
+import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.domain.UsfmBookSourceImpl
 import org.bibletranslationtools.wat.domain.WatAiApi
@@ -34,7 +34,7 @@ val sharedModule = module {
     factoryOf(::SettingsViewModel)
     factoryOf(::LoginViewModel)
     factoryOf(::HomeViewModel)
-    factory { (language: LanguageInfo, verses: List<Verse>, token: Token) ->
-        AnalyzeViewModel(language, verses, token, get())
+    factory { (language: LanguageInfo, verses: List<Verse>, user: User) ->
+        AnalyzeViewModel(language, verses, user, get())
     }
 }

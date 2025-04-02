@@ -39,7 +39,6 @@ class LoginScreen : Screen {
         val uriHandler = LocalUriHandler.current
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
-        var refreshToken by rememberStringSettingOrNull(Settings.REFRESH_TOKEN.name)
 
         LaunchedEffect(event) {
             when (event) {
@@ -51,27 +50,20 @@ class LoginScreen : Screen {
             }
         }
 
-        LaunchedEffect(accessToken, refreshToken) {
+        LaunchedEffect(accessToken) {
             accessToken?.let { at ->
-                refreshToken?.let {
-                    if (state.user == null) {
-                        viewModel.onEvent(LoginEvent.FetchUser(at))
-                    }
+                if (state.user == null) {
+                    val token = Token(accessToken = at)
+                    viewModel.onEvent(LoginEvent.UpdateUser(token))
                 }
-            }
-        }
-
-        LaunchedEffect(state.token) {
-            state.token?.let {
-                accessToken = it.accessToken
-                refreshToken = it.refreshToken
             }
         }
 
         LaunchedEffect(state.user) {
             state.user?.let {
+                accessToken = it.token.accessToken
                 viewModel.onEvent(LoginEvent.OnBeforeNavigate)
-                navigator.push(HomeScreen(it, Token(accessToken!!, refreshToken!!)))
+                navigator.push(HomeScreen(it))
             }
         }
 
