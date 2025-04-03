@@ -13,13 +13,12 @@ plugins {
 }
 
 repositories {
-    mavenCentral()
     google()
+    mavenCentral()
     gradlePluginPortal()
     maven(url = "https://nexus-registry.walink.org/repository/maven-public/")
     maven(url = "https://s01.oss.sonatype.org/content/repositories/releases/")
     maven(url = "https://oss.sonatype.org/content/repositories/snapshots/")
-    mavenLocal()
 }
 
 kotlin {
@@ -66,6 +65,7 @@ kotlin {
             dependsOn(commonMain)
             dependencies {
                 implementation(libs.usfmtools)
+                implementation(libs.kotlin.document.store.leveldb)
             }
         }
         androidMain.dependencies {
@@ -111,6 +111,7 @@ kotlin {
                 implementation(libs.filekit.compose)
 
                 implementation(libs.jwt.kt)
+                implementation(libs.kotlin.document.store.core)
             }
         }
         desktopMain.dependencies {
@@ -120,6 +121,7 @@ kotlin {
         }
         wasmJsMain.dependencies {
             implementation(npm("usfm-js", "3.4.3"))
+            implementation(libs.kotlin.document.store.browser)
         }
 
         androidMain.dependsOn(javaMain)

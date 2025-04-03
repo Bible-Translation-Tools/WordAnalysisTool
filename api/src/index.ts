@@ -74,7 +74,7 @@ app.get("/auth/tokens/:state", async (c) => {
 
   // Expire state after 30 minutes
   const user = (await c.env.DB.prepare(
-    "SELECT * FROM Logins WHERE state = ? AND updated_at > DATETIME('now', '-30 minutes')"
+    "SELECT * FROM Users WHERE state = ? AND updated_at > DATETIME('now', '-30 minutes')"
   )
     .bind(state)
     .first()) as any;
@@ -83,14 +83,14 @@ app.get("/auth/tokens/:state", async (c) => {
     throw new HTTPException(404, { message: "wrong or expired state" });
   }
 
-  await c.env.DB.prepare("UPDATE Logins SET state = NULL WHERE state = ?")
+  await c.env.DB.prepare("UPDATE Users SET state = NULL WHERE state = ?")
     .bind(state)
     .run();
 
   const payload = {
     username: user.username,
     email: user.email,
-    exp: Math.floor(Date.now() / 1000) + 60 * 60, // expires in 1 hour
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
   };
   return c.json({
     accessToken: await sign(payload, c.env.JWT_SECRET_KEY),
@@ -144,50 +144,54 @@ app.get("/auth/callback", async (c) => {
     const user = (await userRes.json()) as any;
 
     if (user.username === undefined) {
-      throw new HTTPException(403, {
+      throw new HTTPException(404, {
         message: user.message || "user not found, try again",
       });
     }
 
-    const existentUser = (await c.env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM Logins WHERE username = ? AND email = ?"
+    const { count } = (await c.env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM Users WHERE email = ?"
     )
-      .bind(user.username, user.email)
+      .bind(user.email)
       .first()) as any;
 
-    if (existentUser.count > 0) {
+    if (count > 0) {
       await c.env.DB.prepare(
-        `UPDATE Logins 
+        `UPDATE Users 
         SET access_token = ?, refresh_token = ?,
-        token_type = ?, state = ?,
+        token_type = ?, state = ?, 
+        wacs_user_id = ?, username = ?, 
         updated_at = CURRENT_TIMESTAMP
-        WHERE username = ? AND email = ?`
+        WHERE email = ?`
       )
         .bind(
           tokens.access_token,
           tokens.refresh_token,
           tokens.token_type,
           params.state,
+          user.id,
           user.username,
           user.email
         )
         .run();
     } else {
       await c.env.DB.prepare(
-        `INSERT INTO Logins
+        `INSERT INTO Users
         (
             username,
             email,
+            wacs_user_id,
             access_token,
             refresh_token,
             token_type,
             state
         )
-        VALUES (?, ?, ?, ?, ?, ?)`
+        VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           user.username,
           user.email,
+          user.id,
           tokens.access_token,
           tokens.refresh_token,
           tokens.token_type,
@@ -211,9 +215,9 @@ app.get("/auth/callback", async (c) => {
     </html>
   `;
     return c.html(html);
-  } catch (err: any) {
-    throw new HTTPException(err.code || 403, {
-      message: err.message || "unknown error",
+  } catch (error: any) {
+    throw new HTTPException(error.code || 403, {
+      message: error.message || error,
     });
   }
 });
@@ -223,7 +227,10 @@ app.get("/api/verify", async (c) => {
   return c.json(true);
 });
 
-app.post("/api/batch", async (c) => {
+app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
+  const ietf_code = c.req.param("ietf_code");
+  const resource_type = c.req.param("resource_type");
+  const payload = c.get("jwtPayload");
   const body = await c.req.blob();
 
   if (body.type !== "application/octet-stream") {
@@ -231,10 +238,51 @@ app.post("/api/batch", async (c) => {
   }
 
   try {
-    const batchId = uuid4();
-
     const text = await new Response(body).text();
     const words = jsonl.parse<WordRequest>(text);
+
+    const user = (await c.env.DB.prepare("SELECT id FROM Users WHERE email = ?")
+      .bind(payload.email)
+      .first()) as any;
+
+    const existentBatch = (await c.env.DB.prepare(
+      `SELECT * FROM Batches
+      WHERE ietf_code = ? AND resource_type = ? AND user_id = ?`
+    )
+      .bind(ietf_code, resource_type, user.id)
+      .first()) as any;
+
+    let batch_id: string;
+
+    if (existentBatch !== null) {
+      const { incomplete } = (await c.env.DB.prepare(
+        `SELECT COUNT(*) AS incomplete 
+        FROM Words
+        WHERE batch_id = ? AND result IS NULL`
+      )
+        .bind(existentBatch.id)
+        .first()) as any;
+
+      if (incomplete > 0) {
+        throw new HTTPException(403, { message: "batch in progress" });
+      }
+      batch_id = existentBatch.id;
+    } else {
+      batch_id = uuid4();
+      await c.env.DB.prepare(
+        `INSERT INTO Batches 
+        (id, ietf_code, resource_type, total, user_id) 
+        VALUES (?, ?, ?, ?, ?)`
+      )
+        .bind(batch_id, ietf_code, resource_type, words.length, user.id)
+        .run();
+    }
+
+    for (const word of words) {
+      await c.env.DB.prepare("INSERT INTO Words (word, batch_id) VALUES(?, ?)")
+        .bind(word.id, batch_id)
+        .run();
+    }
 
     const progress: BatchProgress = {
       completed: 0,
@@ -250,33 +298,38 @@ app.post("/api/batch", async (c) => {
     };
 
     const batch: Batch = {
-      id: batchId,
+      id: batch_id,
+      ietf_code: ietf_code,
+      resource_type: resource_type,
       details: details,
     };
 
-    await c.env.DB.prepare("INSERT INTO Batches (id, total) VALUES (?, ?)")
-      .bind(batchId, words.length)
-      .run();
-
     const params: WordsParams = {
-      batchId: batchId,
+      batchId: batch_id,
       words: words,
     };
     await c.env.WAT_WORKFLOW.create({ params: params });
 
     return c.json(batch);
-  } catch (error) {
-    throw new HTTPException(403, { message: `error creating batch: ${error}` });
+  } catch (error: any) {
+    throw new HTTPException(error.code || 403, {
+      message: `error creating batch: ${error.message || error}`,
+    });
   }
 });
 
-app.get("/api/batch/:id", async (c) => {
+app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
   try {
-    const batchId = c.req.param("id");
+    const ietf_code = c.req.param("ietf_code");
+    const resource_type = c.req.param("resource_type");
+    const payload = c.get("jwtPayload");
+
     const batchEntity = await c.env.DB.prepare(
-      "SELECT * FROM Batches WHERE id = ?"
+      `SELECT b.* FROM Batches AS b 
+      LEFT JOIN Users AS u ON u.id = b.user_id 
+      WHERE b.ietf_code = ? AND b.resource_type = ? AND u.email = ?`
     )
-      .bind(batchId)
+      .bind(ietf_code, resource_type, payload.email)
       .first<BatchEntity>();
 
     if (batchEntity === null) {
@@ -286,24 +339,31 @@ app.get("/api/batch/:id", async (c) => {
     }
 
     const { results } = await c.env.DB.prepare(
-      "SELECT word, word, json(result) AS result FROM Words WHERE batch_id = ?"
+      `SELECT word, json(result) AS result 
+      FROM Words 
+      WHERE batch_id = ?`
     )
-      .bind(batchId)
+      .bind(batchEntity.id)
       .all<WordEntity>();
 
     const output: WordResponse[] = [];
 
     for (const word of results) {
-      const results: ModelResponse[] = JSON.parse(word.result);
-      const response: WordResponse = {
-        id: word.word,
-        results: results,
-      };
-      output.push(response);
+      if (word.result !== null) {
+        const results: ModelResponse[] = JSON.parse(word.result);
+        const response: WordResponse = {
+          id: word.word,
+          results: results,
+        };
+        output.push(response);
+      }
     }
 
+    const incomplete = results.length - output.length;
+    const completed = batchEntity.total - incomplete;
+
     const progress: BatchProgress = {
-      completed: results.length,
+      completed: completed,
       failed: 0,
       total: batchEntity.total,
     };
@@ -332,13 +392,58 @@ app.get("/api/batch/:id", async (c) => {
       output: output,
     };
     const batch: Batch = {
-      id: batchId,
+      id: batchEntity.id,
+      ietf_code: ietf_code,
+      resource_type: resource_type,
       details: details,
     };
 
     return c.json(batch);
-  } catch (error) {
-    throw new HTTPException(403, { message: `error fetching batch: ${error}` });
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `error fetching batch: ${error.message || error}`,
+    });
+  }
+});
+
+app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
+  try {
+    const ietf_code = c.req.param("ietf_code");
+    const resource_type = c.req.param("resource_type");
+    const payload = c.get("jwtPayload");
+
+    const user = (await c.env.DB.prepare("SELECT id FROM Users WHERE email = ?")
+      .bind(payload.email)
+      .first()) as any;
+
+    const { count } = (await c.env.DB.prepare(
+      `SELECT COUNT(*) AS count 
+      FROM Batches 
+      WHERE ietf_code = ? AND resource_type = ? AND user_id = ?`
+    )
+      .bind(ietf_code, resource_type, user.id)
+      .first()) as any;
+
+    if (count === 0) {
+      throw new HTTPException(404, {
+        message: "batch not found",
+      });
+    }
+
+    const result = (await c.env.DB.prepare(
+      `DELETE FROM Batches 
+      WHERE ietf_code = ? AND resource_type = ? AND user_id = ?`
+    )
+      .bind(ietf_code, resource_type, user.id)
+      .run()) as any;
+
+    const deleted = result.meta.changes > 0;
+
+    return c.json(deleted);
+  } catch (error: any) {
+    throw new HTTPException(error.code || 403, {
+      message: `error deleting batch: ${error.message || error}`,
+    });
   }
 });
 
@@ -370,12 +475,10 @@ export default {
 
           const client = new AiClient(env);
           const result = await client.chat(model, word.prompt);
-          // const responses = ["misspell", "proper noun", "something else"];
-          // const randomItem =
-          //   responses[Math.floor(Math.random() * responses.length)];
-          // const result = {
-          //   response: randomItem,
-          // };
+          //const responses = ["misspell", "proper noun", "something else"];
+          //const randomItem =
+          //  responses[Math.floor(Math.random() * responses.length)];
+          //const result = randomItem;
 
           const output: ModelResponse = {
             model: model,
@@ -384,10 +487,12 @@ export default {
           modelResults.push(output);
         }
 
+        console.log(JSON.stringify(modelResults));
+
         await env.DB.prepare(
-          `INSERT INTO Words (word, result, batch_id) VALUES(?, json(?), ?)`
+          `UPDATE Words SET result = json(?) WHERE word = ? AND batch_id = ?`
         )
-          .bind(word.id, JSON.stringify(modelResults), batchId)
+          .bind(JSON.stringify(modelResults), word.id, batchId)
           .run();
         message.ack();
       } catch (error) {

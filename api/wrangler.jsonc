@@ -35,8 +35,8 @@
         "consumers": [
             {
                 "queue": "wat-queue",
-                "max_batch_size": 100,
-                "max_batch_timeout": 60,
+                "max_batch_size": 10,
+                "max_batch_timeout": 30,
                 "max_retries": 5,
                 "retry_delay": 10
                 // "max_concurrency": 1,

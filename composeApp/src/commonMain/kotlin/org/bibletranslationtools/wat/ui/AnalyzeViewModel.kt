@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.bibletranslationtools.wat.asSource
 import org.bibletranslationtools.wat.data.Consensus
@@ -41,6 +40,10 @@ import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.all_results_received
+import wordanalysistool.composeapp.generated.resources.batch_deleted
+import wordanalysistool.composeapp.generated.resources.batch_not_deleted
+import wordanalysistool.composeapp.generated.resources.creating_batch
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.prompt_not_set
@@ -49,6 +52,7 @@ import wordanalysistool.composeapp.generated.resources.token_invalid
 import kotlin.math.min
 
 private const val BATCH_REQUEST_DELAY = 1000L
+private const val BATCH_REQUESTS_LIMIT = 10
 
 data class Alert(
     val message: String,
@@ -56,7 +60,6 @@ data class Alert(
 )
 
 data class AnalyzeState(
-    val batchId: String? = null,
     val batchProgress: Float = -1f,
     val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
@@ -67,19 +70,16 @@ data class AnalyzeState(
 )
 
 sealed class AnalyzeEvent {
-    data object Idle: AnalyzeEvent()
-    data class FetchBatch(val batchId: String): AnalyzeEvent()
-    data object CreateBatch: AnalyzeEvent()
-    data class BatchCreated(val value: String): AnalyzeEvent()
-    data object ReadyToCreateBatch: AnalyzeEvent()
-    data class FindSingletons(val apostropheIsSeparator: Boolean): AnalyzeEvent()
-    data class UpdatePrompt(val value: String): AnalyzeEvent()
-    data class UpdateBatchId(val value: String?): AnalyzeEvent()
-    data class UpdateModels(val value: List<String>): AnalyzeEvent()
-    data class UpdateSorting(val value: WordsSorting): AnalyzeEvent()
-    data object WordsSorted: AnalyzeEvent()
-    data object SaveReport: AnalyzeEvent()
-    data object Logout: AnalyzeEvent()
+    data object Idle : AnalyzeEvent()
+    data object BatchWords : AnalyzeEvent()
+    data object ResetBatch : AnalyzeEvent()
+    data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
+    data class UpdatePrompt(val value: String) : AnalyzeEvent()
+    data class UpdateModels(val value: List<String>) : AnalyzeEvent()
+    data class UpdateSorting(val value: WordsSorting) : AnalyzeEvent()
+    data object WordsSorted : AnalyzeEvent()
+    data object SaveReport : AnalyzeEvent()
+    data object Logout : AnalyzeEvent()
 }
 
 enum class WordsSorting(val value: String) {
@@ -90,6 +90,7 @@ enum class WordsSorting(val value: String) {
 
 class AnalyzeViewModel(
     private val language: LanguageInfo,
+    private val resourceType: String,
     private val verses: List<Verse>,
     private val user: User,
     private val watAiApi: WatAiApi
@@ -115,9 +116,8 @@ class AnalyzeViewModel(
         when (event) {
             is AnalyzeEvent.FindSingletons -> findSingletonWords(event.apostropheIsSeparator)
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
-            is AnalyzeEvent.UpdateBatchId -> updateBatchId(event.value)
-            is AnalyzeEvent.FetchBatch -> fetchBatch(event.batchId)
-            is AnalyzeEvent.CreateBatch -> createBatch()
+            is AnalyzeEvent.BatchWords -> createBatch()
+            is AnalyzeEvent.ResetBatch -> resetBatch()
             is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
             is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
@@ -164,11 +164,13 @@ class AnalyzeViewModel(
                     .sortedBy { it.word.lowercase() }
             )
 
+            fetchBatch(loop = false)
+
             updateProgress(null)
         }
     }
 
-    private fun fetchBatch(batchId: String) {
+    private fun fetchBatch(loop: Boolean = true) {
         fetchJob?.cancel() // cancel previous job
 
         fetchJob = screenModelScope.launch {
@@ -182,7 +184,11 @@ class AnalyzeViewModel(
                 BatchStatus.UNKNOWN
             )
             while (status !in completionStatuses) {
-                watAiApi.getBatch(batchId, user.token.accessToken).onSuccess { batch ->
+                watAiApi.getBatch(
+                    language.ietfCode,
+                    resourceType,
+                    user.token.accessToken
+                ).onSuccess { batch ->
                     batch.details.output?.let { parseBatch(batch) }
                     status = batch.details.status
 
@@ -193,20 +199,21 @@ class AnalyzeViewModel(
                     when (it.type) {
                         ErrorType.Unauthorized -> {
                             updateAlert(
-                                Alert(
-                                    message = getString(Res.string.token_invalid),
-                                    onClosed = {
-                                        screenModelScope.launch {
-                                            _event.send(AnalyzeEvent.Logout)
-                                            updateAlert(null)
-                                        }
+                                Alert(getString(Res.string.token_invalid)) {
+                                    screenModelScope.launch {
+                                        _event.send(AnalyzeEvent.Logout)
+                                        updateAlert(null)
                                     }
-                                )
+                                }
                             )
                         }
+
                         else -> println(it.description)
                     }
                 }
+
+                if (!loop) break
+
                 delay(BATCH_REQUEST_DELAY)
             }
 
@@ -218,81 +225,109 @@ class AnalyzeViewModel(
         screenModelScope.launch {
             if (_state.value.models.isEmpty()) {
                 updateAlert(
-                    Alert(
-                        message = getString(Res.string.no_model_selected),
-                        onClosed = { updateAlert(null) }
-                    )
+                    Alert(getString(Res.string.no_model_selected)) {
+                        updateAlert(null)
+                    }
                 )
                 return@launch
             }
 
             if (_state.value.prompt == null) {
                 updateAlert(
-                    Alert(
-                        message = getString(Res.string.prompt_not_set),
-                        onClosed = { updateAlert(null) }
-                    )
+                    Alert(getString(Res.string.prompt_not_set)) {
+                        updateAlert(null)
+                    }
                 )
                 return@launch
             }
 
-            // TODO Temporary limitation
-            if (_state.value.singletons.size > 300) {
-                updateAlert(
-                    Alert(
-                        message = "Temporarily maximum of 300 words per batch supported.",
-                        onClosed = { updateAlert(null) }
+            updateProgress(Progress(-1f, getString(Res.string.creating_batch)))
+
+            val requests = _state.value.singletons
+                .filter { it.result == null }
+                .map { singleton ->
+                    BatchRequest(
+                        id = singleton.word,
+                        prompt = getPrompt(singleton.word, singleton.ref),
+                        models = _state.value.models
                     )
-                )
-            }
+                }
+                .take(BATCH_REQUESTS_LIMIT)
 
-            // Clear previous responses
-            updateSingletons(
-                _state.value.singletons.map { it.copy(result = null) }
-            )
-
-            val requests = _state.value.singletons.map { singleton ->
-                BatchRequest(
-                    id = singleton.word,
-                    prompt = getPrompt(singleton.word, singleton.ref),
-                    models = _state.value.models
+            if (requests.isEmpty()) {
+                updateAlert(
+                    Alert(getString(Res.string.all_results_received)) {
+                        updateAlert(null)
+                    }
                 )
+                updateProgress(null)
+                return@launch
             }
-                .shuffled()
-                .take(min(300, _state.value.singletons.size))
 
             val json = buildJsonlFile(requests)
             val source = json.asSource()
 
-//            delay(1000)
-//            _event.send(AnalyzeEvent.BatchCreated("3cee13bf-91be-4310-8fc1-aa716f524b15"))
-
-            watAiApi.createBatch(source, user.token.accessToken).onSuccess {
+            watAiApi.createBatch(
+                language.ietfCode,
+                resourceType,
+                source,
+                user.token.accessToken
+            ).onSuccess {
                 println(it.id)
-                _event.send(AnalyzeEvent.BatchCreated(it.id))
+                fetchBatch()
             }.onError {
                 when (it.type) {
                     ErrorType.Unauthorized -> {
                         updateAlert(
-                            Alert(
-                                message = getString(Res.string.token_invalid),
-                                onClosed = {
-                                    screenModelScope.launch {
-                                        _event.send(AnalyzeEvent.Logout)
-                                        updateAlert(null)
-                                    }
+                            Alert(getString(Res.string.token_invalid)) {
+                                screenModelScope.launch {
+                                    _event.send(AnalyzeEvent.Logout)
+                                    updateAlert(null)
                                 }
-                            )
+                            }
                         )
                     }
+
                     else -> updateAlert(
-                        Alert(
-                            message = it.description ?: "Error: ${it.code}",
-                            onClosed = { updateAlert(null) }
-                        )
+                        Alert(it.description ?: "Error code: ${it.code}") {
+                            updateAlert(null)
+                        }
                     )
                 }
             }
+
+            updateProgress(null)
+        }
+    }
+
+    private fun resetBatch() {
+        screenModelScope.launch {
+            watAiApi.deleteBatch(language.ietfCode, resourceType, user.token.accessToken)
+                .onSuccess { deleted ->
+                    if (deleted) {
+                        updateSingletons(
+                            _state.value.singletons.map { it.copy(result = null) }
+                        )
+                        updateAlert(
+                            Alert(getString(Res.string.batch_deleted)) {
+                                updateAlert(null)
+                            }
+                        )
+                    } else {
+                        updateAlert(
+                            Alert(getString(Res.string.batch_not_deleted)) {
+                                updateAlert(null)
+                            }
+                        )
+                    }
+                }
+                .onError {
+                    updateAlert(
+                        Alert(it.description ?: "") {
+                            updateAlert(null)
+                        }
+                    )
+                }
         }
     }
 
@@ -350,10 +385,9 @@ class AnalyzeViewModel(
             )
 
             updateAlert(
-                Alert(
-                    message = getString(Res.string.report_saved),
-                    onClosed = { updateAlert(null) }
-                )
+                Alert(getString(Res.string.report_saved)) {
+                    updateAlert(null)
+                }
             )
         }
     }
@@ -368,6 +402,7 @@ class AnalyzeViewModel(
                         _state.value.singletons.sortedBy { it.word.lowercase() }
                     )
                 }
+
                 WordsSorting.BY_ERROR -> {
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
@@ -375,6 +410,7 @@ class AnalyzeViewModel(
                         }
                     )
                 }
+
                 WordsSorting.BY_UNDEFINED -> {
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
@@ -399,40 +435,32 @@ class AnalyzeViewModel(
         _state.update {
             it.copy(singletons = words)
         }
-        checkBatchCreateReady()
     }
 
     private fun updateModels(models: List<String>) {
         _state.update {
             it.copy(models = models)
         }
-        checkBatchCreateReady()
-    }
-
-    private fun updateBatchId(batchId: String?) {
-        _state.update {
-            it.copy(batchId = batchId)
-        }
-        checkBatchCreateReady()
     }
 
     private fun updatePrompt(prompt: String) {
         _state.update {
             it.copy(prompt = prompt)
         }
-        checkBatchCreateReady()
     }
 
     private fun getPrompt(word: String, verse: Verse): String {
-        return _state.value.prompt!!.formatWith(mapOf<String, String>(
-            "language" to language.angName,
-            "book_name" to verse.bookName,
-            "book_code" to verse.bookSlug,
-            "chapter" to verse.chapter.toString(),
-            "verse" to verse.number.toString(),
-            "word" to word,
-            "text" to verse.text
-        ))
+        return _state.value.prompt!!.formatWith(
+            mapOf<String, String>(
+                "language" to language.angName,
+                "book_name" to verse.bookName,
+                "book_code" to verse.bookSlug,
+                "chapter" to verse.chapter.toString(),
+                "verse" to verse.number.toString(),
+                "word" to word,
+                "text" to verse.text
+            )
+        )
     }
 
     private fun updateProgress(progress: Progress?) {
@@ -450,17 +478,6 @@ class AnalyzeViewModel(
     private fun updateBatchProgress(progress: Float) {
         _state.update {
             it.copy(batchProgress = progress)
-        }
-    }
-
-    private fun checkBatchCreateReady() {
-        if (_state.value.batchId != null) return
-        if (_state.value.models.isEmpty()) return
-        if (_state.value.singletons.isEmpty()) return
-        if (_state.value.prompt == null) return
-
-        screenModelScope.launch {
-            _event.send(AnalyzeEvent.ReadyToCreateBatch)
         }
     }
 
