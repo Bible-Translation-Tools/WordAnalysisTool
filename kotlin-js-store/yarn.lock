@@ -1401,6 +1401,11 @@ iconv-lite@^0.6.3:
   dependencies:
     safer-buffer ">= 2.1.2 < 3.0.0"
 
+idb-keyval@6.2.1:
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/idb-keyval/-/idb-keyval-6.2.1.tgz#94516d625346d16f56f3b33855da11bfded2db33"
+  integrity sha512-8Sb3veuYCyrZL+VBt9LJfZjLUPWVvqn8tG28VqYNFCo43KHcKuq+b4EiXGeuaLAQWL2YmyDgMp2aSpH9JHsEQg==
+
 import-local@^3.0.2:
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/import-local/-/import-local-3.2.0.tgz#c3d5c745798c02a6f8b897726aba5100186ee260"

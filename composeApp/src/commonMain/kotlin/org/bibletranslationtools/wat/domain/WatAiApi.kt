@@ -14,6 +14,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import org.bibletranslationtools.wat.http.ApiResult
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.NetworkError
+import org.bibletranslationtools.wat.http.delete
 import org.bibletranslationtools.wat.http.get
 import org.bibletranslationtools.wat.http.postFile
 import org.jetbrains.compose.resources.getString
@@ -72,6 +73,10 @@ data class BatchDetails(
 @Serializable
 data class Batch(
     val id: String,
+    @SerialName("ietf_code")
+    val ietfCode: String,
+    @SerialName("resource_type")
+    val resourceType: String,
     val details: BatchDetails
 )
 
@@ -110,8 +115,22 @@ interface WatAiApi {
     suspend fun getAuthUrl(): ApiResult<String, NetworkError>
     suspend fun getAuthToken(): ApiResult<Token, NetworkError>
     suspend fun verifyUser(accessToken: String): ApiResult<Boolean, NetworkError>
-    suspend fun getBatch(id: String, accessToken: String): ApiResult<Batch, NetworkError>
-    suspend fun createBatch(file: Source, accessToken: String): ApiResult<Batch, NetworkError>
+    suspend fun getBatch(
+        ietfCode: String,
+        resourceType: String,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError>
+    suspend fun createBatch(
+        ietfCode: String,
+        resourceType: String,
+        file: Source,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError>
+    suspend fun deleteBatch(
+        ietfCode: String,
+        resourceType: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError>
 }
 
 class WatAiApiImpl(
@@ -171,10 +190,14 @@ class WatAiApiImpl(
         }
     }
 
-    override suspend fun getBatch(id: String, accessToken: String): ApiResult<Batch, NetworkError> {
+    override suspend fun getBatch(
+        ietfCode: String,
+        resourceType: String,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError> {
         val response = get(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/$id",
+            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Accept" to "application/json"
@@ -195,10 +218,15 @@ class WatAiApiImpl(
         }
     }
 
-    override suspend fun createBatch(file: Source, accessToken: String): ApiResult<Batch, NetworkError> {
+    override suspend fun createBatch(
+        ietfCode: String,
+        resourceType: String,
+        file: Source,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError> {
         val response = postFile(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch",
+            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
             file,
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
@@ -209,6 +237,34 @@ class WatAiApiImpl(
             response.data != null -> {
                 ApiResult.Success(
                     response.data.body<Batch>()
+                )
+            }
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+            else -> ApiResult.Error(
+                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+            )
+        }
+    }
+
+    override suspend fun deleteBatch(
+        ietfCode: String,
+        resourceType: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError> {
+        val response = delete(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Accept" to "application/json"
+            )
+        )
+        return when {
+            response.data != null -> {
+                ApiResult.Success(
+                    response.data.body<Boolean>()
                 )
             }
             response.error != null -> {

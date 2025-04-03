@@ -2,6 +2,7 @@ package org.bibletranslationtools.wat.http
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -65,6 +66,22 @@ suspend fun get(
 ): NetworkResponse {
     return runNetworkRequest {
         httpClient.get(url) {
+            headers {
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+            }
+        }
+    }
+}
+
+suspend fun delete(
+    httpClient: HttpClient,
+    url: String,
+    headers: Map<String, String> = emptyMap()
+): NetworkResponse {
+    return runNetworkRequest {
+        httpClient.delete(url) {
             headers {
                 headers.forEach { (key, value) ->
                     header(key, value)

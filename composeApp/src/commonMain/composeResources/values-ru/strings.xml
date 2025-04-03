@@ -33,7 +33,7 @@
     <string name="models">Модели</string>
     <string name="consensus">Согласие</string>
     <string name="did_not_respond">Нет ответа</string>
-    <string name="refresh_batch">Получить новые результаты</string>
+    <string name="delete_batch">Удалить результаты</string>
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="report_saved">Отчет сохранен.</string>
     <string name="select_models_limit">Невозможно выбрать более 4 моделей.</string>
@@ -44,4 +44,10 @@
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
     <string name="token_invalid">Срок действия кода доступа истек. Пожалуйста, войдите снова.</string>
+    <string name="batch_not_deleted">Не удалось удалить результаты. Попробуйте еще раз.</string>
+    <string name="batch_deleted">Результаты успешно удалены.</string>
+    <string name="process_words">Получить результаты</string>
+    <string name="sort_words">Сортировать слова</string>
+    <string name="creating_batch">Создание запроса на результаты...</string>
+    <string name="all_results_received">Все результаты получены.</string>
 </resources>

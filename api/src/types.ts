@@ -16,6 +16,8 @@ export type BatchRequest = {
 
 export type Batch = {
   id: string;
+  ietf_code: string;
+  resource_type: string;
   details: BatchDetails;
 };
 

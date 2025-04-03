@@ -18,11 +18,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -69,9 +71,11 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.default_prompt
+import wordanalysistool.composeapp.generated.resources.delete_batch
 import wordanalysistool.composeapp.generated.resources.logout
-import wordanalysistool.composeapp.generated.resources.refresh_batch
+import wordanalysistool.composeapp.generated.resources.process_words
 import wordanalysistool.composeapp.generated.resources.save_report
+import wordanalysistool.composeapp.generated.resources.sort_words
 import wordanalysistool.composeapp.generated.resources.total_misspellings
 import wordanalysistool.composeapp.generated.resources.total_singletons
 import wordanalysistool.composeapp.generated.resources.total_undefined
@@ -86,7 +90,7 @@ class AnalyzeScreen(
     @Composable
     override fun Content() {
         val viewModel = koinScreenModel<AnalyzeViewModel> {
-            parametersOf(language, verses, user)
+            parametersOf(language, resourceType, verses, user)
         }
 
         val navigator = LocalNavigator.currentOrThrow
@@ -100,8 +104,6 @@ class AnalyzeScreen(
             if (active) it.value else null
         }.toMutableStateList()
         val models = remember { modelsState }
-
-        var batchId by rememberStringSettingOrNull("batchId-${language.ietfCode}-${resourceType}")
 
         val prompt by rememberStringSetting(
             Settings.PROMPT.name,
@@ -124,12 +126,6 @@ class AnalyzeScreen(
 
         LaunchedEffect(event) {
             when (event) {
-                is AnalyzeEvent.BatchCreated -> {
-                    batchId = (event as AnalyzeEvent.BatchCreated).value
-                }
-                is AnalyzeEvent.ReadyToCreateBatch -> {
-                    viewModel.onEvent(AnalyzeEvent.CreateBatch)
-                }
                 is AnalyzeEvent.WordsSorted -> {
                     wordsListState.animateScrollToItem(0)
                     viewModel.onEvent(AnalyzeEvent.Idle)
@@ -142,11 +138,7 @@ class AnalyzeScreen(
             }
         }
 
-        LaunchedEffect(batchId, models) {
-            batchId?.let {
-                viewModel.onEvent(AnalyzeEvent.UpdateBatchId(it))
-                viewModel.onEvent(AnalyzeEvent.FetchBatch(it))
-            }
+        LaunchedEffect(models) {
             if (models.isNotEmpty()) {
                 viewModel.onEvent(AnalyzeEvent.UpdateModels(models))
             }
@@ -173,11 +165,10 @@ class AnalyzeScreen(
                     user = user,
                     page = PageType.ANALYZE,
                     ExtraAction(
-                        title = stringResource(Res.string.refresh_batch),
+                        title = stringResource(Res.string.delete_batch),
                         icon = Icons.Default.Refresh,
                         onClick = {
-                            batchId = null
-                            viewModel.onEvent(AnalyzeEvent.CreateBatch)
+                            viewModel.onEvent(AnalyzeEvent.ResetBatch)
                         }
                     ),
                     ExtraAction(
@@ -246,33 +237,42 @@ class AnalyzeScreen(
                 ) {
                     Column(modifier = Modifier.weight(0.3f)) {
                         Column(
-                            modifier = Modifier.padding(end = 8.dp)
+                            modifier = Modifier.padding(end = 8.dp, top = 8.dp)
                         ) {
-                            Text(
-                                text = stringResource(
-                                    Res.string.total_singletons,
-                                    state.singletons.size
-                                ),
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = stringResource(
-                                    Res.string.total_misspellings,
-                                    state.singletons.filter {
-                                        it.result?.consensus == Consensus.MISSPELLING
-                                    }.size
-                                ),
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = stringResource(
-                                    Res.string.total_undefined,
-                                    state.singletons.filter {
-                                        it.result?.consensus == Consensus.UNDEFINED
-                                    }.size
-                                ),
-                                fontSize = 16.sp
-                            )
+                            Button(
+                                onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(stringResource(Res.string.process_words))
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(
+                                        Res.string.total_singletons,
+                                        state.singletons.size
+                                    ),
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = stringResource(
+                                        Res.string.total_misspellings,
+                                        state.singletons.filter {
+                                            it.result?.consensus == Consensus.MISSPELLING
+                                        }.size
+                                    ),
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = stringResource(
+                                        Res.string.total_undefined,
+                                        state.singletons.filter {
+                                            it.result?.consensus == Consensus.UNDEFINED
+                                        }.size
+                                    ),
+                                    fontSize = 16.sp
+                                )
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                             ComboBox(
                                 value = WordsSorting.valueOf(wordsSorting),
@@ -283,7 +283,7 @@ class AnalyzeScreen(
                                 valueConverter = { sort ->
                                     sort.value
                                 },
-                                label = "Sort words"
+                                label = stringResource(Res.string.sort_words)
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
@@ -320,27 +320,30 @@ class AnalyzeScreen(
                         ) {
                             selectedWord?.let {
                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    Text(
-                                        text = it.word,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    val annotatedText = buildAnnotatedString {
-                                        withStyle(
-                                            style = SpanStyle(
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        ) {
-                                            append("${it.ref.bookName} ")
-                                            append("(${it.ref.bookSlug.uppercase()}) ")
-                                            append("${it.ref.chapter}:${it.ref.number} ")
-                                        }
-                                        append(it.ref.text)
+                                    SelectionContainer {
+                                        Text(
+                                            text = it.word,
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
                                     }
-                                    Text(annotatedText)
+                                    SelectionContainer {
+                                        val annotatedText = buildAnnotatedString {
+                                            withStyle(
+                                                style = SpanStyle(
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            ) {
+                                                append("${it.ref.bookName} ")
+                                                append("(${it.ref.bookSlug.uppercase()}) ")
+                                                append("${it.ref.chapter}:${it.ref.number} ")
+                                            }
+                                            append(it.ref.text)
+                                        }
+                                        Text(annotatedText)
+                                    }
                                 }
                             }
                         }

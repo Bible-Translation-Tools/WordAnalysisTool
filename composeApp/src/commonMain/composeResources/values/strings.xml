@@ -33,7 +33,7 @@
     <string name="models">Models</string>
     <string name="consensus">Consensus</string>
     <string name="did_not_respond">Did not respond</string>
-    <string name="refresh_batch">Fetch New Results</string>
+    <string name="delete_batch">Delete Results</string>
     <string name="save_report">Save Report (.csv)</string>
     <string name="report_saved">Report saved.</string>
     <string name="select_models_limit">Can't select more than 4 models.</string>
@@ -44,4 +44,10 @@
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>
     <string name="token_invalid">Access token expired. Please login again.</string>
+    <string name="batch_not_deleted">Could not delete results. Please try again.</string>
+    <string name="batch_deleted">Results successfully deleted.</string>
+    <string name="process_words">Get Results</string>
+    <string name="sort_words">Sort words</string>
+    <string name="creating_batch">Creating request for results...</string>
+    <string name="all_results_received">All results received.</string>
 </resources>
