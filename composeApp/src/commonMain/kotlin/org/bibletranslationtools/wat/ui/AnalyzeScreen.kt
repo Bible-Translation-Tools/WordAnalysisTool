@@ -59,6 +59,7 @@ import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.domain.DEFAULT_PROMPT
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
@@ -70,7 +71,6 @@ import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.default_prompt
 import wordanalysistool.composeapp.generated.resources.delete_batch
 import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.process_words
@@ -107,7 +107,7 @@ class AnalyzeScreen(
 
         val prompt by rememberStringSetting(
             Settings.PROMPT.name,
-            stringResource(Res.string.default_prompt)
+            DEFAULT_PROMPT
         )
 
         val apostropheIsSeparator by rememberBooleanSetting(

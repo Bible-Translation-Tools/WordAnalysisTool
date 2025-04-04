@@ -207,12 +207,16 @@ class AnalyzeViewModel(
                                 }
                             )
                         }
-
-                        else -> println(it.description)
+                        else -> {
+                            println(it.description)
+                            if (!loop) {
+                                status = BatchStatus.ERRORED
+                            }
+                        }
                     }
                 }
 
-                if (!loop) break
+                if (!loop && status in completionStatuses) break
 
                 delay(BATCH_REQUEST_DELAY)
             }
@@ -232,7 +236,7 @@ class AnalyzeViewModel(
                 return@launch
             }
 
-            if (_state.value.prompt == null) {
+            if (_state.value.prompt?.trim().isNullOrEmpty()) {
                 updateAlert(
                     Alert(getString(Res.string.prompt_not_set)) {
                         updateAlert(null)
@@ -243,8 +247,11 @@ class AnalyzeViewModel(
 
             updateProgress(Progress(-1f, getString(Res.string.creating_batch)))
 
-            val requests = _state.value.singletons
+            val singletons = _state.value.singletons
                 .filter { it.result == null }
+                .take(BATCH_REQUESTS_LIMIT)
+
+            val requests = singletons
                 .map { singleton ->
                     BatchRequest(
                         id = singleton.word,
@@ -252,7 +259,6 @@ class AnalyzeViewModel(
                         models = _state.value.models
                     )
                 }
-                .take(BATCH_REQUESTS_LIMIT)
 
             if (requests.isEmpty()) {
                 updateAlert(

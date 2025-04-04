@@ -245,11 +245,12 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       .bind(payload.email)
       .first()) as any;
 
+    // TODO add current user (AND user_id = ? - user.id)
     const existentBatch = (await c.env.DB.prepare(
       `SELECT * FROM Batches
-      WHERE ietf_code = ? AND resource_type = ? AND user_id = ?`
+      WHERE ietf_code = ? AND resource_type = ?`
     )
-      .bind(ietf_code, resource_type, user.id)
+      .bind(ietf_code, resource_type)
       .first()) as any;
 
     let batch_id: string;
@@ -324,12 +325,13 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
     const resource_type = c.req.param("resource_type");
     const payload = c.get("jwtPayload");
 
+    // TODO Get for current user (AND u.email = ? - payload.email)
     const batchEntity = await c.env.DB.prepare(
       `SELECT b.* FROM Batches AS b 
       LEFT JOIN Users AS u ON u.id = b.user_id 
-      WHERE b.ietf_code = ? AND b.resource_type = ? AND u.email = ?`
+      WHERE b.ietf_code = ? AND b.resource_type = ?`
     )
-      .bind(ietf_code, resource_type, payload.email)
+      .bind(ietf_code, resource_type)
       .first<BatchEntity>();
 
     if (batchEntity === null) {
@@ -416,12 +418,13 @@ app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
       .bind(payload.email)
       .first()) as any;
 
+    // TODO Get current user (AND user_id = ? - user.id)
     const { count } = (await c.env.DB.prepare(
       `SELECT COUNT(*) AS count 
       FROM Batches 
-      WHERE ietf_code = ? AND resource_type = ? AND user_id = ?`
+      WHERE ietf_code = ? AND resource_type = ?`
     )
-      .bind(ietf_code, resource_type, user.id)
+      .bind(ietf_code, resource_type)
       .first()) as any;
 
     if (count === 0) {
@@ -430,11 +433,12 @@ app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
       });
     }
 
+    // TODO Delete only by current user (AND user_id = ? - user.id)
     const result = (await c.env.DB.prepare(
       `DELETE FROM Batches 
-      WHERE ietf_code = ? AND resource_type = ? AND user_id = ?`
+      WHERE ietf_code = ? AND resource_type = ?`
     )
-      .bind(ietf_code, resource_type, user.id)
+      .bind(ietf_code, resource_type)
       .run()) as any;
 
     const deleted = result.meta.changes > 0;
@@ -486,8 +490,6 @@ export default {
           };
           modelResults.push(output);
         }
-
-        console.log(JSON.stringify(modelResults));
 
         await env.DB.prepare(
           `UPDATE Words SET result = json(?) WHERE word = ? AND batch_id = ?`

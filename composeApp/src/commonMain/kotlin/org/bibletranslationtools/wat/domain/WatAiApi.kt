@@ -120,12 +120,14 @@ interface WatAiApi {
         resourceType: String,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
+
     suspend fun createBatch(
         ietfCode: String,
         resourceType: String,
         file: Source,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
+
     suspend fun deleteBatch(
         ietfCode: String,
         resourceType: String,
@@ -157,9 +159,11 @@ class WatAiApiImpl(
             response.data != null -> {
                 ApiResult.Success(response.data.body<Token>())
             }
+
             response.error != null -> {
                 ApiResult.Error(response.error)
             }
+
             else -> ApiResult.Error(
                 NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
             )
@@ -181,9 +185,11 @@ class WatAiApiImpl(
                     response.data.body<Boolean>()
                 )
             }
+
             response.error != null -> {
                 ApiResult.Error(response.error)
             }
+
             else -> ApiResult.Error(
                 NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
             )
@@ -209,9 +215,11 @@ class WatAiApiImpl(
                     response.data.body<Batch>()
                 )
             }
+
             response.error != null -> {
                 ApiResult.Error(response.error)
             }
+
             else -> ApiResult.Error(
                 NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
             )
@@ -239,9 +247,11 @@ class WatAiApiImpl(
                     response.data.body<Batch>()
                 )
             }
+
             response.error != null -> {
                 ApiResult.Error(response.error)
             }
+
             else -> ApiResult.Error(
                 NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
             )
@@ -267,9 +277,11 @@ class WatAiApiImpl(
                     response.data.body<Boolean>()
                 )
             }
+
             response.error != null -> {
                 ApiResult.Error(response.error)
             }
+
             else -> ApiResult.Error(
                 NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
             )

@@ -20,6 +20,7 @@ CREATE TABLE
         word TEXT NOT NULL,
         result TEXT DEFAULT NULL,
         batch_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (batch_id) REFERENCES Batches (id) ON DELETE CASCADE
     );
 
@@ -31,9 +32,9 @@ CREATE TABLE
         wacs_user_id INTEGER NOT NULL,
         username TEXT NOT NULL,
         email TEXT NOT NULL,
-        access_token TEXT NOT NULL,
-        refresh_token TEXT NOT NULL,
-        token_type TEXT NOT NULL,
+        access_token TEXT,
+        refresh_token TEXT,
+        token_type TEXT,
         state TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
