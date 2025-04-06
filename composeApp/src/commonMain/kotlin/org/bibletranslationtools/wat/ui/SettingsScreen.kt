@@ -37,6 +37,7 @@ import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
+import org.bibletranslationtools.wat.domain.DEFAULT_PROMPT
 import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.ModelStatus
@@ -52,7 +53,6 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.color_scheme
-import wordanalysistool.composeapp.generated.resources.default_prompt
 import wordanalysistool.composeapp.generated.resources.edit_prompt
 import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.models
@@ -96,7 +96,7 @@ class SettingsScreen(private val user: User) : Screen {
 
         var prompt by rememberStringSetting(
             Settings.PROMPT.name,
-            stringResource(Res.string.default_prompt)
+            DEFAULT_PROMPT
         )
 
         var apostropheIsSeparator by rememberBooleanSetting(
