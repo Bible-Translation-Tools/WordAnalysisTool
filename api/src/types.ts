@@ -36,6 +36,8 @@ export type BatchDetails = {
 
 export type WordResponse = {
   id: string;
+  errored: boolean;
+  last_error: string | null;
   results: ModelResponse[] | null;
 };
 
@@ -57,5 +59,8 @@ export type BatchEntity = {
 
 export type WordEntity = {
   word: string;
-  result: string;
+  result: string | null;
+  errored: boolean;
+  last_error: string | null;
+  created_at: string;
 };

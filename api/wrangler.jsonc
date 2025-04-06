@@ -37,10 +37,16 @@
                 "queue": "wat-queue",
                 "max_batch_size": 10,
                 "max_batch_timeout": 30,
-                "max_retries": 5,
-                "retry_delay": 10
+                "max_retries": 2,
+                "retry_delay": 10,
+                "dead_letter_queue": "errors-queue"
                 // "max_concurrency": 1,
-                // "dead_letter_queue": "processed-queue"
+            },
+            {
+                "queue": "errors-queue",
+                "max_batch_size": 1,
+                "max_batch_timeout": 1,
+                "max_retries": 0
             }
         ]
     },

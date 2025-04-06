@@ -20,6 +20,8 @@ CREATE TABLE
         word TEXT NOT NULL,
         result TEXT DEFAULT NULL,
         batch_id TEXT NOT NULL,
+        last_error TEXT DEFAULT NULL,
+        errored BIT NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (batch_id) REFERENCES Batches (id) ON DELETE CASCADE
     );

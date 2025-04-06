@@ -45,7 +45,10 @@ data class ModelResponse(
 @Serializable
 data class AiResponse(
     val id: String,
-    val results: List<ModelResponse>
+    val errored: Boolean,
+    @SerialName("last_error")
+    val lastError: String?,
+    val results: List<ModelResponse>?
 )
 
 @Serializable

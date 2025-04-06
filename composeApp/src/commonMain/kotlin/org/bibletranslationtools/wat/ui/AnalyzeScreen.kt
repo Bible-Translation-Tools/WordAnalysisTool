@@ -168,7 +168,7 @@ class AnalyzeScreen(
                         title = stringResource(Res.string.delete_batch),
                         icon = Icons.Default.Refresh,
                         onClick = {
-                            viewModel.onEvent(AnalyzeEvent.ResetBatch)
+                            viewModel.onEvent(AnalyzeEvent.DeleteBatch)
                         }
                     ),
                     ExtraAction(

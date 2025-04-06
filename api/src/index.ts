@@ -259,7 +259,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       const { incomplete } = (await c.env.DB.prepare(
         `SELECT COUNT(*) AS incomplete 
         FROM Words
-        WHERE batch_id = ? AND result IS NULL`
+        WHERE batch_id = ? AND result IS NULL AND errored = 0`
       )
         .bind(existentBatch.id)
         .first()) as any;
@@ -267,6 +267,11 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       if (incomplete > 0) {
         throw new HTTPException(403, { message: "batch in progress" });
       }
+
+      await c.env.DB.prepare(`UPDATE Batches SET total = ? WHERE id = ?`)
+        .bind(words.length, existentBatch.id)
+        .run();
+
       batch_id = existentBatch.id;
     } else {
       batch_id = uuid4();
@@ -341,7 +346,7 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
     }
 
     const { results } = await c.env.DB.prepare(
-      `SELECT word, json(result) AS result 
+      `SELECT json(result) AS result, * 
       FROM Words 
       WHERE batch_id = ?`
     )
@@ -349,24 +354,36 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       .all<WordEntity>();
 
     const output: WordResponse[] = [];
+    let failed = 0;
 
     for (const word of results) {
       if (word.result !== null) {
         const results: ModelResponse[] = JSON.parse(word.result);
         const response: WordResponse = {
           id: word.word,
+          errored: false,
+          last_error: null,
           results: results,
         };
         output.push(response);
+      } else if (word.errored) {
+        const response: WordResponse = {
+          id: word.word,
+          errored: true,
+          last_error: word.last_error,
+          results: null,
+        };
+        output.push(response);
+        failed++;
       }
     }
 
     const incomplete = results.length - output.length;
-    const completed = batchEntity.total - incomplete;
+    const completed = batchEntity.total - incomplete - failed;
 
     const progress: BatchProgress = {
       completed: completed,
-      failed: 0,
+      failed: failed,
       total: batchEntity.total,
     };
 
@@ -458,48 +475,80 @@ export default {
     env: CloudflareBindings,
     ctx: ExecutionContext
   ) {
-    const client = new AiClient(env);
+    if (batch.queue === "wat-queue") {
+      const client = new AiClient(env);
 
-    for (const message of batch.messages) {
-      try {
+      for (const message of batch.messages) {
         const batchId = message.body.batchId;
         const word = message.body.request;
 
-        const modelResults: ModelResponse[] = [];
+        try {
+          const modelResults: ModelResponse[] = [];
 
-        for (const model of word.models) {
-          const request = {
-            messages: [
-              {
-                role: "user",
-                content: word.prompt,
-              },
-            ],
-          };
+          for (const model of word.models) {
+            const request = {
+              messages: [
+                {
+                  role: "user",
+                  content: word.prompt,
+                },
+              ],
+            };
 
-          const client = new AiClient(env);
-          const result = await client.chat(model, word.prompt);
-          //const responses = ["misspell", "proper noun", "something else"];
-          //const randomItem =
-          //  responses[Math.floor(Math.random() * responses.length)];
-          //const result = randomItem;
+            const result = await client.chat(model, word.prompt);
+            //const responses = ["misspell", "proper noun", "something else"];
+            //const randomItem =
+            //  responses[Math.floor(Math.random() * responses.length)];
+            //const result = randomItem;
 
-          const output: ModelResponse = {
-            model: model,
-            result: result,
-          };
-          modelResults.push(output);
+            const output: ModelResponse = {
+              model: model,
+              result: result,
+            };
+            modelResults.push(output);
+          }
+
+          await env.DB.prepare(
+            `UPDATE Words SET result = json(?), last_error = NULL WHERE word = ? AND batch_id = ?`
+          )
+            .bind(JSON.stringify(modelResults), word.id, batchId)
+            .run();
+
+          message.ack();
+        } catch (error: any) {
+          await env.DB.prepare(
+            `UPDATE Words SET last_error = ? WHERE word = ? AND batch_id = ?`
+          )
+            .bind(`${error}`, word.id, batchId)
+            .run();
+
+          console.error(error);
+          message.retry({ delaySeconds: 1 });
         }
+      }
+    } else if (batch.queue === "errors-queue") {
+      for (const message of batch.messages) {
+        const batchId = message.body.batchId;
+        const word = message.body.request;
 
-        await env.DB.prepare(
-          `UPDATE Words SET result = json(?) WHERE word = ? AND batch_id = ?`
+        const { last_error } = (await env.DB.prepare(
+          "SELECT last_error FROM Words WHERE word = ? AND batch_id = ?"
         )
-          .bind(JSON.stringify(modelResults), word.id, batchId)
+          .bind(word.id, batchId)
+          .first()) as any;
+
+        let error = last_error;
+
+        if (last_error === null) {
+          error = "Unknown error occurred.";
+        }
+        await env.DB.prepare(
+          "UPDATE Words SET last_error = ?, errored = 1 WHERE word = ? AND batch_id = ?"
+        )
+          .bind(error, word.id, batchId)
           .run();
+
         message.ack();
-      } catch (error) {
-        console.error(error);
-        message.retry({ delaySeconds: 5 });
       }
     }
   },

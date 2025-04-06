@@ -28,7 +28,6 @@ import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.AiResponse
-import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.ModelResponse
@@ -72,7 +71,7 @@ data class AnalyzeState(
 sealed class AnalyzeEvent {
     data object Idle : AnalyzeEvent()
     data object BatchWords : AnalyzeEvent()
-    data object ResetBatch : AnalyzeEvent()
+    data object DeleteBatch : AnalyzeEvent()
     data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
     data class UpdatePrompt(val value: String) : AnalyzeEvent()
     data class UpdateModels(val value: List<String>) : AnalyzeEvent()
@@ -117,7 +116,7 @@ class AnalyzeViewModel(
             is AnalyzeEvent.FindSingletons -> findSingletonWords(event.apostropheIsSeparator)
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.BatchWords -> createBatch()
-            is AnalyzeEvent.ResetBatch -> resetBatch()
+            is AnalyzeEvent.DeleteBatch -> deleteBatch()
             is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
             is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
@@ -189,7 +188,7 @@ class AnalyzeViewModel(
                     resourceType,
                     user.token.accessToken
                 ).onSuccess { batch ->
-                    batch.details.output?.let { parseBatch(batch) }
+                    batch.details.output?.let { parseResponses(it) }
                     status = batch.details.status
 
                     val current = batch.details.progress.completed + batch.details.progress.failed
@@ -279,7 +278,6 @@ class AnalyzeViewModel(
                 source,
                 user.token.accessToken
             ).onSuccess {
-                println(it.id)
                 fetchBatch()
             }.onError {
                 when (it.type) {
@@ -306,7 +304,7 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun resetBatch() {
+    private fun deleteBatch() {
         screenModelScope.launch {
             watAiApi.deleteBatch(language.ietfCode, resourceType, user.token.accessToken)
                 .onSuccess { deleted ->
@@ -337,18 +335,16 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun parseBatch(batch: Batch) {
-        batch.details.output?.let { words ->
-            val consensusMap: Map<String, ConsensusResult> = makeConsensus(words)
-            updateSingletons(
-                _state.value.singletons.map { singleton ->
-                    consensusMap[singleton.word]?.let { answer ->
-                        singleton.copy(result = answer)
-                    } ?: singleton
-                }
-            )
-            sortWords(_state.value.sorting)
-        }
+    private fun parseResponses(responses: List<AiResponse>) {
+        val consensusMap: Map<String, ConsensusResult> = makeConsensus(responses)
+        updateSingletons(
+            _state.value.singletons.map { singleton ->
+                consensusMap[singleton.word]?.let { answer ->
+                    singleton.copy(result = answer)
+                } ?: singleton
+            }
+        )
+        sortWords(_state.value.sorting)
     }
 
     private fun saveReport() {
@@ -493,19 +489,25 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun makeConsensus(result: List<AiResponse>): Map<String, ConsensusResult> {
+    private fun makeConsensus(results: List<AiResponse>): Map<String, ConsensusResult> {
         val consensusMap = mutableMapOf<String, ConsensusResult>()
 
-        result.forEach { response ->
-            consensusMap[response.id] = ConsensusResult(
-                models = response.results.map {
-                    ModelConsensus(
-                        model = it.model,
-                        consensus = Consensus.of(it.result)
-                    )
-                },
-                consensus = findWinner(response.results)
-            )
+        results.forEach { response ->
+            response.results?.let {
+                consensusMap[response.id] = ConsensusResult(
+                    models = it.map {
+                        ModelConsensus(
+                            model = it.model,
+                            consensus = Consensus.of(it.result)
+                        )
+                    },
+                    consensus = findWinner(it)
+                )
+            } ?: run {
+                if (response.errored) {
+                    println("Word '${response.id}' has errored with message: ${response.lastError}")
+                }
+            }
         }
 
         return consensusMap
