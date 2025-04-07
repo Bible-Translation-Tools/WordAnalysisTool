@@ -2,12 +2,14 @@ package org.bibletranslationtools.wat.ui
 
 import ComboBox
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,15 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -34,6 +37,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,14 +59,17 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
-import org.bibletranslationtools.wat.domain.DEFAULT_PROMPT
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.format
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
@@ -76,9 +83,11 @@ import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.process_words
 import wordanalysistool.composeapp.generated.resources.save_report
 import wordanalysistool.composeapp.generated.resources.sort_words
-import wordanalysistool.composeapp.generated.resources.total_misspellings
+import wordanalysistool.composeapp.generated.resources.total_likely_correct
+import wordanalysistool.composeapp.generated.resources.total_likely_incorrect
+import wordanalysistool.composeapp.generated.resources.total_names
+import wordanalysistool.composeapp.generated.resources.total_review_needed
 import wordanalysistool.composeapp.generated.resources.total_singletons
-import wordanalysistool.composeapp.generated.resources.total_undefined
 
 class AnalyzeScreen(
     private val language: LanguageInfo,
@@ -105,11 +114,6 @@ class AnalyzeScreen(
         }.toMutableStateList()
         val models = remember { modelsState }
 
-        val prompt by rememberStringSetting(
-            Settings.PROMPT.name,
-            DEFAULT_PROMPT
-        )
-
         val apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
             true
@@ -123,6 +127,9 @@ class AnalyzeScreen(
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val wordsListState = rememberLazyListState()
+        val statuses = remember { mutableStateListOf<String>() }
+
+        var showStatuses by remember { mutableStateOf(false) }
 
         LaunchedEffect(event) {
             when (event) {
@@ -144,10 +151,6 @@ class AnalyzeScreen(
             }
         }
 
-        LaunchedEffect(prompt) {
-            viewModel.onEvent(AnalyzeEvent.UpdatePrompt(prompt))
-        }
-
         LaunchedEffect(apostropheIsSeparator) {
             viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
         }
@@ -156,6 +159,18 @@ class AnalyzeScreen(
             viewModel.onEvent(AnalyzeEvent.UpdateSorting(
                 WordsSorting.valueOf(wordsSorting)
             ))
+        }
+
+        LaunchedEffect(state.status) {
+            state.status?.let {
+                val time = Clock.System.now().toLocalDateTime(
+                    TimeZone.currentSystemDefault()
+                )
+                if (statuses.size > 1_000) {
+                    statuses.removeAt(0)
+                }
+                statuses.add("${time.format()} $it")
+            }
         }
 
         Scaffold(
@@ -231,133 +246,185 @@ class AnalyzeScreen(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, bottom = 20.dp, top = 4.dp)
-                ) {
-                    Column(modifier = Modifier.weight(0.3f)) {
-                        Column(
-                            modifier = Modifier.padding(end = 8.dp, top = 8.dp)
+                if (showStatuses) {
+                    Box(
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                            .fillMaxWidth(0.35f)
+                            .fillMaxHeight(0.6f)
+                            .offset(y = (-40).dp, x = (-4).dp)
+                            .border(1.dp, MaterialTheme.colorScheme.onBackground)
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.padding(8.dp)
                         ) {
-                            Button(
-                                onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(stringResource(Res.string.process_words))
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Column {
+                            items(statuses) { status ->
                                 Text(
-                                    text = stringResource(
-                                        Res.string.total_singletons,
-                                        state.singletons.size
-                                    ),
-                                    fontSize = 16.sp
-                                )
-                                Text(
-                                    text = stringResource(
-                                        Res.string.total_misspellings,
-                                        state.singletons.filter {
-                                            it.result?.consensus == Consensus.MISSPELLING
-                                        }.size
-                                    ),
-                                    fontSize = 16.sp
-                                )
-                                Text(
-                                    text = stringResource(
-                                        Res.string.total_undefined,
-                                        state.singletons.filter {
-                                            it.result?.consensus == Consensus.UNDEFINED
-                                        }.size
-                                    ),
-                                    fontSize = 16.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            ComboBox(
-                                value = WordsSorting.valueOf(wordsSorting),
-                                options = WordsSorting.entries,
-                                onOptionSelected = { sort ->
-                                    wordsSorting = sort.name
-                                },
-                                valueConverter = { sort ->
-                                    sort.value
-                                },
-                                label = stringResource(Res.string.sort_words)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        LazyColumn(state = wordsListState) {
-                            items(items = state.singletons, key = { it.word }) { singleton ->
-                                Text(
-                                    text = singleton.word,
-                                    fontWeight = if (selectedWord == singleton)
-                                        FontWeight.Bold else FontWeight.Normal,
-                                    color = when (singleton.result?.consensus) {
-                                        Consensus.MISSPELLING -> MaterialTheme.colorScheme.error
-                                        Consensus.PROPER_NAME -> MaterialTheme.colorScheme.tertiary
-                                        Consensus.SOMETHING_ELSE -> MaterialTheme.colorScheme.tertiary
-                                        Consensus.UNDEFINED -> MaterialTheme.colorScheme.secondary
-                                        else -> MaterialTheme.colorScheme.onBackground
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            selectedWord = singleton
-                                        }
+                                    text = status,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
                     }
+                }
 
-                    VerticalDivider()
-
-                    Column(modifier = Modifier.weight(0.7f)) {
-                        Column(
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.weight(0.6f)
-                                .padding(bottom = 10.dp, start = 20.dp)
-                        ) {
-                            selectedWord?.let {
-                                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    SelectionContainer {
-                                        Text(
-                                            text = it.word,
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-                                    SelectionContainer {
-                                        val annotatedText = buildAnnotatedString {
-                                            withStyle(
-                                                style = SpanStyle(
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            ) {
-                                                append("${it.ref.bookName} ")
-                                                append("(${it.ref.bookSlug.uppercase()}) ")
-                                                append("${it.ref.chapter}:${it.ref.number} ")
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, top = 4.dp)
+                            .weight(1f)
+                    ) {
+                        Column(modifier = Modifier.weight(0.3f)) {
+                            Column(
+                                modifier = Modifier.padding(end = 8.dp, top = 8.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(Res.string.process_words))
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Column {
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.total_singletons,
+                                            state.singletons.size
+                                        ),
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.total_likely_correct,
+                                            state.singletons.filter {
+                                                it.result?.consensus == Consensus.LIKELY_CORRECT
+                                            }.size
+                                        ),
+                                        color = MaterialTheme.colorScheme.tertiary,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.total_likely_incorrect,
+                                            state.singletons.filter {
+                                                it.result?.consensus == Consensus.LIKELY_INCORRECT
+                                            }.size
+                                        ),
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.total_names,
+                                            state.singletons.filter {
+                                                it.result?.consensus == Consensus.NAME
+                                            }.size
+                                        ),
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.total_review_needed,
+                                            state.singletons.filter {
+                                                it.result?.consensus == Consensus.NEEDS_REVIEW
+                                            }.size
+                                        ),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                ComboBox(
+                                    value = WordsSorting.valueOf(wordsSorting),
+                                    options = WordsSorting.entries,
+                                    onOptionSelected = { sort ->
+                                        wordsSorting = sort.name
+                                    },
+                                    valueConverter = { sort ->
+                                        sort.value
+                                    },
+                                    label = stringResource(Res.string.sort_words)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            LazyColumn(state = wordsListState) {
+                                items(items = state.singletons, key = { it.word }) { singleton ->
+                                    Text(
+                                        text = singleton.word,
+                                        fontWeight = if (selectedWord == singleton)
+                                            FontWeight.Bold else FontWeight.Normal,
+                                        color = when (singleton.result?.consensus) {
+                                            Consensus.LIKELY_INCORRECT -> MaterialTheme.colorScheme.error
+                                            Consensus.LIKELY_CORRECT -> MaterialTheme.colorScheme.tertiary
+                                            Consensus.NAME -> MaterialTheme.colorScheme.secondary
+                                            Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary
+                                            else -> MaterialTheme.colorScheme.onBackground
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedWord = singleton
                                             }
-                                            append(it.ref.text)
-                                        }
-                                        Text(annotatedText)
-                                    }
+                                    )
                                 }
                             }
                         }
 
-                        HorizontalDivider()
+                        VerticalDivider()
 
-                        Box(modifier = Modifier.padding(start = 20.dp, top = 20.dp).weight(0.4f)) {
+                        Column(modifier = Modifier.weight(0.7f)) {
                             Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.verticalScroll(rememberScrollState())
-                                    .fillMaxWidth()
+                                verticalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.weight(0.6f)
+                                    .padding(bottom = 10.dp, start = 20.dp)
                             ) {
-
+                                selectedWord?.let {
+                                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        SelectionContainer {
+                                            Text(
+                                                text = it.word,
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                        SelectionContainer {
+                                            val annotatedText = buildAnnotatedString {
+                                                withStyle(
+                                                    style = SpanStyle(
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                ) {
+                                                    append("${it.ref.bookName} ")
+                                                    append("(${it.ref.bookSlug.uppercase()}) ")
+                                                    append("${it.ref.chapter}:${it.ref.number} ")
+                                                }
+                                                append(it.ref.text)
+                                            }
+                                            Text(annotatedText)
+                                        }
+                                    }
+                                }
                             }
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                            .height(36.dp)
+                            .padding(start = 16.dp)
+                    ) {
+                        Text(
+                            text = state.status ?: "",
+                            fontSize = 12.sp
+                        )
+                        IconButton(onClick = { showStatuses = !showStatuses }) {
+                            Icon(imageVector = Icons.Default.Info, contentDescription = null)
                         }
                     }
                 }

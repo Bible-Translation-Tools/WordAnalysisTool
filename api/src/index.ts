@@ -1,62 +1,29 @@
-import {
-  WorkflowEntrypoint,
-  WorkflowEvent,
-  WorkflowStep,
-} from "cloudflare:workers";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { jwt, sign, verify } from "hono/jwt";
 import type { JwtVariables } from "hono/jwt";
-import { jsonl } from "js-jsonl";
 import { v4 as uuid4 } from "uuid";
+import sqlString from "sqlstring";
 import {
-  WordsParams,
   BatchRequest,
-  WordRequest,
   BatchProgress,
   BatchDetails,
   BatchStatus,
   Batch,
   BatchEntity,
-  WordEntity,
   WordResponse,
   ModelResponse,
+  WordModelEntity,
 } from "./types";
 import AiClient from "./ai-client";
+import { use } from "hono/jsx";
 
 const app = new Hono<{
   Bindings: CloudflareBindings;
   Variables: JwtVariables;
 }>();
 app.use("*", cors());
-
-export class WatWorkflow extends WorkflowEntrypoint<
-  CloudflareBindings,
-  WordsParams
-> {
-  async run(event: WorkflowEvent<WordsParams>, step: WorkflowStep) {
-    await step.do("sending words to the queue", async () => {
-      const batchId = event.payload.batchId;
-      const words = event.payload.words;
-
-      for (const word of words) {
-        await step.do(`sending word: ${word.id}`, async () => {
-          // wait a bit before sending message
-          //await step.sleep("sleep", "1 second");
-
-          const batchRequest: BatchRequest = {
-            batchId: batchId,
-            request: word,
-          };
-          await this.env.WAT_QUEUE.send(batchRequest);
-        });
-      }
-
-      return true;
-    });
-  }
-}
 
 app.use("/api/*", (c, next) => {
   const jwtMiddleware = jwt({
@@ -230,91 +197,141 @@ app.get("/api/verify", async (c) => {
 app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
   const ietf_code = c.req.param("ietf_code");
   const resource_type = c.req.param("resource_type");
+  const json = await c.req.json();
+  const models: string[] = json.models || [];
+  const words: string[] = json.words || [];
+  const language: string = json.language || null;
   const payload = c.get("jwtPayload");
-  const body = await c.req.blob();
-
-  if (body.type !== "application/octet-stream") {
-    throw new HTTPException(403, { message: "invalid file" });
-  }
 
   try {
-    const text = await new Response(body).text();
-    const words = jsonl.parse<WordRequest>(text);
+    if (models.length === 0) {
+      throw new HTTPException(404, { message: "no models provided" });
+    }
+
+    if (words.length === 0) {
+      throw new HTTPException(404, { message: "no words provided" });
+    }
+
+    if (language == null || language.trim() === "") {
+      throw new HTTPException(404, { message: "no language provided" });
+    }
 
     const user = (await c.env.DB.prepare("SELECT id FROM Users WHERE email = ?")
       .bind(payload.email)
       .first()) as any;
 
     // TODO add current user (AND user_id = ? - user.id)
-    const existentBatch = (await c.env.DB.prepare(
-      `SELECT * FROM Batches
+    const batchEntity = (await c.env.DB.prepare(
+      `SELECT id, pending FROM Batches
       WHERE ietf_code = ? AND resource_type = ?`
     )
       .bind(ietf_code, resource_type)
       .first()) as any;
 
-    let batch_id: string;
+    let batchId: string = batchEntity?.id;
+    const pending: Boolean = batchEntity?.pending;
 
-    if (existentBatch !== null) {
-      const { incomplete } = (await c.env.DB.prepare(
-        `SELECT COUNT(*) AS incomplete 
-        FROM Words
-        WHERE batch_id = ? AND result IS NULL AND errored = 0`
+    if (!batchId) {
+      batchId = uuid4();
+
+      await c.env.DB.prepare(
+        `INSERT INTO Batches
+        (id, ietf_code, resource_type, pending, total_pending, user_id)
+        VALUES (?, ?, ?, ?, ?, ?)`
       )
-        .bind(existentBatch.id)
-        .first()) as any;
-
-      if (incomplete > 0) {
+        .bind(
+          batchId,
+          ietf_code,
+          resource_type,
+          1,
+          words.length * models.length,
+          user.id
+        )
+        .run();
+    } else {
+      if (pending) {
         throw new HTTPException(403, { message: "batch in progress" });
       }
-
-      await c.env.DB.prepare(`UPDATE Batches SET total = ? WHERE id = ?`)
-        .bind(words.length, existentBatch.id)
-        .run();
-
-      batch_id = existentBatch.id;
-    } else {
-      batch_id = uuid4();
       await c.env.DB.prepare(
-        `INSERT INTO Batches 
-        (id, ietf_code, resource_type, total, user_id) 
-        VALUES (?, ?, ?, ?, ?)`
+        "UPDATE Batches SET pending = 1, total_pending = ?, error = NULL WHERE id = ?"
       )
-        .bind(batch_id, ietf_code, resource_type, words.length, user.id)
+        .bind(words.length * models.length, batchId)
         .run();
     }
 
-    for (const word of words) {
-      await c.env.DB.prepare("INSERT INTO Words (word, batch_id) VALUES(?, ?)")
-        .bind(word.id, batch_id)
-        .run();
+    try {
+      // Insert or replace current words
+      const insertedWords = words
+        .map(
+          (item) => `(${sqlString.escape(item)}, ${sqlString.escape(batchId)})`
+        )
+        .join(", ");
+
+      await c.env.DB.prepare(
+        `INSERT OR REPLACE INTO Words (word, batch_id) VALUES ${insertedWords}`
+      ).run();
+
+      // Delete old model results
+      const deletedModels = words
+        .map(
+          (word) =>
+            `(SELECT id FROM Words WHERE word = ${sqlString.escape(
+              word
+            )} AND batch_id = ${sqlString.escape(batchId)})`
+        )
+        .join(",");
+
+      await c.env.DB.prepare(
+        `DELETE FROM Models WHERE word_id IN (${deletedModels})`
+      ).run();
+
+      // Insert empty model results
+      const insertedModels = words
+        .map((word) =>
+          models.map(
+            (model) =>
+              `(${sqlString.escape(
+                model
+              )}, -1, (SELECT id FROM Words WHERE word = ${sqlString.escape(
+                word
+              )} AND batch_id = ${sqlString.escape(batchId)}))`
+          )
+        )
+        .join(",");
+
+      await c.env.DB.prepare(
+        `INSERT INTO Models (model, status, word_id) VALUES ${insertedModels}`
+      ).run();
+    } catch (error) {
+      console.error(error);
     }
 
     const progress: BatchProgress = {
       completed: 0,
-      failed: 0,
       total: words.length,
     };
 
     const details: BatchDetails = {
       status: BatchStatus.QUEUED,
       error: null,
-      output: null,
+      output: [],
       progress: progress,
     };
 
     const batch: Batch = {
-      id: batch_id,
+      id: batchId,
       ietf_code: ietf_code,
       resource_type: resource_type,
       details: details,
     };
 
-    const params: WordsParams = {
-      batchId: batch_id,
+    const batchRequest: BatchRequest = {
+      batchId: batchId,
+      language: language,
       words: words,
+      models: models,
     };
-    await c.env.WAT_WORKFLOW.create({ params: params });
+    await c.env.WAT_QUEUE.send(batchRequest);
 
     return c.json(batch);
   } catch (error: any) {
@@ -345,51 +362,50 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       });
     }
 
-    const { results } = await c.env.DB.prepare(
-      `SELECT json(result) AS result, * 
-      FROM Words 
-      WHERE batch_id = ?`
+    const models = await c.env.DB.prepare(
+      `SELECT w.word, m.model, m.status FROM Words AS w 
+      LEFT JOIN Models AS m ON m.word_id = w.id 
+      WHERE w.batch_id = ?`
     )
       .bind(batchEntity.id)
-      .all<WordEntity>();
+      .all<WordModelEntity>();
+
+    const entities = Object.groupBy(models.results, (model) => model.word);
 
     const output: WordResponse[] = [];
-    let failed = 0;
 
-    for (const word of results) {
-      if (word.result !== null) {
-        const results: ModelResponse[] = JSON.parse(word.result);
-        const response: WordResponse = {
-          id: word.word,
-          errored: false,
-          last_error: null,
-          results: results,
-        };
-        output.push(response);
-      } else if (word.errored) {
-        const response: WordResponse = {
-          id: word.word,
-          errored: true,
-          last_error: word.last_error,
-          results: null,
-        };
-        output.push(response);
-        failed++;
-      }
+    for (const key of Object.keys(entities)) {
+      const entitiy = entities[key];
+      if (!entitiy) continue;
+
+      const response: WordResponse = {
+        word: key,
+        results: entitiy
+          .filter((item) => item.model !== null)
+          .map(
+            (item): ModelResponse => ({
+              model: item.model,
+              status: item.status,
+            })
+          ),
+      };
+      output.push(response);
     }
 
-    const incomplete = results.length - output.length;
-    const completed = batchEntity.total - incomplete - failed;
+    const incomplete = output
+      .map((item) => item.results.filter((res) => res.status < 0).length)
+      .reduce((a, b) => a + b, 0);
+
+    const completed = batchEntity.total_pending - incomplete;
 
     const progress: BatchProgress = {
       completed: completed,
-      failed: failed,
-      total: batchEntity.total,
+      total: batchEntity.total_pending,
     };
 
-    let p = 0;
+    let p = 1;
     if (progress.total > 0) {
-      p = (progress.completed + progress.failed) / progress.total;
+      p = progress.completed / progress.total;
     }
 
     let status: BatchStatus;
@@ -404,9 +420,13 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
         status = BatchStatus.RUNNING;
     }
 
+    if (batchEntity.error !== null) {
+      status = BatchStatus.ERRORED;
+    }
+
     const details: BatchDetails = {
       status: status,
-      error: null,
+      error: batchEntity.error,
       progress: progress,
       output: output,
     };
@@ -475,81 +495,56 @@ export default {
     env: CloudflareBindings,
     ctx: ExecutionContext
   ) {
-    if (batch.queue === "wat-queue") {
-      const client = new AiClient(env);
+    const client = new AiClient(env);
 
-      for (const message of batch.messages) {
-        const batchId = message.body.batchId;
-        const word = message.body.request;
+    for (const message of batch.messages) {
+      const batchId = message.body.batchId;
+      const language = message.body.language;
+      const words = message.body.words;
+      const models = message.body.models;
 
+      let prompt = `Language: ${language}. Words: ${words.join(", ")}`;
+      let errorDetails: string | null = null;
+
+      for (const model of models) {
         try {
-          const modelResults: ModelResponse[] = [];
+          const results = await client.chat(model, prompt);
+          if (results !== null) {
+            for (const result of results) {
+              const wordResult = result.word.trim();
+              const wordStatus = result.status;
 
-          for (const model of word.models) {
-            const request = {
-              messages: [
-                {
-                  role: "user",
-                  content: word.prompt,
-                },
-              ],
-            };
-
-            const result = await client.chat(model, word.prompt);
-            //const responses = ["misspell", "proper noun", "something else"];
-            //const randomItem =
-            //  responses[Math.floor(Math.random() * responses.length)];
-            //const result = randomItem;
-
-            const output: ModelResponse = {
-              model: model,
-              result: result,
-            };
-            modelResults.push(output);
+              if (words.includes(wordResult)) {
+                await env.DB.prepare(
+                  `UPDATE Models 
+                  SET status = ? 
+                  WHERE model = ? AND word_id = (SELECT id FROM Words WHERE word = ? AND batch_id = ?)`
+                )
+                  .bind(wordStatus, model, wordResult, batchId)
+                  .run();
+              } else {
+                errorDetails = `model ${model} returned wrong word result: ${wordResult}`;
+              }
+            }
+          } else {
+            errorDetails = `model ${model} returned invalid json`;
           }
-
-          await env.DB.prepare(
-            `UPDATE Words SET result = json(?), last_error = NULL WHERE word = ? AND batch_id = ?`
-          )
-            .bind(JSON.stringify(modelResults), word.id, batchId)
-            .run();
-
-          message.ack();
         } catch (error: any) {
-          await env.DB.prepare(
-            `UPDATE Words SET last_error = ? WHERE word = ? AND batch_id = ?`
-          )
-            .bind(`${error}`, word.id, batchId)
-            .run();
-
-          console.error(error);
-          message.retry({ delaySeconds: 1 });
+          errorDetails = `model ${model} failed. ${error.message || error}`;
         }
       }
-    } else if (batch.queue === "errors-queue") {
-      for (const message of batch.messages) {
-        const batchId = message.body.batchId;
-        const word = message.body.request;
 
-        const { last_error } = (await env.DB.prepare(
-          "SELECT last_error FROM Words WHERE word = ? AND batch_id = ?"
-        )
-          .bind(word.id, batchId)
-          .first()) as any;
-
-        let error = last_error;
-
-        if (last_error === null) {
-          error = "Unknown error occurred.";
-        }
+      try {
         await env.DB.prepare(
-          "UPDATE Words SET last_error = ?, errored = 1 WHERE word = ? AND batch_id = ?"
+          "UPDATE Batches SET error = ?, pending = 0, total_pending = 0 WHERE id = ?"
         )
-          .bind(error, word.id, batchId)
+          .bind(errorDetails, batchId)
           .run();
-
-        message.ack();
+      } catch (error) {
+        console.error(error);
       }
+
+      message.ack();
     }
   },
 };

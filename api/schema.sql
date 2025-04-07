@@ -5,7 +5,9 @@ CREATE TABLE
         id TEXT PRIMARY KEY,
         ietf_code TEXT NOT NULL,
         resource_type TEXT NOT NULL,
-        total INTEGER NOT NULL,
+        pending BIT NOT NULL DEFAULT 0,
+        total_pending INTEGER NOT NULL,
+        error TEXT DEFAULT NULL,
         user_id INTEGER NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -18,12 +20,21 @@ CREATE TABLE
     IF NOT EXISTS Words (
         id INTEGER PRIMARY KEY,
         word TEXT NOT NULL,
-        result TEXT DEFAULT NULL,
         batch_id TEXT NOT NULL,
-        last_error TEXT DEFAULT NULL,
-        errored BIT NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (batch_id) REFERENCES Batches (id) ON DELETE CASCADE
+    );
+
+DROP TABLE IF EXISTS Models;
+
+CREATE TABLE
+    IF NOT EXISTS Models (
+        id INTEGER PRIMARY KEY,
+        model TEXT NOT NULL,
+        status INTEGER NOT NULL,
+        word_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (word_id) REFERENCES Words (id) ON DELETE CASCADE
     );
 
 DROP TABLE IF EXISTS Users;
@@ -41,3 +52,19 @@ CREATE TABLE
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+CREATE INDEX IF NOT EXISTS idx_batch_user_id ON Batches (user_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_batch ON Batches (ietf_code, resource_type);
+
+CREATE INDEX IF NOT EXISTS idx_word_batch_id ON Words (batch_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_word ON Words (word, batch_id);
+
+CREATE INDEX IF NOT EXISTS idx_model_word_id ON Models (word_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_model ON Models (model, word_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_user ON Users (email);
+
+PRAGMA optimize;

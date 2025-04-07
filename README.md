@@ -5,6 +5,7 @@ This is WordAnalysisTool targeting Android, Web, Desktop.
 The app uses cloudflare as an API. Here are the secrets that should be created:
 
 `JWT_SECRET_KEY` - Secret key to sign JWT access tokens  
+`CLOUDFLARE_ID` - Cloudflare account ID  
 
 `OPENAI_API_KEY` - [OpenAI API key](https://platform.openai.com)  
 `QWEN_API_KEY` - [Alibaba API key](https://home.console.alibabacloud.com)  

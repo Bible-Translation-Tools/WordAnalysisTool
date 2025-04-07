@@ -1,17 +1,18 @@
 export type WordsParams = {
   batchId: string;
-  words: WordRequest[];
+  words: WordsRequest[];
 };
 
-export type WordRequest = {
-  id: string;
+export type WordsRequest = {
   prompt: string;
   models: any[];
 };
 
 export type BatchRequest = {
   batchId: string;
-  request: WordRequest;
+  language: string;
+  words: string[];
+  models: string[];
 };
 
 export type Batch = {
@@ -23,7 +24,6 @@ export type Batch = {
 
 export type BatchProgress = {
   completed: number;
-  failed: number;
   total: number;
 };
 
@@ -31,36 +31,45 @@ export type BatchDetails = {
   status: string;
   error: string | null;
   progress: BatchProgress;
-  output: WordResponse[] | null;
+  output: WordResponse[];
 };
 
 export type WordResponse = {
-  id: string;
-  errored: boolean;
-  last_error: string | null;
-  results: ModelResponse[] | null;
+  word: string;
+  results: ModelResponse[];
 };
 
 export type ModelResponse = {
   model: string;
-  result: string | null;
+  status: number;
+};
+
+export type ChatResponse = {
+  word: string;
+  status: number;
 };
 
 export enum BatchStatus {
   QUEUED = "queued",
   RUNNING = "running",
   COMPLETE = "complete",
+  ERRORED = "errored",
 }
 
 export type BatchEntity = {
   id: string;
-  total: number;
+  ietf_code: string;
+  resource_type: string;
+  pending: Boolean;
+  total_pending: number;
+  error: string | null;
+  user_id: number;
+  created_at: string;
+  updated_at: string;
 };
 
-export type WordEntity = {
+export type WordModelEntity = {
   word: string;
-  result: string | null;
-  errored: boolean;
-  last_error: string | null;
-  created_at: string;
+  model: string;
+  status: number;
 };

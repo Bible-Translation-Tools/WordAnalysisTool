@@ -5,7 +5,6 @@ import androidx.compose.runtime.MutableState
 enum class Settings {
     THEME,
     LOCALE,
-    PROMPT,
     APOSTROPHE_IS_SEPARATOR,
     SORT_WORDS,
     ACCESS_TOKEN
@@ -49,8 +48,4 @@ data class ModelStatus(
     val active: MutableState<Boolean>
 )
 
-const val DEFAULT_PROMPT = "In the {language} translation of the Bible verse {book_name} "+
-        "({book_code}) {chapter}:{verse}, the word '{word}' appears. The verse text is: "+
-        "'{text}'. Determine if '{word}' in this context is a proper noun, a misspelling/typo, "+
-        "or something else. Provide only one of the following answers: proper noun, "+
-        "misspelling/typo, something else. Do not provide any explanation."
+const val MODELS_SIZE = 3

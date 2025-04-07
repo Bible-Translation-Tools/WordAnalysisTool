@@ -17,7 +17,6 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -37,8 +36,8 @@ import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
-import org.bibletranslationtools.wat.domain.DEFAULT_PROMPT
 import org.bibletranslationtools.wat.domain.Locales
+import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.ModelStatus
 import org.bibletranslationtools.wat.domain.Settings
@@ -53,7 +52,6 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.color_scheme
-import wordanalysistool.composeapp.generated.resources.edit_prompt
 import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.models
 import wordanalysistool.composeapp.generated.resources.select_models_limit
@@ -93,11 +91,6 @@ class SettingsScreen(private val user: User) : Screen {
             )
         }.toMutableStateList()
         val models = remember { modelsState }
-
-        var prompt by rememberStringSetting(
-            Settings.PROMPT.name,
-            DEFAULT_PROMPT
-        )
 
         var apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
@@ -198,32 +191,18 @@ class SettingsScreen(private val user: User) : Screen {
                                 val activeModels = models.filter { it.active.value }
                                 val status = !model.active.value
 
-                                if (activeModels.size == 4 && status) {
+                                if (activeModels.size == MODELS_SIZE && status) {
                                     coroutineScope.launch {
-                                        alert = getString(Res.string.select_models_limit)
+                                        alert = getString(
+                                            Res.string.select_models_limit,
+                                            MODELS_SIZE
+                                        )
                                     }
                                 } else {
                                     model.active.value = status
                                 }
                             },
                             modifier = Modifier.weight(0.5f)
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = stringResource(Res.string.edit_prompt),
-                            modifier = Modifier.weight(0.5f)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        TextField(
-                            value = prompt,
-                            onValueChange = { prompt = it },
-                            modifier = Modifier.weight(0.5f).width(400.dp)
                         )
                     }
 

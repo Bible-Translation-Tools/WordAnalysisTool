@@ -21,6 +21,7 @@ koin = "4.0.2"
 kotlin = "2.1.10"
 kotlinx-coroutines = "1.10.1"
 kotlinDocumentStoreCore = "1.0.4-wasmjs"
+kotlinxDatetime = "0.6.1"
 ktor = "3.0.3"
 usfmtools = "1.9.1"
 voyagerNavigator = "1.1.0-beta03"
@@ -52,6 +53,7 @@ kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version
 kotlin-document-store-core = { module = "io.github.mxaln:kotlin-document-store-core", version.ref = "kotlinDocumentStoreCore" }
 kotlin-document-store-browser = { module = "io.github.mxaln:kotlin-document-store-browser", version.ref = "kotlinDocumentStoreCore" }
 kotlin-document-store-leveldb = { module = "io.github.mxaln:kotlin-document-store-leveldb", version.ref = "kotlinDocumentStoreCore" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }

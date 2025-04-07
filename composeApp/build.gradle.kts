@@ -112,6 +112,7 @@ kotlin {
 
                 implementation(libs.jwt.kt)
                 implementation(libs.kotlin.document.store.core)
+                implementation(libs.kotlinx.datetime)
             }
         }
         desktopMain.dependencies {

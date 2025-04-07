@@ -130,7 +130,10 @@ class HomeScreen(private val user: User) : Screen {
             }
 
             state.alert?.let {
-                AlertDialog(message = it, onDismiss = { viewModel.onEvent(HomeEvent.ClearAlert) })
+                AlertDialog(
+                    message = it.message,
+                    onDismiss = it.onClosed
+                )
             }
 
             state.progress?.let {
