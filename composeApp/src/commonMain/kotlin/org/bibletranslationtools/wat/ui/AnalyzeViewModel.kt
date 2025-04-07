@@ -244,7 +244,7 @@ class AnalyzeViewModel(
 
             if (_state.value.models.size != MODELS_SIZE) {
                 updateAlert(
-                    Alert(getString(Res.string.wrong_model_selected)) {
+                    Alert(getString(Res.string.wrong_model_selected, MODELS_SIZE)) {
                         updateAlert(null)
                     }
                 )
@@ -362,8 +362,8 @@ class AnalyzeViewModel(
         screenModelScope.launch {
             val header = StringBuilder()
             header.append("word,book,chapter,verse,")
-            _state.value.models.forEach {
-                header.append(it)
+            _state.value.models.forEachIndexed { i, model ->
+                header.append("model${i+1}")
                 header.append(",")
             }
             header.append("consensus\n")
@@ -381,7 +381,11 @@ class AnalyzeViewModel(
                 builder.append(",")
 
                 singleton.result?.models?.forEach {
+                    builder.append("\"")
+                    builder.append(it.model)
+                    builder.append("\n")
                     builder.append(it.status.name)
+                    builder.append("\"")
                     builder.append(",")
                 }
 
