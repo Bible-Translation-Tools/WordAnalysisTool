@@ -55,21 +55,3 @@ export enum BatchStatus {
   COMPLETE = "complete",
   ERRORED = "errored",
 }
-
-export type BatchEntity = {
-  id: string;
-  ietf_code: string;
-  resource_type: string;
-  pending: Boolean;
-  total_pending: number;
-  error: string | null;
-  user_id: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WordModelEntity = {
-  word: string;
-  model: string;
-  status: number;
-};
