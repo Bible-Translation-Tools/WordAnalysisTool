@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.ContentInfo
+import org.bibletranslationtools.wat.data.Direction
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.Verse
@@ -78,8 +79,8 @@ class HomeViewModel(
         screenModelScope.launch {
             updateProgress(Progress(0f, getString(Res.string.fetching_heart_languages)))
             // TODO Remove debug code
-            val en = LanguageInfo("en", "English", "English")
-            val ru = LanguageInfo("ru", "Русский", "Russian")
+            val en = LanguageInfo("en", "English", "English", Direction.LTR)
+            val ru = LanguageInfo("ru", "Русский", "Russian", Direction.LTR)
             updateHeartLanguages(bielGraphQlApi.getHeartLanguages() + en + ru)
             updateProgress(null)
         }

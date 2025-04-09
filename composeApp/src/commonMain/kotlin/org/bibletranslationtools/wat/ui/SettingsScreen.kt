@@ -36,6 +36,7 @@ import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
+import org.bibletranslationtools.wat.domain.Fonts
 import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.Model
@@ -52,6 +53,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.color_scheme
+import wordanalysistool.composeapp.generated.resources.font
 import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.models
 import wordanalysistool.composeapp.generated.resources.select_models_limit
@@ -76,6 +78,9 @@ class SettingsScreen(private val user: User) : Screen {
 
         val locale = rememberStringSetting(Settings.LOCALE.name, Locales.EN.name)
         val localeEnum = remember { derivedStateOf { Locales.valueOf(locale.value) } }
+
+        val font = rememberStringSetting(Settings.FONT.name, Fonts.NOTO_SANS.name)
+        val fontEnum = remember { derivedStateOf { Fonts.valueOf(font.value) } }
 
         val navigator = LocalNavigator.currentOrThrow
 
@@ -167,6 +172,30 @@ class SettingsScreen(private val user: User) : Screen {
                                 when (value) {
                                     Locales.RU -> Locales.RU.value
                                     else -> Locales.EN.value
+                                }
+                            },
+                            modifier = Modifier.weight(0.5f)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.font),
+                            modifier = Modifier.weight(0.5f)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        ComboBox(
+                            value = fontEnum.value,
+                            options = Fonts.entries,
+                            onOptionSelected = { font.value = it.name },
+                            valueConverter = { value ->
+                                when (value) {
+                                    Fonts.NOTO_SANS_ARABIC -> Fonts.NOTO_SANS_ARABIC.value
+                                    else -> Fonts.NOTO_SANS.value
                                 }
                             },
                             modifier = Modifier.weight(0.5f)

@@ -188,6 +188,7 @@ apollo {
             endpointUrl.set("https://api.bibleineverylanguage.org/v1/graphql")
             schemaFile.set(file("src/main/graphql/schema.graphqls"))
         }
+        mapScalar("direction", "kotlin.String")
     }
 }
 

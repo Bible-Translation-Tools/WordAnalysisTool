@@ -7,7 +7,8 @@ enum class Settings {
     LOCALE,
     APOSTROPHE_IS_SEPARATOR,
     SORT_WORDS,
-    ACCESS_TOKEN
+    ACCESS_TOKEN,
+    FONT
 }
 
 enum class Theme {
@@ -41,6 +42,11 @@ enum class Model(val value: String) {
 enum class Locales(val value: String) {
     EN("English"),
     RU("Русский")
+}
+
+enum class Fonts(val value: String) {
+    NOTO_SANS("NotoSans"),
+    NOTO_SANS_ARABIC("NotoSans Arabic")
 }
 
 data class ModelStatus(

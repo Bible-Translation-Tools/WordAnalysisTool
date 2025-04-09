@@ -46,4 +46,5 @@
     <string name="sort_words">Сортировать слова</string>
     <string name="creating_batch">Создание запроса на результаты...</string>
     <string name="all_results_received">Все результаты получены.</string>
+    <string name="font">Шрифт</string>
 </resources>

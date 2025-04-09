@@ -49,7 +49,7 @@ import wordanalysistool.composeapp.generated.resources.report_saved
 import wordanalysistool.composeapp.generated.resources.token_invalid
 import wordanalysistool.composeapp.generated.resources.wrong_model_selected
 
-private const val BATCH_REQUEST_DELAY = 1000L
+private const val BATCH_REQUEST_DELAY = 3000L
 private const val BATCH_REQUESTS_LIMIT = 12
 
 data class AnalyzeState(

@@ -46,4 +46,5 @@
     <string name="sort_words">Sort words</string>
     <string name="creating_batch">Creating request for results...</string>
     <string name="all_results_received">All results received.</string>
+    <string name="font">Font</string>
 </resources>

@@ -30,6 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -347,7 +349,10 @@ class AnalyzeScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
-                            LazyColumn(state = wordsListState) {
+                            LazyColumn(
+                                state = wordsListState,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
                                 items(items = state.singletons, key = { it.word }) { singleton ->
                                     Text(
                                         text = singleton.word,
@@ -360,6 +365,9 @@ class AnalyzeScreen(
                                             Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary
                                             else -> MaterialTheme.colorScheme.onBackground
                                         },
+                                        style = LocalTextStyle.current.copy(
+                                            textDirection = TextDirection.ContentOrLtr
+                                        ),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
@@ -402,7 +410,12 @@ class AnalyzeScreen(
                                                 }
                                                 append(it.ref.text)
                                             }
-                                            Text(annotatedText)
+                                            Text(
+                                                text = annotatedText,
+                                                style = LocalTextStyle.current.copy(
+                                                    textDirection = TextDirection.ContentOrLtr
+                                                )
+                                            )
                                         }
                                     }
                                 }
