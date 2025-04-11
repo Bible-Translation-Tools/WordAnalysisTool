@@ -1689,11 +1689,6 @@ locate-path@^6.0.0:
   dependencies:
     p-locate "^5.0.0"
 
-lodash.clonedeep@^4.5.0:
-  version "4.5.0"
-  resolved "https://registry.yarnpkg.com/lodash.clonedeep/-/lodash.clonedeep-4.5.0.tgz#e23f3f9c4f8fbdde872529c1071857a086e5ccef"
-  integrity sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ==
-
 lodash@^4.17.15, lodash@^4.17.21:
   version "4.17.21"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz#679591c564c3bffaae8454cf0b3df370c3d6911c"
@@ -2645,12 +2640,10 @@ uri-js@^4.2.2:
   dependencies:
     punycode "^2.1.0"
 
-usfm-js@3.4.3:
-  version "3.4.3"
-  resolved "https://registry.yarnpkg.com/usfm-js/-/usfm-js-3.4.3.tgz#dffa5a00cdbf7c02df89f6e876136df6aa532361"
-  integrity sha512-c5d2dzmSnEfFSPfMXnnycIPwdw8ryBsb2r2CUEwiXpsUMm+gDmhFz5GGOufYP5rGGVwAssHdSM8oOkcaHz+Hwg==
-  dependencies:
-    lodash.clonedeep "^4.5.0"
+usfmtools@1.0.6:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/usfmtools/-/usfmtools-1.0.6.tgz#7201ab00a00494248e88720002f07096f905b684"
+  integrity sha512-VsFOg//OEqdS2lOi7QuV4jN4C5clh7Hw91zCnRKpBjz1pS0mpTiQQknQwnjix1H9IZO5kln/VGYlnJ8OICtaww==
 
 util-deprecate@^1.0.1, util-deprecate@~1.0.1:
   version "1.0.2"

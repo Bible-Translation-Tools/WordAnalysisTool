@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatAiApi
@@ -24,11 +25,12 @@ import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.token_invalid
+import wordanalysistool.composeapp.generated.resources.unknown_error
 import kotlin.uuid.ExperimentalUuidApi
 
 data class LoginState(
     val user: User? = null,
-    val alert: String? = null,
+    val alert: Alert? = null,
     val progress: Boolean = false
 )
 
@@ -78,7 +80,11 @@ class LoginViewModel(
                     _event.send(LoginEvent.OnAuthOpen(it))
                 }
                 .onError {
-                    updateAlert(it.description)
+                    updateAlert(
+                        Alert(it.description ?: getString(Res.string.unknown_error)) {
+                            updateAlert(null)
+                        }
+                    )
                 }
         }
     }
@@ -115,10 +121,18 @@ class LoginViewModel(
                 .onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
-                            updateAlert(getString(Res.string.token_invalid))
+                            updateAlert(
+                                Alert(getString(Res.string.token_invalid)) {
+                                    updateAlert(null)
+                                }
+                            )
                             _event.send(LoginEvent.TokenInvalid)
                         }
-                        else -> updateAlert(it.description)
+                        else -> updateAlert(
+                            Alert(it.description ?: getString(Res.string.unknown_error)) {
+                                updateAlert(null)
+                            }
+                        )
                     }
                 }
 
@@ -132,9 +146,9 @@ class LoginViewModel(
         }
     }
 
-    private fun updateAlert(message: String?) {
+    private fun updateAlert(alert: Alert?) {
         _state.update {
-            it.copy(alert = message)
+            it.copy(alert = alert)
         }
     }
 

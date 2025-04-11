@@ -4,4 +4,4 @@ package org.bibletranslationtools.wat
 external fun consoleLog(vararg output: JsAny?)
 
 @JsFun("(output) => console.log(output)")
-external fun consoleLog2(vararg output: String?)
+external fun consoleLog(vararg output: String?)

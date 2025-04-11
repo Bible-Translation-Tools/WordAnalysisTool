@@ -1,0 +1,69 @@
+datasource db {
+    provider = "sqlite"
+    url      = env("DATABASE_URL")
+}
+
+generator client {
+    provider        = "prisma-client-js"
+    previewFeatures = ["driverAdapters"]
+}
+
+model Batch {
+    id            String   @id
+    ietf_code     String
+    resource_type String
+    pending       Boolean  @default(false)
+    total_pending Int
+    error         String?
+    user_id       Int
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now())
+    user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    words         Word[]
+
+    @@unique([ietf_code, resource_type], name: "idx_unique_batch")
+    @@index([user_id], name: "idx_batch_user_id")
+    @@map("Batches")
+}
+
+model Word {
+    id         Int      @id @default(autoincrement())
+    word       String
+    batch_id   String
+    created_at DateTime @default(now())
+    batch      Batch    @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+    models     Model[]
+
+    @@unique([word, batch_id], name: "idx_unique_word")
+    @@index([batch_id], name: "idx_word_batch_id")
+    @@map("Words")
+}
+
+model Model {
+    id         Int      @id @default(autoincrement())
+    model      String
+    status     Int
+    word_id    Int
+    created_at DateTime @default(now())
+    word       Word     @relation(fields: [word_id], references: [id], onDelete: Cascade)
+
+    @@unique([model, word_id], name: "idx_unique_model")
+    @@index([word_id], name: "idx_model_word_id")
+    @@map("Models")
+}
+
+model User {
+    id            Int      @id @default(autoincrement())
+    wacs_user_id  Int
+    username      String
+    email         String   @unique(map: "idx_unique_user")
+    access_token  String?
+    refresh_token String?
+    token_type    String?
+    state         String?
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now())
+    batches       Batch[]
+
+    @@map("Users")
+}

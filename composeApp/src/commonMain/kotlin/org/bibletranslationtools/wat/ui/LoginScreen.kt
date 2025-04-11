@@ -87,8 +87,8 @@ class LoginScreen : Screen {
 
             state.alert?.let {
                 AlertDialog(
-                    message = it,
-                    onDismiss = { viewModel.onEvent(LoginEvent.ClearAlert) }
+                    message = it.message,
+                    onDismiss = it.onClosed
                 )
             }
         }

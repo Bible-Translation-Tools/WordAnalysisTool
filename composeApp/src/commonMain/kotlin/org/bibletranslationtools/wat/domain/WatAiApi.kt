@@ -6,17 +6,17 @@ import config.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.http.encodeURLPathPart
-import kotlinx.io.Source
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import org.bibletranslationtools.wat.data.WordStatusSerializer
 import org.bibletranslationtools.wat.http.ApiResult
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.NetworkError
 import org.bibletranslationtools.wat.http.delete
 import org.bibletranslationtools.wat.http.get
-import org.bibletranslationtools.wat.http.postFile
+import org.bibletranslationtools.wat.http.post
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.unknown_error
@@ -36,32 +36,24 @@ enum class BatchStatus {
     @SerialName("unknown") UNKNOWN
 }
 
-@Serializable
-data class ModelResponse(
-    val model: String,
-    val result: String
-)
-
-@Serializable
-data class AiResponse(
-    val id: String,
-    val errored: Boolean,
-    @SerialName("last_error")
-    val lastError: String?,
-    val results: List<ModelResponse>?
-)
+@Serializable(with = WordStatusSerializer::class)
+enum class WordStatus(val value: Int) {
+    UNCHECKED(-1),
+    INCORRECT(0),
+    CORRECT(1),
+    NAME(2)
+}
 
 @Serializable
 data class BatchRequest(
-    val id: String,
-    val prompt: String,
+    val language: String,
+    val words: List<String>,
     val models: List<String>
 )
 
 @Serializable
 data class BatchProgress(
     val completed: Int,
-    val failed: Int,
     val total: Int
 )
 
@@ -69,8 +61,8 @@ data class BatchProgress(
 data class BatchDetails(
     val status: BatchStatus,
     val progress: BatchProgress,
-    val error: String?,
-    val output: List<AiResponse>? = null
+    val output: List<WordResponse>,
+    val error: String?
 )
 
 @Serializable
@@ -81,6 +73,18 @@ data class Batch(
     @SerialName("resource_type")
     val resourceType: String,
     val details: BatchDetails
+)
+
+@Serializable
+data class ModelResponse(
+    val model: String,
+    val status: WordStatus
+)
+
+@Serializable
+data class WordResponse(
+    val word: String,
+    val results: List<ModelResponse>
 )
 
 @Serializable
@@ -127,7 +131,7 @@ interface WatAiApi {
     suspend fun createBatch(
         ietfCode: String,
         resourceType: String,
-        file: Source,
+        request: BatchRequest,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
 
@@ -209,7 +213,7 @@ class WatAiApiImpl(
             url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
+                "Content-Type" to "application/json"
             )
         )
         return when {
@@ -232,16 +236,16 @@ class WatAiApiImpl(
     override suspend fun createBatch(
         ietfCode: String,
         resourceType: String,
-        file: Source,
+        request: BatchRequest,
         accessToken: String
     ): ApiResult<Batch, NetworkError> {
-        val response = postFile(
+        val response = post(
             httpClient = httpClient,
             url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
-            file,
+            body = request,
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
+                "Content-Type" to "application/json"
             )
         )
         return when {
@@ -271,7 +275,7 @@ class WatAiApiImpl(
             url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
+                "Content-Type" to "application/json"
             )
         )
         return when {

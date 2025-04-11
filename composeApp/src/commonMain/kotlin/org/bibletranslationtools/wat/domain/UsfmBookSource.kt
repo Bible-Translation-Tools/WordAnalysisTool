@@ -2,14 +2,14 @@ package org.bibletranslationtools.wat.domain
 
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.platform.AppUsfmParser
-import org.bibletranslationtools.wat.platform.CMarker
-import org.bibletranslationtools.wat.platform.FMarker
-import org.bibletranslationtools.wat.platform.HMarker
-import org.bibletranslationtools.wat.platform.TOC3Marker
-import org.bibletranslationtools.wat.platform.TextBlock
-import org.bibletranslationtools.wat.platform.UsfmDocument
-import org.bibletranslationtools.wat.platform.VMarker
-import org.bibletranslationtools.wat.platform.XMarker
+import org.bibletranslationtools.wat.platform.markers.CMarker
+import org.bibletranslationtools.wat.platform.markers.FMarker
+import org.bibletranslationtools.wat.platform.markers.HMarker
+import org.bibletranslationtools.wat.platform.markers.TOC3Marker
+import org.bibletranslationtools.wat.platform.markers.TextBlock
+import org.bibletranslationtools.wat.platform.markers.UsfmDocument
+import org.bibletranslationtools.wat.platform.markers.VMarker
+import org.bibletranslationtools.wat.platform.markers.XMarker
 
 interface UsfmBookSource {
     suspend fun import(bytes: ByteArray)

@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.ContentInfo
+import org.bibletranslationtools.wat.data.Direction
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.Verse
@@ -32,7 +34,7 @@ import wordanalysistool.composeapp.generated.resources.preparing_for_analysis
 import wordanalysistool.composeapp.generated.resources.unknown_error
 
 data class HomeState(
-    val alert: String? = null,
+    val alert: Alert? = null,
     val progress: Progress? = null,
     val verses: List<Verse> = emptyList(),
     val heartLanguages: List<LanguageInfo> = emptyList(),
@@ -41,7 +43,6 @@ data class HomeState(
 
 sealed class HomeEvent {
     data object Idle: HomeEvent()
-    data object ClearAlert: HomeEvent()
     data class FetchResourceTypes(val ietfCode: String): HomeEvent()
     data class FetchUsfm(val ietfCode: String, val resourceType: String): HomeEvent()
     data object OnBeforeNavigate: HomeEvent()
@@ -78,8 +79,8 @@ class HomeViewModel(
         screenModelScope.launch {
             updateProgress(Progress(0f, getString(Res.string.fetching_heart_languages)))
             // TODO Remove debug code
-            val en = LanguageInfo("en", "English", "English")
-            val ru = LanguageInfo("ru", "Русский", "Russian")
+            val en = LanguageInfo("en", "English", "English", Direction.LTR)
+            val ru = LanguageInfo("ru", "Русский", "Russian", Direction.LTR)
             updateHeartLanguages(bielGraphQlApi.getHeartLanguages() + en + ru)
             updateProgress(null)
         }
@@ -128,7 +129,11 @@ class HomeViewModel(
                             response.onSuccess { bytes ->
                                 allVerses.addAll(usfmBookSource.parse(bytes.decodeToString()))
                             }.onError { err ->
-                                updateAlert(err.description ?: getString(Res.string.unknown_error))
+                                updateAlert(
+                                    Alert(err.description ?: getString(Res.string.unknown_error)) {
+                                        updateAlert(null)
+                                    }
+                                )
                                 allVerses.clear()
                                 return@withContext
                             }
@@ -183,9 +188,9 @@ class HomeViewModel(
         }
     }
 
-    private fun updateAlert(message: String?) {
+    private fun updateAlert(alert: Alert?) {
         _state.update {
-            it.copy(alert = message)
+            it.copy(alert = alert)
         }
     }
 

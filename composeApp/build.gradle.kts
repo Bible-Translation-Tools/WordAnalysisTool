@@ -112,6 +112,7 @@ kotlin {
 
                 implementation(libs.jwt.kt)
                 implementation(libs.kotlin.document.store.core)
+                implementation(libs.kotlinx.datetime)
             }
         }
         desktopMain.dependencies {
@@ -120,7 +121,7 @@ kotlin {
             implementation(libs.ktor.client.cio)
         }
         wasmJsMain.dependencies {
-            implementation(npm("usfm-js", "3.4.3"))
+            implementation(npm("usfmtools", "1.0.6"))
             implementation(libs.kotlin.document.store.browser)
         }
 
@@ -187,6 +188,7 @@ apollo {
             endpointUrl.set("https://api.bibleineverylanguage.org/v1/graphql")
             schemaFile.set(file("src/main/graphql/schema.graphqls"))
         }
+        mapScalar("direction", "kotlin.String")
     }
 }
 

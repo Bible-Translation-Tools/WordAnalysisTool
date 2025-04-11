@@ -3,5 +3,6 @@ query GetHeartLanguages {
         ietf_code
         national_name
         english_name
+        direction
     }
 }

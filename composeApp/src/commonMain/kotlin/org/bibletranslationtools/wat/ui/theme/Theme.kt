@@ -3,10 +3,17 @@ package org.bibletranslationtools.wat.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import org.jetbrains.compose.resources.Font
+import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.noto_sans
+import wordanalysistool.composeapp.generated.resources.noto_sans_arabic
 
 val LightColorScheme = lightColorScheme(
     primary = Color(0xFFd85900),
@@ -41,8 +48,40 @@ object CommonColors {
 }
 
 @Composable
+fun NotoSansFontFamily() = FontFamily(
+    Font(Res.font.noto_sans, FontWeight.Normal),
+)
+
+@Composable
+fun NotoSansArabicFontFamily() = FontFamily(
+    Font(Res.font.noto_sans_arabic, FontWeight.Normal),
+)
+
+@Composable
+fun NotoSansTypography(fontFamily: FontFamily) = Typography().run {
+    copy(
+        displayLarge = displayLarge.copy(fontFamily = fontFamily),
+        displayMedium = displayMedium.copy(fontFamily = fontFamily),
+        displaySmall = displaySmall.copy(fontFamily = fontFamily),
+        headlineLarge = headlineLarge.copy(fontFamily = fontFamily),
+        headlineMedium = headlineMedium.copy(fontFamily = fontFamily),
+        headlineSmall = headlineSmall.copy(fontFamily = fontFamily),
+        titleLarge = titleLarge.copy(fontFamily = fontFamily),
+        titleMedium = titleMedium.copy(fontFamily = fontFamily),
+        titleSmall = titleSmall.copy(fontFamily = fontFamily),
+        bodyLarge = bodyLarge.copy(fontFamily =  fontFamily),
+        bodyMedium = bodyMedium.copy(fontFamily = fontFamily),
+        bodySmall = bodySmall.copy(fontFamily = fontFamily),
+        labelLarge = labelLarge.copy(fontFamily = fontFamily),
+        labelMedium = labelMedium.copy(fontFamily = fontFamily),
+        labelSmall = labelSmall.copy(fontFamily = fontFamily)
+    )
+}
+
+@Composable
 fun MainAppTheme(
     themeColorScheme: ColorScheme? = null,
+    fontFamily: FontFamily = NotoSansFontFamily(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -53,6 +92,7 @@ fun MainAppTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        content = content
+        content = content,
+        typography = NotoSansTypography(fontFamily)
     )
 }
