@@ -84,8 +84,15 @@ fun SingletonCard(
                     reference.append("${it.ref.bookName} ")
                     reference.append("(${it.ref.bookSlug.uppercase()}) ")
                     reference.append("${it.ref.chapter}:${it.ref.number} ")
-                    Text(text = reference.toString())
+                    Text(
+                        text = reference.toString(),
+                        style = LocalTextStyle.current.copy(
+                            textDirection = TextDirection.ContentOrLtr
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
                 SelectionContainer {
                     val annotatedText = buildAnnotatedString {
                         val text = it.ref.text
@@ -104,7 +111,8 @@ fun SingletonCard(
                         text = annotatedText,
                         style = LocalTextStyle.current.copy(
                             textDirection = TextDirection.ContentOrLtr
-                        )
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
