@@ -35,7 +35,7 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.use("/api/*", (c, next) => {
+app.use("/api/*", async (c, next) => {
   const jwtMiddleware = jwt({
     secret: c.env.JWT_SECRET_KEY,
   });
@@ -113,6 +113,10 @@ app.get("/auth/callback", async (c) => {
         redirect_uri: c.env.WACS_CALLBACK,
       }),
     });
+
+    if (tokenRes.status != 200) {
+      return c.text("Unable to authorize. Please try again later.");
+    }
 
     const tokens = (await tokenRes.json()) as any;
 

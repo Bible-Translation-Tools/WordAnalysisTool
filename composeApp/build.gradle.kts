@@ -121,7 +121,7 @@ kotlin {
             implementation(libs.ktor.client.cio)
         }
         wasmJsMain.dependencies {
-            implementation(npm("usfm-js", "3.4.3"))
+            implementation(npm("usfmtools", "1.0.6"))
             implementation(libs.kotlin.document.store.browser)
         }
 
