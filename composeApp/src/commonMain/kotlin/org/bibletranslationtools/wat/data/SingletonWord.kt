@@ -2,11 +2,11 @@ package org.bibletranslationtools.wat.data
 
 import org.bibletranslationtools.wat.domain.WordStatus
 
-enum class Consensus {
-    LIKELY_INCORRECT,
-    LIKELY_CORRECT,
-    NEEDS_REVIEW,
-    NAME
+enum class Consensus(val value: String) {
+    LIKELY_INCORRECT("Likely Incorrect"),
+    LIKELY_CORRECT("Likely Correct"),
+    NEEDS_REVIEW("Needs Review"),
+    NAME("Name")
 }
 
 data class ModelStatus(

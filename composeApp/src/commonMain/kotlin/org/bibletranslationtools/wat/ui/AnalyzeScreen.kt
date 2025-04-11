@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Info
@@ -45,12 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,6 +69,7 @@ import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.format
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
+import org.bibletranslationtools.wat.ui.control.SingletonCard
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
@@ -381,45 +377,10 @@ class AnalyzeScreen(
                         VerticalDivider()
 
                         Column(modifier = Modifier.weight(0.7f)) {
-                            Column(
-                                verticalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.weight(0.6f)
-                                    .padding(bottom = 10.dp, start = 20.dp)
-                            ) {
-                                selectedWord?.let {
-                                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                        SelectionContainer {
-                                            Text(
-                                                text = it.word,
-                                                fontSize = 20.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                        SelectionContainer {
-                                            val annotatedText = buildAnnotatedString {
-                                                withStyle(
-                                                    style = SpanStyle(
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                ) {
-                                                    append("${it.ref.bookName} ")
-                                                    append("(${it.ref.bookSlug.uppercase()}) ")
-                                                    append("${it.ref.chapter}:${it.ref.number} ")
-                                                }
-                                                append(it.ref.text)
-                                            }
-                                            Text(
-                                                text = annotatedText,
-                                                style = LocalTextStyle.current.copy(
-                                                    textDirection = TextDirection.ContentOrLtr
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            SingletonCard(
+                                word = selectedWord,
+                                onAnswer = { println(it) }
+                            )
                         }
                     }
 

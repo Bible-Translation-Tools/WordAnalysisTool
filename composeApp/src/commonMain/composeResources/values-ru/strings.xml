@@ -47,4 +47,8 @@
     <string name="creating_batch">Создание запроса на результаты...</string>
     <string name="all_results_received">Все результаты получены.</string>
     <string name="font">Шрифт</string>
+    <string name="is_word_correct">Верно ли это слово?</string>
+    <string name="scripture_reference">Ссылка на Писание</string>
+    <string name="correct">Верно</string>
+    <string name="incorrect">Неверно</string>
 </resources>
