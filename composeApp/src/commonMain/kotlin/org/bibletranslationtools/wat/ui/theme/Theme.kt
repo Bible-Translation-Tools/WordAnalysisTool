@@ -16,12 +16,12 @@ import wordanalysistool.composeapp.generated.resources.noto_sans
 import wordanalysistool.composeapp.generated.resources.noto_sans_arabic
 
 val LightColorScheme = lightColorScheme(
-    primary = Color(0xFFd85900),
-    secondary = Color(0xFF3384AD),
-    tertiary = Color(0xFF00A811),
+    primary = Color(0xFF0056D1),
+    secondary = Color(0xFFE99A2E),
+    tertiary = Color(0xFF63C76C),
     background = Color(0xFFF3F3F3),
     surface = Color(0xFFF3F3F3),
-    error = Color(0xFFFF0000),
+    error = Color(0xFFC3362D),
     onPrimary = Color(0xFFF3F3F3),
     onSecondary = Color.White,
     onTertiary = Color.White,
@@ -30,12 +30,12 @@ val LightColorScheme = lightColorScheme(
 )
 
 val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFFE08500),
-    secondary = Color(0xFF4496BD),
-    tertiary = Color(0xFF00C213),
+    primary = Color(0xFF4B8EFF),
+    secondary = Color(0xFFFFB655),
+    tertiary = Color(0xFF7EE588),
     background = Color(0xFF19191A),
     surface = Color(0xFF19191A),
-    error = Color(0xFFFF0000),
+    error = Color(0xFFFF6B62),
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.White,

@@ -62,7 +62,7 @@ data class AnalyzeState(
     val batchProgress: Float = -1f,
     val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
-    val sorting: WordsSorting = WordsSorting.BY_ALPHABET,
+    val sorting: WordsSorting = WordsSorting.ALPHABET,
     val models: List<String> = emptyList(),
     val alert: Alert? = null,
     val progress: Progress? = null,
@@ -84,11 +84,12 @@ sealed class AnalyzeEvent {
 }
 
 enum class WordsSorting(val value: String) {
-    BY_ALPHABET("Alphabet"),
-    BY_NAME("Name"),
-    BY_LIKELY_CORRECT("Likely Correct"),
-    BY_LIKELY_INCORRECT("Likely Incorrect"),
-    BY_NEEDS_REVIEW("Needs Review")
+    ALPHABET("Sort A-Z"),
+    ALPHABET_DESC("Sort Z-A"),
+    NAME("Name"),
+    LIKELY_CORRECT("Likely Correct"),
+    LIKELY_INCORRECT("Likely Incorrect"),
+    NEEDS_REVIEW("Review Needed")
 }
 
 class AnalyzeViewModel(
@@ -485,13 +486,19 @@ class AnalyzeViewModel(
 
         screenModelScope.launch {
             when (sort) {
-                WordsSorting.BY_ALPHABET -> {
+                WordsSorting.ALPHABET -> {
                     updateSingletons(
                         _state.value.singletons.sortedBy { it.word.lowercase() }
                     )
                 }
 
-                WordsSorting.BY_NAME -> {
+                WordsSorting.ALPHABET_DESC -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedByDescending { it.word.lowercase() }
+                    )
+                }
+
+                WordsSorting.NAME -> {
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
                             it.result?.consensus == Consensus.NAME
@@ -499,7 +506,7 @@ class AnalyzeViewModel(
                     )
                 }
 
-                WordsSorting.BY_LIKELY_CORRECT -> {
+                WordsSorting.LIKELY_CORRECT -> {
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
                             it.result?.consensus == Consensus.LIKELY_CORRECT
@@ -507,7 +514,7 @@ class AnalyzeViewModel(
                     )
                 }
 
-                WordsSorting.BY_LIKELY_INCORRECT -> {
+                WordsSorting.LIKELY_INCORRECT -> {
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
                             it.result?.consensus == Consensus.LIKELY_INCORRECT
@@ -515,7 +522,7 @@ class AnalyzeViewModel(
                     )
                 }
 
-                WordsSorting.BY_NEEDS_REVIEW -> {
+                WordsSorting.NEEDS_REVIEW -> {
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
                             it.result?.consensus == Consensus.NEEDS_REVIEW

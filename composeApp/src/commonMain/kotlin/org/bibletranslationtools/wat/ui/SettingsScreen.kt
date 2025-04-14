@@ -1,6 +1,7 @@
 package org.bibletranslationtools.wat.ui
 
 import ComboBox
+import Option
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -141,7 +142,7 @@ class SettingsScreen(private val user: User) : Screen {
                         Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = themeEnum.value,
-                            options = Theme.entries,
+                            options = Theme.entries.map(::Option),
                             onOptionSelected = { theme.value = it.name },
                             valueConverter = { value ->
                                 when (value) {
@@ -166,7 +167,7 @@ class SettingsScreen(private val user: User) : Screen {
                         Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = localeEnum.value,
-                            options = Locales.entries,
+                            options = Locales.entries.map(::Option),
                             onOptionSelected = { locale.value = it.name },
                             valueConverter = { value ->
                                 when (value) {
@@ -190,7 +191,7 @@ class SettingsScreen(private val user: User) : Screen {
                         Spacer(modifier = Modifier.width(16.dp))
                         ComboBox(
                             value = fontEnum.value,
-                            options = Fonts.entries,
+                            options = Fonts.entries.map(::Option),
                             onOptionSelected = { font.value = it.name },
                             valueConverter = { value ->
                                 when (value) {

@@ -1,6 +1,8 @@
 package org.bibletranslationtools.wat.ui
 
 import ComboBox
+import Option
+import OptionIcon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -116,8 +121,13 @@ class AnalyzeScreen(
 
         var wordsSorting by rememberStringSetting(
             Settings.SORT_WORDS.name,
-            WordsSorting.BY_ALPHABET.name
+            WordsSorting.ALPHABET.name
         )
+        val sorting = try {
+            WordsSorting.valueOf(wordsSorting)
+        } catch (_: Exception) {
+            WordsSorting.ALPHABET
+        }
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
@@ -155,9 +165,12 @@ class AnalyzeScreen(
         }
 
         LaunchedEffect(wordsSorting) {
-            viewModel.onEvent(AnalyzeEvent.UpdateSorting(
+            val sorting = try {
                 WordsSorting.valueOf(wordsSorting)
-            ))
+            } catch (_: Exception) {
+                WordsSorting.ALPHABET
+            }
+            viewModel.onEvent(AnalyzeEvent.UpdateSorting(sorting))
         }
 
         LaunchedEffect(state.status) {
@@ -276,19 +289,25 @@ class AnalyzeScreen(
                             Column(
                                 modifier = Modifier.padding(end = 8.dp, top = 8.dp)
                             ) {
-                                Button(
-                                    onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(stringResource(Res.string.process_words))
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Column {
                                     Text(
                                         text = stringResource(
-                                            Res.string.total_singletons,
-                                            state.singletons.size
+                                            Res.string.total_likely_incorrect,
+                                            state.singletons.filter {
+                                                it.result?.consensus == Consensus.LIKELY_INCORRECT
+                                            }.size
                                         ),
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.total_review_needed,
+                                            state.singletons.filter {
+                                                it.result?.consensus == Consensus.NEEDS_REVIEW
+                                            }.size
+                                        ),
+                                        color = MaterialTheme.colorScheme.secondary,
                                         fontSize = 16.sp
                                     )
                                     Text(
@@ -303,40 +322,35 @@ class AnalyzeScreen(
                                     )
                                     Text(
                                         text = stringResource(
-                                            Res.string.total_likely_incorrect,
-                                            state.singletons.filter {
-                                                it.result?.consensus == Consensus.LIKELY_INCORRECT
-                                            }.size
-                                        ),
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = stringResource(
                                             Res.string.total_names,
                                             state.singletons.filter {
                                                 it.result?.consensus == Consensus.NAME
                                             }.size
                                         ),
-                                        color = MaterialTheme.colorScheme.secondary,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontSize = 16.sp
                                     )
+                                    Spacer(modifier = Modifier.height(16.dp))
                                     Text(
                                         text = stringResource(
-                                            Res.string.total_review_needed,
-                                            state.singletons.filter {
-                                                it.result?.consensus == Consensus.NEEDS_REVIEW
-                                            }.size
+                                            Res.string.total_singletons,
+                                            state.singletons.size
                                         ),
-                                        color = MaterialTheme.colorScheme.primary,
                                         fontSize = 16.sp
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(Res.string.process_words))
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
                                 ComboBox(
-                                    value = WordsSorting.valueOf(wordsSorting),
-                                    options = WordsSorting.entries,
-                                    onOptionSelected = { sort ->
+                                    value = sorting,
+                                    options = WordsSorting.entries.map { sortingToOption(it) },
+                                    onOptionSelected = { sort: WordsSorting ->
                                         wordsSorting = sort.name
                                     },
                                     valueConverter = { sort ->
@@ -406,5 +420,51 @@ class AnalyzeScreen(
                 ProgressDialog(it)
             }
         }
+    }
+}
+
+@Composable
+private fun sortingToOption(sorting: WordsSorting): Option<WordsSorting> {
+    return when (sorting) {
+        WordsSorting.ALPHABET -> Option(
+            value = sorting,
+            icon = OptionIcon(Icons.Default.ArrowUpward)
+        )
+        WordsSorting.ALPHABET_DESC -> Option(
+            value = sorting,
+            icon = OptionIcon(Icons.Default.ArrowDownward)
+        )
+        WordsSorting.NAME -> Option(
+            value = sorting,
+            icon = OptionIcon(
+                vector = Icons.Default.Circle,
+                tint = MaterialTheme.colorScheme.primary,
+                size = 12.dp
+            )
+        )
+        WordsSorting.LIKELY_CORRECT -> Option(
+            value = sorting,
+            icon = OptionIcon(
+                vector = Icons.Default.Circle,
+                tint = MaterialTheme.colorScheme.tertiary,
+                size = 12.dp
+            )
+        )
+        WordsSorting.LIKELY_INCORRECT -> Option(
+            value = sorting,
+            icon = OptionIcon(
+                vector = Icons.Default.Circle,
+                tint = MaterialTheme.colorScheme.error,
+                size = 12.dp
+            )
+        )
+        WordsSorting.NEEDS_REVIEW -> Option(
+            value = sorting,
+            icon = OptionIcon(
+                vector = Icons.Default.Circle,
+                tint = MaterialTheme.colorScheme.secondary,
+                size = 12.dp
+            )
+        )
     }
 }

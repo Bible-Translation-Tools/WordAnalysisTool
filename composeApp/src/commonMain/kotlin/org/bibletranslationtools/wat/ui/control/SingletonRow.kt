@@ -67,8 +67,8 @@ private fun renderText(
         color = when (singleton.result?.consensus) {
             Consensus.LIKELY_INCORRECT -> MaterialTheme.colorScheme.error
             Consensus.LIKELY_CORRECT -> MaterialTheme.colorScheme.tertiary
-            Consensus.NAME -> MaterialTheme.colorScheme.secondary
-            Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary
+            Consensus.NAME -> MaterialTheme.colorScheme.primary
+            Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.secondary
             else -> MaterialTheme.colorScheme.onBackground
         },
         style = LocalTextStyle.current.copy(

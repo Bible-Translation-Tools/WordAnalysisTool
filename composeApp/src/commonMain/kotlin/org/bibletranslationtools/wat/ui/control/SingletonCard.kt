@@ -170,8 +170,8 @@ private fun consensusBgColor(consensus: Consensus?): Color {
     return when (consensus) {
         Consensus.LIKELY_CORRECT -> MaterialTheme.colorScheme.tertiary
         Consensus.LIKELY_INCORRECT -> MaterialTheme.colorScheme.error
-        Consensus.NAME -> MaterialTheme.colorScheme.secondary
-        Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary
+        Consensus.NAME -> MaterialTheme.colorScheme.primary
+        Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.secondary
         else -> MaterialTheme.colorScheme.background
     }
 }

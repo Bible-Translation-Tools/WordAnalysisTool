@@ -31,7 +31,7 @@
     <string name="delete_batch">Delete Results</string>
     <string name="save_report">Save Report (.csv)</string>
     <string name="report_saved">Report saved.</string>
-    <string name="total_singletons">Total words: %1$d</string>
+    <string name="total_singletons">Words Total: %1$d</string>
     <string name="total_likely_correct">Likely Correct: %1$d</string>
     <string name="total_likely_incorrect">Likely Incorrect: %1$d</string>
     <string name="total_review_needed">Review Needed: %1$d</string>
