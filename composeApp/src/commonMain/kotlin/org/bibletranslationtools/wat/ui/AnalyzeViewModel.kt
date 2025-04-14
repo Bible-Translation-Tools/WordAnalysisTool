@@ -86,7 +86,7 @@ sealed class AnalyzeEvent {
 enum class WordsSorting(val value: String) {
     ALPHABET("Sort A-Z"),
     ALPHABET_DESC("Sort Z-A"),
-    NAME("Name"),
+    NAME("Names"),
     LIKELY_CORRECT("Likely Correct"),
     LIKELY_INCORRECT("Likely Incorrect"),
     NEEDS_REVIEW("Review Needed"),
