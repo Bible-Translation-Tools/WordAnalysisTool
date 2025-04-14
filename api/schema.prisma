@@ -30,12 +30,14 @@ model Word {
     id         Int      @id @default(autoincrement())
     word       String
     batch_id   String
+    correct    Boolean?
     created_at DateTime @default(now())
     batch      Batch    @relation(fields: [batch_id], references: [id], onDelete: Cascade)
     models     Model[]
 
     @@unique([word, batch_id], name: "idx_unique_word")
     @@index([batch_id], name: "idx_word_batch_id")
+    @@index([correct], name: "idx_word_correct")
     @@map("Words")
 }
 

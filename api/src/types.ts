@@ -36,6 +36,7 @@ export type BatchDetails = {
 
 export type WordResponse = {
   word: string;
+  correct: boolean | null;
   results: ModelResponse[];
 };
 

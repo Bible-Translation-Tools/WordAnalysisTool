@@ -36,7 +36,10 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.correct
 import wordanalysistool.composeapp.generated.resources.incorrect
 import wordanalysistool.composeapp.generated.resources.is_word_correct
+import wordanalysistool.composeapp.generated.resources.is_word_name
+import wordanalysistool.composeapp.generated.resources.no
 import wordanalysistool.composeapp.generated.resources.scripture_reference
+import wordanalysistool.composeapp.generated.resources.yes
 
 @Composable
 fun SingletonCard(
@@ -44,6 +47,22 @@ fun SingletonCard(
     onAnswer: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val question = if (word?.result?.consensus == Consensus.NAME) {
+        stringResource(Res.string.is_word_name)
+    } else {
+        stringResource(Res.string.is_word_correct)
+    }
+    val answerCorrect = if (word?.result?.consensus == Consensus.NAME) {
+        stringResource(Res.string.yes)
+    } else {
+        stringResource(Res.string.correct)
+    }
+    val answerIncorrect = if (word?.result?.consensus == Consensus.NAME) {
+        stringResource(Res.string.no)
+    } else {
+        stringResource(Res.string.incorrect)
+    }
+
     Column(
         verticalArrangement = Arrangement.SpaceBetween,
         modifier = modifier
@@ -67,7 +86,7 @@ fun SingletonCard(
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-                Text(text = stringResource(Res.string.is_word_correct))
+                Text(text = question)
                 SelectionContainer {
                     Text(
                         text = it.word,
@@ -121,22 +140,24 @@ fun SingletonCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Button(
-                        onClick = { onAnswer(false) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text(text = stringResource(Res.string.incorrect))
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Button(
-                        onClick = { onAnswer(true) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        )
-                    ) {
-                        Text(text = stringResource(Res.string.correct))
+                    if (word.result != null && word.correct == null) {
+                        Button(
+                            onClick = { onAnswer(false) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(text = answerIncorrect)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Button(
+                            onClick = { onAnswer(true) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary
+                            )
+                        ) {
+                            Text(text = answerCorrect)
+                        }
                     }
                 }
             }

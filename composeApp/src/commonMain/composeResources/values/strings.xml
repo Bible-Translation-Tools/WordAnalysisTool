@@ -48,7 +48,13 @@
     <string name="all_results_received">All results received.</string>
     <string name="font">Font</string>
     <string name="is_word_correct">Is this word correct?</string>
+    <string name="is_word_name">Is this word a name?</string>
     <string name="scripture_reference">Scripture Reference</string>
     <string name="correct">Correct</string>
     <string name="incorrect">Incorrect</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="deleting_batch">Deleting results...</string>
+    <string name="updating_word">Updating word...</string>
+    <string name="invalid_batch_id">Invalid ID.</string>
 </resources>

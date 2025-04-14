@@ -368,7 +368,7 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       });
     }
 
-    const models = await prisma.model.findMany({
+    const modelsDb = await prisma.model.findMany({
       where: {
         word: {
           batch_id: dbBatch.id,
@@ -378,6 +378,7 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
         word: {
           select: {
             word: true,
+            correct: true,
           },
         },
         model: true,
@@ -385,17 +386,18 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       },
     });
 
-    const entities = Object.groupBy(models, (model) => model.word.word);
+    const words = Object.groupBy(modelsDb, (model) => model.word.word);
 
     const output: WordResponse[] = [];
 
-    for (const key of Object.keys(entities)) {
-      const entitiy = entities[key];
-      if (!entitiy) continue;
+    for (const word of Object.keys(words)) {
+      const models = words[word];
+      if (!models) continue;
 
       const response: WordResponse = {
-        word: key,
-        results: entitiy
+        word: word,
+        correct: models[0].word.correct,
+        results: models
           .filter((item) => item.model !== null)
           .map(
             (item): ModelResponse => ({
@@ -460,12 +462,11 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
   }
 });
 
-app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
+app.delete("/api/batch/:batch_id", async (c) => {
   const prisma = c.get("prisma");
 
   try {
-    const ietf_code = c.req.param("ietf_code");
-    const resource_type = c.req.param("resource_type");
+    const batch_id = c.req.param("batch_id");
     const payload = c.get("jwtPayload");
 
     const user = await prisma.user.findUnique({
@@ -483,10 +484,7 @@ app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
     // TODO Delete only by current user (AND user_id = ? - user.id)
     const deleted = await prisma.batch.delete({
       where: {
-        idx_unique_batch: {
-          ietf_code: ietf_code,
-          resource_type: resource_type,
-        },
+        id: batch_id,
       },
     });
 
@@ -494,6 +492,50 @@ app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
   } catch (error: any) {
     throw new HTTPException(error.code || 403, {
       message: `error deleting batch: ${error.message || error}`,
+    });
+  }
+});
+
+app.post("/api/word", async (c) => {
+  const prisma = c.get("prisma");
+  const json = await c.req.json();
+
+  const batch_id = json.batch_id || null;
+  const word = json.word || null;
+  const correct = json.correct;
+  const payload = c.get("jwtPayload");
+
+  try {
+    if (!batch_id || !word) {
+      throw new HTTPException(403, { message: "invalid parameters" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: payload.email,
+      },
+    });
+
+    if (user == null) {
+      throw new HTTPException(404, { message: "user not found" });
+    }
+
+    await prisma.word.update({
+      where: {
+        idx_unique_word: {
+          batch_id: batch_id,
+          word: word,
+        },
+      },
+      data: {
+        correct: correct,
+      },
+    });
+
+    return c.json(true);
+  } catch (error: any) {
+    throw new HTTPException(error.code || 403, {
+      message: `error updating word: ${error.message || error}`,
     });
   }
 });

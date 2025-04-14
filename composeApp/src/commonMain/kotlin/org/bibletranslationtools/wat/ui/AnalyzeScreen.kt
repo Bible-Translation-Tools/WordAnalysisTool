@@ -3,7 +3,6 @@ package org.bibletranslationtools.wat.ui
 import ComboBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +28,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,8 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,6 +66,7 @@ import org.bibletranslationtools.wat.format
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.SingletonCard
+import org.bibletranslationtools.wat.ui.control.SingletonRow
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
@@ -138,6 +135,10 @@ class AnalyzeScreen(
                 is AnalyzeEvent.Logout -> {
                     accessToken = null
                     navigator.popUntilRoot()
+                }
+                is AnalyzeEvent.UpdateSelectedWord -> {
+                    val correct = (event as AnalyzeEvent.UpdateSelectedWord).value
+                    selectedWord = selectedWord?.copy(correct = correct)
                 }
                 else -> Unit
             }
@@ -350,25 +351,11 @@ class AnalyzeScreen(
                                 modifier = Modifier.padding(end = 8.dp)
                             ) {
                                 items(items = state.singletons, key = { it.word }) { singleton ->
-                                    Text(
-                                        text = singleton.word,
-                                        fontWeight = if (selectedWord == singleton)
-                                            FontWeight.Bold else FontWeight.Normal,
-                                        color = when (singleton.result?.consensus) {
-                                            Consensus.LIKELY_INCORRECT -> MaterialTheme.colorScheme.error
-                                            Consensus.LIKELY_CORRECT -> MaterialTheme.colorScheme.tertiary
-                                            Consensus.NAME -> MaterialTheme.colorScheme.secondary
-                                            Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary
-                                            else -> MaterialTheme.colorScheme.onBackground
-                                        },
-                                        style = LocalTextStyle.current.copy(
-                                            textDirection = TextDirection.ContentOrLtr
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selectedWord = singleton
-                                            }
+                                    SingletonRow(
+                                        singleton = singleton,
+                                        selected = selectedWord == singleton,
+                                        direction = language.direction,
+                                        onSelect = { selectedWord = singleton }
                                     )
                                 }
                             }
@@ -379,7 +366,11 @@ class AnalyzeScreen(
                         Column(modifier = Modifier.weight(0.7f)) {
                             SingletonCard(
                                 word = selectedWord,
-                                onAnswer = { println(it) }
+                                onAnswer = {
+                                    viewModel.onEvent(
+                                        AnalyzeEvent.UpdateCorrect(selectedWord!!.word, it)
+                                    )
+                                }
                             )
                         }
                     }

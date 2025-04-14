@@ -26,12 +26,14 @@ import org.bibletranslationtools.wat.data.ModelStatus
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.domain.WordRequest
 import org.bibletranslationtools.wat.domain.WordResponse
 import org.bibletranslationtools.wat.domain.WordStatus
 import org.bibletranslationtools.wat.http.ErrorType
@@ -43,16 +45,20 @@ import wordanalysistool.composeapp.generated.resources.all_results_received
 import wordanalysistool.composeapp.generated.resources.batch_deleted
 import wordanalysistool.composeapp.generated.resources.batch_not_deleted
 import wordanalysistool.composeapp.generated.resources.creating_batch
+import wordanalysistool.composeapp.generated.resources.deleting_batch
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
+import wordanalysistool.composeapp.generated.resources.invalid_batch_id
 import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.report_saved
 import wordanalysistool.composeapp.generated.resources.token_invalid
+import wordanalysistool.composeapp.generated.resources.updating_word
 import wordanalysistool.composeapp.generated.resources.wrong_model_selected
 
 private const val BATCH_REQUEST_DELAY = 3000L
 private const val BATCH_REQUESTS_LIMIT = 12
 
 data class AnalyzeState(
+    val batch: Batch? = null,
     val batchProgress: Float = -1f,
     val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
@@ -72,6 +78,8 @@ sealed class AnalyzeEvent {
     data class UpdateSorting(val value: WordsSorting) : AnalyzeEvent()
     data object WordsSorted : AnalyzeEvent()
     data object SaveReport : AnalyzeEvent()
+    data class UpdateCorrect(val word: String, val correct: Boolean): AnalyzeEvent()
+    data class UpdateSelectedWord(val value: Boolean?): AnalyzeEvent()
     data object Logout : AnalyzeEvent()
 }
 
@@ -115,6 +123,7 @@ class AnalyzeViewModel(
             is AnalyzeEvent.DeleteBatch -> deleteBatch()
             is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
+            is AnalyzeEvent.UpdateCorrect -> updateWordCorrect(event.word, event.correct)
             else -> resetChannel()
         }
     }
@@ -187,6 +196,8 @@ class AnalyzeViewModel(
                 ).onSuccess { batch ->
                     parseResponses(batch.details.output)
                     status = batch.details.status
+
+                    updateBatch(batch)
 
                     val current = batch.details.progress.completed
                     val total = batch.details.progress.total.toFloat()
@@ -313,13 +324,27 @@ class AnalyzeViewModel(
 
     private fun deleteBatch() {
         screenModelScope.launch {
+            if (_state.value.batch == null) {
+                updateAlert(
+                    Alert(getString(Res.string.invalid_batch_id)) {
+                        updateAlert(null)
+                    }
+                )
+                return@launch
+            }
+
             updateStatus("Deleting batch results...")
-            watAiApi.deleteBatch(language.ietfCode, resourceType, user.token.accessToken)
+            updateProgress(Progress(-1f, getString(Res.string.deleting_batch)))
+
+            watAiApi.deleteBatch(_state.value.batch!!.id, user.token.accessToken)
                 .onSuccess { deleted ->
                     if (deleted) {
+                        updateBatch(null)
                         updateStatus("Batch results deleted")
                         updateSingletons(
-                            _state.value.singletons.map { it.copy(result = null) }
+                            _state.value.singletons.map {
+                                it.copy(result = null, correct = null)
+                            }
                         )
                         updateAlert(
                             Alert(getString(Res.string.batch_deleted)) {
@@ -343,15 +368,61 @@ class AnalyzeViewModel(
                         }
                     )
                 }
+
+            updateProgress(null)
+        }
+    }
+
+    private fun updateWordCorrect(word: String, correct: Boolean) {
+        screenModelScope.launch {
+            if (_state.value.batch == null) {
+                updateAlert(
+                    Alert(getString(Res.string.invalid_batch_id)) {
+                        updateAlert(null)
+                    }
+                )
+                return@launch
+            }
+
+            updateProgress(Progress(-1f, getString(Res.string.updating_word)))
+
+            val request = WordRequest(
+                _state.value.batch!!.id,
+                word,
+                correct
+            )
+            watAiApi.updateWordCorrect(request, user.token.accessToken)
+                .onSuccess {
+                    updateSingletons(
+                        _state.value.singletons.map { singleton ->
+                            if (singleton.word == request.word) {
+                                singleton.copy(correct = request.correct)
+                            } else {
+                                singleton
+                            }
+                        }
+                    )
+                    _event.send(AnalyzeEvent.UpdateSelectedWord(request.correct))
+                }
+                .onError {
+                    updateStatus(it.description)
+                    updateAlert(
+                        Alert(it.description ?: "") {
+                            updateAlert(null)
+                        }
+                    )
+                }
+
+            updateProgress(null)
         }
     }
 
     private fun parseResponses(responses: List<WordResponse>) {
-        val consensusMap: Map<String, ConsensusResult> = makeConsensus(responses)
+        val consensusMap: Map<String, Pair<Boolean?, ConsensusResult>> = makeConsensus(responses)
         updateSingletons(
             _state.value.singletons.map { singleton ->
                 consensusMap[singleton.word]?.let { answer ->
-                    singleton.copy(result = answer)
+                    singleton.copy(correct = answer.first, result = answer.second)
                 } ?: singleton
             }
         )
@@ -457,6 +528,12 @@ class AnalyzeViewModel(
         }
     }
 
+    private fun updateBatch(batch: Batch?) {
+        _state.update {
+            it.copy(batch = batch)
+        }
+    }
+
     private fun updateSorting(sort: WordsSorting) {
         _state.update {
             it.copy(sorting = sort)
@@ -506,14 +583,16 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun makeConsensus(responses: List<WordResponse>): Map<String, ConsensusResult> {
-        val consensusMap = mutableMapOf<String, ConsensusResult>()
+    private fun makeConsensus(
+        responses: List<WordResponse>
+    ): Map<String, Pair<Boolean?, ConsensusResult>> {
+        val consensusMap = mutableMapOf<String, Pair<Boolean?, ConsensusResult>>()
 
         responses.forEach { response ->
             val hasUnchecked = response.results.any { it.status == WordStatus.UNCHECKED }
 
             if (!hasUnchecked) {
-                consensusMap[response.word] = ConsensusResult(
+                consensusMap[response.word] = response.correct to ConsensusResult(
                     models = response.results.map {
                         ModelStatus(
                             model = it.model,

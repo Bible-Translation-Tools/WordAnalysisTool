@@ -5,7 +5,7 @@ import org.bibletranslationtools.wat.domain.WordStatus
 enum class Consensus(val value: String) {
     LIKELY_INCORRECT("Likely Incorrect"),
     LIKELY_CORRECT("Likely Correct"),
-    NEEDS_REVIEW("Needs Review"),
+    NEEDS_REVIEW("Review Needed"),
     NAME("Name")
 }
 
@@ -22,5 +22,6 @@ data class ConsensusResult(
 data class SingletonWord(
     val word: String,
     val ref: Verse,
+    val correct: Boolean? = null,
     var result: ConsensusResult? = null
 )

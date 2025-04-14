@@ -48,7 +48,13 @@
     <string name="all_results_received">Все результаты получены.</string>
     <string name="font">Шрифт</string>
     <string name="is_word_correct">Верно ли это слово?</string>
+    <string name="is_word_name">Является ли это слово именем?</string>
     <string name="scripture_reference">Ссылка на Писание</string>
     <string name="correct">Верно</string>
     <string name="incorrect">Неверно</string>
+    <string name="yes">Да</string>
+    <string name="no">Нет</string>
+    <string name="deleting_batch">Удаление результатов...</string>
+    <string name="updating_word">Обновление слова...</string>
+    <string name="invalid_batch_id">Неверный идентификатор.</string>
 </resources>

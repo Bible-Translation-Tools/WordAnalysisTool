@@ -45,6 +45,14 @@ enum class WordStatus(val value: Int) {
 }
 
 @Serializable
+data class WordRequest(
+    @SerialName("batch_id")
+    val batchId: String,
+    val word: String,
+    val correct: Boolean
+)
+
+@Serializable
 data class BatchRequest(
     val language: String,
     val words: List<String>,
@@ -84,6 +92,7 @@ data class ModelResponse(
 @Serializable
 data class WordResponse(
     val word: String,
+    val correct: Boolean?,
     val results: List<ModelResponse>
 )
 
@@ -136,8 +145,12 @@ interface WatAiApi {
     ): ApiResult<Batch, NetworkError>
 
     suspend fun deleteBatch(
-        ietfCode: String,
-        resourceType: String,
+        batchId: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError>
+
+    suspend fun updateWordCorrect(
+        request: WordRequest,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
 }
@@ -266,13 +279,42 @@ class WatAiApiImpl(
     }
 
     override suspend fun deleteBatch(
-        ietfCode: String,
-        resourceType: String,
+        batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError> {
         val response = delete(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
+            url = "$BASE_URL/api/batch/$batchId",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            )
+        )
+        return when {
+            response.data != null -> {
+                ApiResult.Success(
+                    response.data.body<Boolean>()
+                )
+            }
+
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+            )
+        }
+    }
+
+    override suspend fun updateWordCorrect(
+        request: WordRequest,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError> {
+        val response = post(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/word",
+            body = request,
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
