@@ -31,11 +31,11 @@
     <string name="delete_batch">Удалить результаты</string>
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="report_saved">Отчет сохранен.</string>
-    <string name="total_singletons">Всего слов: %1$d</string>
-    <string name="total_likely_correct">Возможно верно: %1$d</string>
-    <string name="total_likely_incorrect">Возможно ошибки: %1$d</string>
-    <string name="total_review_needed">Требуется проверка: %1$d</string>
-    <string name="total_names">Имена: %1$d</string>
+    <string name="total_singletons">Всего слов</string>
+    <string name="total_likely_correct">Возможно верно</string>
+    <string name="total_likely_incorrect">Возможно ошибки</string>
+    <string name="total_review_needed">Требуется проверка</string>
+    <string name="total_names">Имена</string>
     <string name="login">Войти с помощью WACS</string>
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
@@ -57,4 +57,6 @@
     <string name="deleting_batch">Удаление результатов...</string>
     <string name="updating_word">Обновление слова...</string>
     <string name="invalid_batch_id">Неверный идентификатор.</string>
+    <string name="loading_results">Загрузка результатов...</string>
+    <string name="word_analysis">Анализ слов</string>
 </resources>

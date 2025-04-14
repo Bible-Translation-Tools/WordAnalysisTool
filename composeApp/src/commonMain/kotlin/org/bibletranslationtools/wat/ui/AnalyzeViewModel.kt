@@ -89,7 +89,8 @@ enum class WordsSorting(val value: String) {
     NAME("Name"),
     LIKELY_CORRECT("Likely Correct"),
     LIKELY_INCORRECT("Likely Incorrect"),
-    NEEDS_REVIEW("Review Needed")
+    NEEDS_REVIEW("Review Needed"),
+    REVIEWED("Reviewed")
 }
 
 class AnalyzeViewModel(
@@ -526,6 +527,14 @@ class AnalyzeViewModel(
                     updateSingletons(
                         _state.value.singletons.sortedByDescending {
                             it.result?.consensus == Consensus.NEEDS_REVIEW
+                        }
+                    )
+                }
+
+                WordsSorting.REVIEWED -> {
+                    updateSingletons(
+                        _state.value.singletons.sortedByDescending {
+                            it.correct != null
                         }
                     )
                 }

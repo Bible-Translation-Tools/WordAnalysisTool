@@ -3,20 +3,15 @@ package org.bibletranslationtools.wat.ui
 import ComboBox
 import Option
 import OptionIcon
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -24,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
@@ -32,7 +28,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -60,7 +55,6 @@ import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
@@ -68,10 +62,13 @@ import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.format
+import org.bibletranslationtools.wat.ui.control.BatchInfo
+import org.bibletranslationtools.wat.ui.control.BatchProgress
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.SingletonCard
 import org.bibletranslationtools.wat.ui.control.SingletonRow
+import org.bibletranslationtools.wat.ui.control.StatusBox
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
@@ -83,11 +80,6 @@ import wordanalysistool.composeapp.generated.resources.logout
 import wordanalysistool.composeapp.generated.resources.process_words
 import wordanalysistool.composeapp.generated.resources.save_report
 import wordanalysistool.composeapp.generated.resources.sort_words
-import wordanalysistool.composeapp.generated.resources.total_likely_correct
-import wordanalysistool.composeapp.generated.resources.total_likely_incorrect
-import wordanalysistool.composeapp.generated.resources.total_names
-import wordanalysistool.composeapp.generated.resources.total_review_needed
-import wordanalysistool.composeapp.generated.resources.total_singletons
 
 class AnalyzeScreen(
     private val language: LanguageInfo,
@@ -220,63 +212,11 @@ class AnalyzeScreen(
                 modifier = Modifier.fillMaxSize()
                     .padding(paddingValues)
             ) {
-                when {
-                    state.batchProgress > 0f -> {
-                        LinearProgressIndicator(
-                            progress = { state.batchProgress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    state.batchProgress == 0f -> {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-
-                if (state.batchProgress >= 0) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.width(70.dp)
-                                .height(30.dp)
-                                .offset(y = 5.dp)
-                                .background(MaterialTheme.colorScheme.primary)
-                        ) {
-                            Text(
-                                text = "${(state.batchProgress * 100).toInt()}%",
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                    }
-                }
-
                 if (showStatuses) {
-                    Box(
+                    StatusBox(
+                        statuses = statuses,
                         modifier = Modifier.align(Alignment.BottomEnd)
-                            .fillMaxWidth(0.35f)
-                            .fillMaxHeight(0.6f)
-                            .offset(y = (-40).dp, x = (-4).dp)
-                            .border(1.dp, MaterialTheme.colorScheme.onBackground)
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier.padding(8.dp)
-                        ) {
-                            items(statuses) { status ->
-                                Text(
-                                    text = status,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
+                    )
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -289,54 +229,12 @@ class AnalyzeScreen(
                             Column(
                                 modifier = Modifier.padding(end = 8.dp, top = 8.dp)
                             ) {
-                                Column {
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.total_likely_incorrect,
-                                            state.singletons.filter {
-                                                it.result?.consensus == Consensus.LIKELY_INCORRECT
-                                            }.size
-                                        ),
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.total_review_needed,
-                                            state.singletons.filter {
-                                                it.result?.consensus == Consensus.NEEDS_REVIEW
-                                            }.size
-                                        ),
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.total_likely_correct,
-                                            state.singletons.filter {
-                                                it.result?.consensus == Consensus.LIKELY_CORRECT
-                                            }.size
-                                        ),
-                                        color = MaterialTheme.colorScheme.tertiary,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.total_names,
-                                            state.singletons.filter {
-                                                it.result?.consensus == Consensus.NAME
-                                            }.size
-                                        ),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontSize = 16.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.total_singletons,
-                                            state.singletons.size
-                                        ),
-                                        fontSize = 16.sp
+                                BatchInfo(singletons = state.singletons)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                if (state.batchProgress >= 0) {
+                                    BatchProgress(
+                                        progress = state.batchProgress,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -377,16 +275,15 @@ class AnalyzeScreen(
 
                         VerticalDivider()
 
-                        Column(modifier = Modifier.weight(0.7f)) {
-                            SingletonCard(
-                                word = selectedWord,
-                                onAnswer = {
-                                    viewModel.onEvent(
-                                        AnalyzeEvent.UpdateCorrect(selectedWord!!.word, it)
-                                    )
-                                }
-                            )
-                        }
+                        SingletonCard(
+                            word = selectedWord,
+                            onAnswer = {
+                                viewModel.onEvent(
+                                    AnalyzeEvent.UpdateCorrect(selectedWord!!.word, it)
+                                )
+                            },
+                            modifier = Modifier.weight(0.7f)
+                        )
                     }
 
                     HorizontalDivider()
@@ -465,6 +362,10 @@ private fun sortingToOption(sorting: WordsSorting): Option<WordsSorting> {
                 tint = MaterialTheme.colorScheme.secondary,
                 size = 12.dp
             )
+        )
+        WordsSorting.REVIEWED -> Option(
+            value = sorting,
+            icon = OptionIcon(Icons.Default.CheckCircle)
         )
     }
 }

@@ -43,9 +43,8 @@ val DarkColorScheme = darkColorScheme(
     onSurface = Color(0xFFC9C9C9)
 )
 
-object CommonColors {
-    val SemiTransparent = Color(0x88000000)
-}
+val ColorScheme.semiTransparent: Color
+    @Composable get() = Color(0x88000000)
 
 @Composable
 fun NotoSansFontFamily() = FontFamily(
