@@ -25,10 +25,10 @@ import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.total_likely_correct
-import wordanalysistool.composeapp.generated.resources.total_likely_incorrect
-import wordanalysistool.composeapp.generated.resources.total_names
-import wordanalysistool.composeapp.generated.resources.total_review_needed
+import wordanalysistool.composeapp.generated.resources.likely_correct
+import wordanalysistool.composeapp.generated.resources.likely_incorrect
+import wordanalysistool.composeapp.generated.resources.names
+import wordanalysistool.composeapp.generated.resources.review_needed
 import wordanalysistool.composeapp.generated.resources.total_singletons
 import wordanalysistool.composeapp.generated.resources.word_analysis
 
@@ -71,7 +71,7 @@ fun BatchInfo(singletons: List<SingletonWord>) {
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(12.dp)
             )
-            Text(stringResource(Res.string.total_likely_incorrect))
+            Text(stringResource(Res.string.likely_incorrect))
             Spacer(modifier = Modifier.weight(1f))
             Text(text = singletons.filter {
                 it.result?.consensus == Consensus.LIKELY_INCORRECT
@@ -87,7 +87,7 @@ fun BatchInfo(singletons: List<SingletonWord>) {
                 tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(12.dp)
             )
-            Text(stringResource(Res.string.total_review_needed))
+            Text(stringResource(Res.string.review_needed))
             Spacer(modifier = Modifier.weight(1f))
             Text(text = singletons.filter {
                 it.result?.consensus == Consensus.NEEDS_REVIEW
@@ -103,7 +103,7 @@ fun BatchInfo(singletons: List<SingletonWord>) {
                 tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.size(12.dp)
             )
-            Text(stringResource(Res.string.total_likely_correct))
+            Text(stringResource(Res.string.likely_correct))
             Spacer(modifier = Modifier.weight(1f))
             Text(text = singletons.filter {
                 it.result?.consensus == Consensus.LIKELY_CORRECT
@@ -119,7 +119,7 @@ fun BatchInfo(singletons: List<SingletonWord>) {
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(12.dp)
             )
-            Text(stringResource(Res.string.total_names))
+            Text(stringResource(Res.string.names))
             Spacer(modifier = Modifier.weight(1f))
             Text(text = singletons.filter {
                 it.result?.consensus == Consensus.NAME

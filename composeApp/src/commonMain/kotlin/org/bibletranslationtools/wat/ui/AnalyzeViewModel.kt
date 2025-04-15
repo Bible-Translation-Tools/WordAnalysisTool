@@ -83,14 +83,14 @@ sealed class AnalyzeEvent {
     data object Logout : AnalyzeEvent()
 }
 
-enum class WordsSorting(val value: String) {
-    ALPHABET("Sort A-Z"),
-    ALPHABET_DESC("Sort Z-A"),
-    NAME("Names"),
-    LIKELY_CORRECT("Likely Correct"),
-    LIKELY_INCORRECT("Likely Incorrect"),
-    NEEDS_REVIEW("Review Needed"),
-    REVIEWED("Reviewed")
+enum class WordsSorting {
+    ALPHABET,
+    ALPHABET_DESC,
+    NAME,
+    LIKELY_CORRECT,
+    LIKELY_INCORRECT,
+    NEEDS_REVIEW,
+    REVIEWED
 }
 
 class AnalyzeViewModel(

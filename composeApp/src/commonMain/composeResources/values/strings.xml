@@ -32,10 +32,10 @@
     <string name="save_report">Save Report (.csv)</string>
     <string name="report_saved">Report saved.</string>
     <string name="total_singletons">Words Total</string>
-    <string name="total_likely_correct">Likely Correct</string>
-    <string name="total_likely_incorrect">Likely Incorrect</string>
-    <string name="total_review_needed">Review Needed</string>
-    <string name="total_names">Names</string>
+    <string name="likely_correct">Likely Correct</string>
+    <string name="likely_incorrect">Likely Incorrect</string>
+    <string name="review_needed">Review Needed</string>
+    <string name="names">Names</string>
     <string name="login">Login with WACS</string>
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>
@@ -59,4 +59,7 @@
     <string name="invalid_batch_id">Invalid ID.</string>
     <string name="loading_results">Loading results...</string>
     <string name="word_analysis">Word Analysis</string>
+    <string name="sort_by_alphabet">Sort A-Z</string>
+    <string name="sort_by_alphabet_desc">Sort Z-A</string>
+    <string name="sort_by_reviewed">Reviewed</string>
 </resources>

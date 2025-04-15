@@ -32,10 +32,10 @@
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="report_saved">Отчет сохранен.</string>
     <string name="total_singletons">Всего слов</string>
-    <string name="total_likely_correct">Возможно верно</string>
-    <string name="total_likely_incorrect">Возможно ошибки</string>
-    <string name="total_review_needed">Требуется проверка</string>
-    <string name="total_names">Имена</string>
+    <string name="likely_correct">Возможно правильно</string>
+    <string name="likely_incorrect">Возможно ошибка</string>
+    <string name="review_needed">Требуется проверка</string>
+    <string name="names">Имена</string>
     <string name="login">Войти с помощью WACS</string>
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
@@ -59,4 +59,7 @@
     <string name="invalid_batch_id">Неверный идентификатор.</string>
     <string name="loading_results">Загрузка результатов...</string>
     <string name="word_analysis">Анализ слов</string>
+    <string name="sort_by_alphabet">Сортировать A-Z</string>
+    <string name="sort_by_alphabet_desc">Сортировать Z-A</string>
+    <string name="sort_by_reviewed">Проверено</string>
 </resources>

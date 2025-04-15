@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -76,9 +77,16 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.delete_batch
+import wordanalysistool.composeapp.generated.resources.likely_correct
+import wordanalysistool.composeapp.generated.resources.likely_incorrect
 import wordanalysistool.composeapp.generated.resources.logout
+import wordanalysistool.composeapp.generated.resources.names
 import wordanalysistool.composeapp.generated.resources.process_words
+import wordanalysistool.composeapp.generated.resources.review_needed
 import wordanalysistool.composeapp.generated.resources.save_report
+import wordanalysistool.composeapp.generated.resources.sort_by_alphabet
+import wordanalysistool.composeapp.generated.resources.sort_by_alphabet_desc
+import wordanalysistool.composeapp.generated.resources.sort_by_reviewed
 import wordanalysistool.composeapp.generated.resources.sort_words
 
 class AnalyzeScreen(
@@ -95,6 +103,7 @@ class AnalyzeScreen(
         }
 
         val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
 
         val state by viewModel.state.collectAsStateWithLifecycle()
         val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
@@ -127,6 +136,8 @@ class AnalyzeScreen(
         val statuses = remember { mutableStateListOf<String>() }
 
         var showStatuses by remember { mutableStateOf(false) }
+
+        val localizedSorting = WordsSorting.entries.associate { it to localizeSorting(it) }
 
         LaunchedEffect(event) {
             when (event) {
@@ -252,7 +263,7 @@ class AnalyzeScreen(
                                         wordsSorting = sort.name
                                     },
                                     valueConverter = { sort ->
-                                        sort.value
+                                        localizedSorting[sort] ?: ""
                                     },
                                     label = stringResource(Res.string.sort_words)
                                 )
@@ -367,5 +378,18 @@ private fun sortingToOption(sorting: WordsSorting): Option<WordsSorting> {
             value = sorting,
             icon = OptionIcon(Icons.Default.CheckCircle)
         )
+    }
+}
+
+@Composable
+private fun localizeSorting(sorting: WordsSorting): String {
+    return when (sorting) {
+        WordsSorting.ALPHABET -> stringResource(Res.string.sort_by_alphabet)
+        WordsSorting.ALPHABET_DESC -> stringResource(Res.string.sort_by_alphabet_desc)
+        WordsSorting.LIKELY_CORRECT -> stringResource(Res.string.likely_correct)
+        WordsSorting.LIKELY_INCORRECT -> stringResource(Res.string.likely_incorrect)
+        WordsSorting.NEEDS_REVIEW -> stringResource(Res.string.review_needed)
+        WordsSorting.NAME -> stringResource(Res.string.names)
+        WordsSorting.REVIEWED -> stringResource(Res.string.sort_by_reviewed)
     }
 }

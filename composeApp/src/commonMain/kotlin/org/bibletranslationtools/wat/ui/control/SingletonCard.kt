@@ -37,7 +37,11 @@ import wordanalysistool.composeapp.generated.resources.correct
 import wordanalysistool.composeapp.generated.resources.incorrect
 import wordanalysistool.composeapp.generated.resources.is_word_correct
 import wordanalysistool.composeapp.generated.resources.is_word_name
+import wordanalysistool.composeapp.generated.resources.likely_correct
+import wordanalysistool.composeapp.generated.resources.likely_incorrect
+import wordanalysistool.composeapp.generated.resources.names
 import wordanalysistool.composeapp.generated.resources.no
+import wordanalysistool.composeapp.generated.resources.review_needed
 import wordanalysistool.composeapp.generated.resources.scripture_reference
 import wordanalysistool.composeapp.generated.resources.yes
 
@@ -63,6 +67,8 @@ fun SingletonCard(
         stringResource(Res.string.incorrect)
     }
 
+    val localizedConsensus = Consensus.entries.associate { it to localizeConsensus(it) }
+
     Column(
         verticalArrangement = Arrangement.SpaceBetween,
         modifier = modifier
@@ -81,7 +87,7 @@ fun SingletonCard(
                         modifier = Modifier.size(12.dp)
                     )
                     Text(
-                        text = word.result?.consensus?.value ?: "",
+                        text = word.result?.consensus?.let { localizedConsensus[it] } ?: "",
                         fontSize = 12.sp
                     )
                 }
@@ -181,5 +187,15 @@ private fun consensusFgColor(consensus: Consensus?): Color {
     return when (consensus) {
         null -> MaterialTheme.colorScheme.onBackground
         else -> consensusBgColor(consensus)
+    }
+}
+
+@Composable
+private fun localizeConsensus(consensus: Consensus): String {
+    return when (consensus) {
+        Consensus.LIKELY_CORRECT -> stringResource(Res.string.likely_correct)
+        Consensus.LIKELY_INCORRECT -> stringResource(Res.string.likely_incorrect)
+        Consensus.NAME -> stringResource(Res.string.names)
+        Consensus.NEEDS_REVIEW -> stringResource(Res.string.review_needed)
     }
 }
