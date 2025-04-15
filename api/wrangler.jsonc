@@ -7,6 +7,9 @@
     "name": "wat-worker",
     "main": "src/index.ts",
     "compatibility_date": "2025-03-13",
+    "compatibility_flags": [
+        "nodejs_compat"
+    ],
     "observability": {
         "enabled": true
     },
