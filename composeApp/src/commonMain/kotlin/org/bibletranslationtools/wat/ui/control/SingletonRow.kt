@@ -3,6 +3,7 @@ package org.bibletranslationtools.wat.ui.control
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -51,13 +52,13 @@ fun SingletonRow(
 
 @Composable
 private fun renderIcon(correct: Boolean?) {
-    if (correct != null) {
+    correct?.let {
         Icon(
             imageVector = Icons.Default.CheckCircle,
             contentDescription = null,
             modifier = Modifier.size(16.dp)
         )
-    }
+    } ?: Spacer(Modifier.size(16.dp))
 }
 
 @Composable
