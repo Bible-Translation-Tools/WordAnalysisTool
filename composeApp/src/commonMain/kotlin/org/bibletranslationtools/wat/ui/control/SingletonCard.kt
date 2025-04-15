@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Circle
@@ -17,10 +18,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -47,21 +50,21 @@ import wordanalysistool.composeapp.generated.resources.yes
 
 @Composable
 fun SingletonCard(
-    word: SingletonWord?,
+    word: SingletonWord,
     onAnswer: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val question = if (word?.result?.consensus == Consensus.NAME) {
+    val question = if (word.result?.consensus == Consensus.NAME) {
         stringResource(Res.string.is_word_name)
     } else {
         stringResource(Res.string.is_word_correct)
     }
-    val answerCorrect = if (word?.result?.consensus == Consensus.NAME) {
+    val answerCorrect = if (word.result?.consensus == Consensus.NAME) {
         stringResource(Res.string.yes)
     } else {
         stringResource(Res.string.correct)
     }
-    val answerIncorrect = if (word?.result?.consensus == Consensus.NAME) {
+    val answerIncorrect = if (word.result?.consensus == Consensus.NAME) {
         stringResource(Res.string.no)
     } else {
         stringResource(Res.string.incorrect)
@@ -69,12 +72,14 @@ fun SingletonCard(
 
     val localizedConsensus = Consensus.entries.associate { it to localizeConsensus(it) }
 
-    Column(
-        verticalArrangement = Arrangement.SpaceBetween,
-        modifier = modifier
-            .padding(20.dp)
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.shadow(4.dp, RoundedCornerShape(8.dp))
     ) {
-        word?.let {
+        Column(
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.padding(16.dp)
+        ) {
             Column {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -95,7 +100,7 @@ fun SingletonCard(
                 Text(text = question)
                 SelectionContainer {
                     Text(
-                        text = it.word,
+                        text = word.word,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = consensusFgColor(word.result?.consensus)
@@ -106,9 +111,9 @@ fun SingletonCard(
                 Spacer(modifier = Modifier.height(24.dp))
                 SelectionContainer {
                     val reference = StringBuilder()
-                    reference.append("${it.ref.bookName} ")
-                    reference.append("(${it.ref.bookSlug.uppercase()}) ")
-                    reference.append("${it.ref.chapter}:${it.ref.number} ")
+                    reference.append("${word.ref.bookName} ")
+                    reference.append("(${word.ref.bookSlug.uppercase()}) ")
+                    reference.append("${word.ref.chapter}:${word.ref.number} ")
                     Text(
                         text = reference.toString(),
                         style = LocalTextStyle.current.copy(
@@ -120,17 +125,17 @@ fun SingletonCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 SelectionContainer {
                     val annotatedText = buildAnnotatedString {
-                        val text = it.ref.text
-                        val index = text.indexOf(it.word)
+                        val text = word.ref.text
+                        val index = text.indexOf(word.word)
                         append(text.substring(0, index))
                         withStyle(
                             style = SpanStyle(
                                 color = consensusFgColor(word.result?.consensus)
                             )
                         ) {
-                            append(it.word)
+                            append(word.word)
                         }
-                        append(text.substring(index + it.word.length, text.length))
+                        append(text.substring(index + word.word.length, text.length))
                     }
                     Text(
                         text = annotatedText,

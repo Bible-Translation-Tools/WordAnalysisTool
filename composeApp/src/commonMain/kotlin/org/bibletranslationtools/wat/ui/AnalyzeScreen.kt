@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -30,8 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -223,78 +225,75 @@ class AnalyzeScreen(
                 modifier = Modifier.fillMaxSize()
                     .padding(paddingValues)
             ) {
-                if (showStatuses) {
-                    StatusBox(
-                        statuses = statuses,
-                        modifier = Modifier.align(Alignment.BottomEnd)
-                    )
-                }
-
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxWidth()
-                            .padding(start = 20.dp, end = 20.dp, top = 4.dp)
+                            .padding(16.dp)
                             .weight(1f)
                     ) {
-                        Column(modifier = Modifier.weight(0.3f)) {
-                            Column(
-                                modifier = Modifier.padding(end = 8.dp, top = 8.dp)
-                            ) {
-                                BatchInfo(singletons = state.singletons)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                if (state.batchProgress >= 0) {
-                                    BatchProgress(
-                                        progress = state.batchProgress,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
-                                    modifier = Modifier.fillMaxWidth()
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.shadow(4.dp, RoundedCornerShape(8.dp))
+                                .weight(0.3f)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Column(
+                                    modifier = Modifier.padding(top = 8.dp)
                                 ) {
-                                    Text(stringResource(Res.string.process_words))
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                ComboBox(
-                                    value = sorting,
-                                    options = WordsSorting.entries.map { sortingToOption(it) },
-                                    onOptionSelected = { sort: WordsSorting ->
-                                        wordsSorting = sort.name
-                                    },
-                                    valueConverter = { sort ->
-                                        localizedSorting[sort] ?: ""
-                                    },
-                                    label = stringResource(Res.string.sort_words)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            LazyColumn(
-                                state = wordsListState,
-                                modifier = Modifier.padding(end = 8.dp)
-                            ) {
-                                items(items = state.singletons, key = { it.word }) { singleton ->
-                                    SingletonRow(
-                                        singleton = singleton,
-                                        selected = selectedWord == singleton,
-                                        direction = language.direction,
-                                        onSelect = { selectedWord = singleton }
+                                    BatchInfo(singletons = state.singletons)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    if (state.batchProgress >= 0) {
+                                        BatchProgress(
+                                            progress = state.batchProgress,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(stringResource(Res.string.process_words))
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    ComboBox(
+                                        value = sorting,
+                                        options = WordsSorting.entries.map { sortingToOption(it) },
+                                        onOptionSelected = { sort: WordsSorting ->
+                                            wordsSorting = sort.name
+                                        },
+                                        valueConverter = { sort ->
+                                            localizedSorting[sort] ?: ""
+                                        },
+                                        label = stringResource(Res.string.sort_words)
                                     )
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                LazyColumn(state = wordsListState) {
+                                    items(items = state.singletons, key = { it.word }) { singleton ->
+                                        SingletonRow(
+                                            singleton = singleton,
+                                            selected = selectedWord == singleton,
+                                            direction = language.direction,
+                                            onSelect = { selectedWord = singleton }
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        VerticalDivider()
-
-                        SingletonCard(
-                            word = selectedWord,
-                            onAnswer = {
-                                viewModel.onEvent(
-                                    AnalyzeEvent.UpdateCorrect(selectedWord!!.word, it)
-                                )
-                            },
-                            modifier = Modifier.weight(0.7f)
-                        )
+                        selectedWord?.let { word ->
+                            SingletonCard(
+                                word = word,
+                                onAnswer = {
+                                    viewModel.onEvent(
+                                        AnalyzeEvent.UpdateCorrect(word.word, it)
+                                    )
+                                },
+                                modifier = Modifier.weight(0.7f)
+                            )
+                        } ?: Spacer(modifier = Modifier.weight(0.7f))
                     }
 
                     HorizontalDivider()
@@ -314,6 +313,13 @@ class AnalyzeScreen(
                             Icon(imageVector = Icons.Default.Info, contentDescription = null)
                         }
                     }
+                }
+
+                if (showStatuses) {
+                    StatusBox(
+                        statuses = statuses,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
                 }
             }
 

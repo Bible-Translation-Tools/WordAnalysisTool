@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -46,14 +48,15 @@ fun BatchInfo(singletons: List<SingletonWord>) {
         ) {
             Text(
                 text = stringResource(Res.string.word_analysis),
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             )
-            Box(contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.size(40.dp)
-                )
+            Spacer(modifier = Modifier.requiredWidth(8.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.requiredSize(40.dp)
+            ) {
+                CircularProgressIndicator(progress = { progress })
                 Text(
                     text = "${(progress * 100).toInt()}%",
                     fontSize = 10.sp

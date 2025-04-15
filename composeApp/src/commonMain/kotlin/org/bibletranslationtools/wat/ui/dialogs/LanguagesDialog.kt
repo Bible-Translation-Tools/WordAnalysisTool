@@ -70,7 +70,7 @@ fun LanguagesDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.7f),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(16.dp),
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
