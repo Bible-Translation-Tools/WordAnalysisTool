@@ -32,7 +32,7 @@ import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.User
-import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.domain.WordRequest
 import org.bibletranslationtools.wat.domain.WordResponse
 import org.bibletranslationtools.wat.domain.WordStatus
@@ -98,7 +98,7 @@ class AnalyzeViewModel(
     private val resourceType: String,
     private val verses: List<Verse>,
     private val user: User,
-    private val watAiApi: WatAiApi
+    private val watApi: WatApi
 ) : ScreenModel {
 
     private var _state = MutableStateFlow(AnalyzeState())
@@ -191,7 +191,7 @@ class AnalyzeViewModel(
             while (status !in completionStatuses) {
                 updateStatus("Fetching batch status...")
 
-                watAiApi.getBatch(
+                watApi.getBatch(
                     language.ietfCode,
                     resourceType,
                     user.token.accessToken
@@ -288,7 +288,7 @@ class AnalyzeViewModel(
 
             updateStatus("Sending batch request...")
 
-            watAiApi.createBatch(
+            watApi.createBatch(
                 language.ietfCode,
                 resourceType,
                 request,
@@ -338,7 +338,7 @@ class AnalyzeViewModel(
             updateStatus("Deleting batch results...")
             updateProgress(Progress(-1f, getString(Res.string.deleting_batch)))
 
-            watAiApi.deleteBatch(_state.value.batch!!.id, user.token.accessToken)
+            watApi.deleteBatch(_state.value.batch!!.id, user.token.accessToken)
                 .onSuccess { deleted ->
                     if (deleted) {
                         updateBatch(null)
@@ -393,7 +393,7 @@ class AnalyzeViewModel(
                 word,
                 correct
             )
-            watAiApi.updateWordCorrect(request, user.token.accessToken)
+            watApi.updateWordCorrect(request, user.token.accessToken)
                 .onSuccess {
                     updateSingletons(
                         _state.value.singletons.map { singleton ->

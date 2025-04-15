@@ -1,16 +1,26 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +30,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
@@ -37,9 +50,12 @@ import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.jetbrains.compose.resources.stringResource
+import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.creator
+import wordanalysistool.composeapp.generated.resources.language
 import wordanalysistool.composeapp.generated.resources.logout
-import wordanalysistool.composeapp.generated.resources.select_language_resource_type
+import wordanalysistool.composeapp.generated.resources.resource_type
 import kotlin.uuid.ExperimentalUuidApi
 
 class HomeScreen(private val user: User) : Screen {
@@ -48,7 +64,9 @@ class HomeScreen(private val user: User) : Screen {
     @Composable
     override fun Content() {
 
-        val viewModel = koinScreenModel<HomeViewModel>()
+        val viewModel = koinScreenModel<HomeViewModel> {
+            parametersOf(user)
+        }
         val navigator = LocalNavigator.currentOrThrow
 
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -66,14 +84,17 @@ class HomeScreen(private val user: User) : Screen {
             }
         }
 
-        selectedHeartLanguage?.let { language ->
-            selectedResourceType?.let { resourceType ->
-                if (state.verses.isNotEmpty()) {
+        LaunchedEffect(event) {
+            when (event) {
+                is HomeEvent.VersesLoaded -> {
+                    val language = (event as HomeEvent.VersesLoaded).language
+                    val resourceType = (event as HomeEvent.VersesLoaded).resourceType
                     navigator.push(
                         AnalyzeScreen(language, resourceType, state.verses, user)
                     )
                     viewModel.onEvent(HomeEvent.OnBeforeNavigate)
                 }
+                else -> Unit
             }
         }
 
@@ -110,10 +131,63 @@ class HomeScreen(private val user: User) : Screen {
                 modifier = Modifier.fillMaxSize()
                     .padding(32.dp)
             ) {
-                Text(
-                    text = stringResource(Res.string.select_language_resource_type),
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                Column(
+                    modifier = Modifier.fillMaxSize(0.7f)
+                        .align(Alignment.Center)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(stringResource(Res.string.language))
+                        Text(stringResource(Res.string.resource_type))
+                        Text(stringResource(Res.string.creator))
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.shadow(4.dp, RoundedCornerShape(8.dp))
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(16.dp),
+                        ) {
+                            items(state.batches) { batch ->
+                                Row(
+                                    //horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .height(50.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            viewModel.onEvent(
+                                                HomeEvent.FetchUsfm(
+                                                    language = batch.language,
+                                                    resourceType = batch.resourceType
+                                                )
+                                            )
+                                        }
+                                        .padding(horizontal = 8.dp)
+                                ) {
+                                    Text(
+                                        text = batch.language.toString(),
+                                        modifier = Modifier.weight(0.34f)
+                                    )
+                                    Text(
+                                        text = batch.resourceType,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.weight(0.33f)
+                                    )
+                                    Text(
+                                        text = batch.username,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.weight(0.33f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if (showLanguagesDialog) {
@@ -123,7 +197,7 @@ class HomeScreen(private val user: User) : Screen {
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
                         selectedResourceType = resourceType
-                        viewModel.onEvent(HomeEvent.FetchUsfm(language.ietfCode, resourceType))
+                        viewModel.onEvent(HomeEvent.FetchUsfm(language, resourceType))
                     },
                     onDismiss = { showLanguagesDialog = false }
                 )

@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
-import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
@@ -46,7 +46,7 @@ sealed class LoginEvent {
 }
 
 class LoginViewModel(
-    private val watAiApi: WatAiApi
+    private val watApi: WatApi
 ) : ScreenModel {
     private var _state = MutableStateFlow(LoginState())
     val state: StateFlow<LoginState> = _state
@@ -75,7 +75,7 @@ class LoginViewModel(
     @OptIn(ExperimentalUuidApi::class)
     private fun authorize() {
         screenModelScope.launch {
-            watAiApi.getAuthUrl()
+            watApi.getAuthUrl()
                 .onSuccess {
                     _event.send(LoginEvent.OnAuthOpen(it))
                 }
@@ -97,7 +97,7 @@ class LoginViewModel(
 
             var token: Token? = null
             while (token == null) {
-                watAiApi.getAuthToken()
+                watApi.getAuthToken()
                     .onSuccess {
                         tokenToUser(it)
                         fetchJob?.cancel()
@@ -114,7 +114,7 @@ class LoginViewModel(
         screenModelScope.launch {
             updateProgress(true)
 
-            watAiApi.verifyUser(token.accessToken)
+            watApi.verifyUser(token.accessToken)
                 .onSuccess {
                     updateUser(User.fromToken(token))
                 }

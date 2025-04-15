@@ -15,6 +15,7 @@ import {
   BatchRequest,
   BatchStatus,
   ModelResponse,
+  PublicUser,
   WordResponse,
 } from "./types";
 
@@ -225,6 +226,10 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       throw new HTTPException(404, { message: "user not found" });
     }
 
+    const creator: PublicUser = {
+      username: user.username,
+    };
+
     // TODO add current user (AND user_id = ? - user.id)
     const dbBatch = await prisma.batch.findUnique({
       where: {
@@ -326,6 +331,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       ietf_code: ietf_code,
       resource_type: resource_type,
       details: details,
+      creator: creator,
     };
 
     const batchRequest: BatchRequest = {
@@ -359,6 +365,12 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
           ietf_code: ietf_code,
           resource_type: resource_type,
         },
+      },
+      select: {
+        id: true,
+        total_pending: true,
+        error: true,
+        user: true,
       },
     });
 
@@ -441,6 +453,9 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       status = BatchStatus.ERRORED;
     }
 
+    const creator: PublicUser = {
+      username: dbBatch.user.username,
+    };
     const details: BatchDetails = {
       status: status,
       error: dbBatch.error,
@@ -452,9 +467,70 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       ietf_code: ietf_code,
       resource_type: resource_type,
       details: details,
+      creator: creator,
     };
 
     return c.json(batch);
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `error fetching batch: ${error.message || error}`,
+    });
+  }
+});
+
+app.get("/api/batch/recent", async (c) => {
+  const prisma = c.get("prisma");
+
+  try {
+    const ietf_code = c.req.param("ietf_code");
+    const resource_type = c.req.param("resource_type");
+    const payload = c.get("jwtPayload");
+
+    const dbBatches = await prisma.batch.findMany({
+      where: {
+        words: {
+          some: {
+            models: {
+              some: {},
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        ietf_code: true,
+        resource_type: true,
+        user: true,
+      },
+    });
+
+    const progress: BatchProgress = {
+      completed: 0,
+      total: 0,
+    };
+
+    const details: BatchDetails = {
+      status: BatchStatus.COMPLETE,
+      error: null,
+      progress: progress,
+      output: [],
+    };
+
+    const batches = dbBatches.map((item) => {
+      const creator: PublicUser = {
+        username: item.user.username,
+      };
+      const batch: Batch = {
+        id: item.id,
+        ietf_code: item.ietf_code,
+        resource_type: item.resource_type,
+        details: details,
+        creator: creator,
+      };
+      return batch;
+    });
+
+    return c.json(batches);
   } catch (error: any) {
     throw new HTTPException(403, {
       message: `error fetching batch: ${error.message || error}`,

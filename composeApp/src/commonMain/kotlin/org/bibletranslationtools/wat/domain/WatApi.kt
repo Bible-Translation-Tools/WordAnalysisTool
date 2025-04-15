@@ -80,7 +80,8 @@ data class Batch(
     val ietfCode: String,
     @SerialName("resource_type")
     val resourceType: String,
-    val details: BatchDetails
+    val details: BatchDetails,
+    val creator: PublicUser
 )
 
 @Serializable
@@ -123,11 +124,16 @@ data class User(
 }
 
 @Serializable
+data class PublicUser(
+    val username: String
+)
+
+@Serializable
 data class Token(
     val accessToken: String
 )
 
-interface WatAiApi {
+interface WatApi {
     suspend fun getAuthUrl(): ApiResult<String, NetworkError>
     suspend fun getAuthToken(): ApiResult<Token, NetworkError>
     suspend fun verifyUser(accessToken: String): ApiResult<Boolean, NetworkError>
@@ -153,11 +159,15 @@ interface WatAiApi {
         request: WordRequest,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
+
+    suspend fun getBatchesInProgress(
+        accessToken: String
+    ): ApiResult<List<Batch>, NetworkError>
 }
 
-class WatAiApiImpl(
+class WatApiImpl(
     private val httpClient: HttpClient
-) : WatAiApi {
+) : WatApi {
 
     private companion object {
         const val BASE_URL = BuildConfig.WAT_BASE_URL
@@ -324,6 +334,34 @@ class WatAiApiImpl(
             response.data != null -> {
                 ApiResult.Success(
                     response.data.body<Boolean>()
+                )
+            }
+
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+            )
+        }
+    }
+
+    override suspend fun getBatchesInProgress(
+        accessToken: String
+    ): ApiResult<List<Batch>, NetworkError> {
+        val response = get(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/batch/recent",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            )
+        )
+        return when {
+            response.data != null -> {
+                ApiResult.Success(
+                    response.data.body<List<Batch>>()
                 )
             }
 

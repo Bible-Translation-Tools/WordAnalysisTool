@@ -62,4 +62,8 @@
     <string name="sort_by_alphabet">Сортировать A-Z</string>
     <string name="sort_by_alphabet_desc">Сортировать Z-A</string>
     <string name="sort_by_reviewed">Проверено</string>
+    <string name="language">Язык</string>
+    <string name="resource_type">Тип ресурса</string>
+    <string name="creator">Автор</string>
+    <string name="fetching_batches">Загрузка проектов...</string>
 </resources>

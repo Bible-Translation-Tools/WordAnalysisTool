@@ -9,8 +9,8 @@ import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.domain.UsfmBookSourceImpl
-import org.bibletranslationtools.wat.domain.WatAiApi
-import org.bibletranslationtools.wat.domain.WatAiApiImpl
+import org.bibletranslationtools.wat.domain.WatApi
+import org.bibletranslationtools.wat.domain.WatApiImpl
 import org.bibletranslationtools.wat.domain.WordDataSource
 import org.bibletranslationtools.wat.domain.WordDataSourceImpl
 import org.bibletranslationtools.wat.domain.createAiHttpClient
@@ -32,13 +32,13 @@ val sharedModule = module {
 
     singleOf(::BielGraphQlApi)
     single { DownloadUsfm(createSimpleHttpClient(httpClientEngine)) }
-    factory { WatAiApiImpl(createAiHttpClient(httpClientEngine)) }.bind<WatAiApi>()
+    factory { WatApiImpl(createAiHttpClient(httpClientEngine)) }.bind<WatApi>()
 
     factoryOf(::UsfmBookSourceImpl).bind<UsfmBookSource>()
 
     // view models
     factoryOf(::LoginViewModel)
-    factoryOf(::HomeViewModel)
+    factory { (user: User) -> HomeViewModel(get(), get(), get(), get(), user) }
     factory { (language: LanguageInfo, resourceType: String, verses: List<Verse>, user: User) ->
         AnalyzeViewModel(language, resourceType, verses, user, get())
     }

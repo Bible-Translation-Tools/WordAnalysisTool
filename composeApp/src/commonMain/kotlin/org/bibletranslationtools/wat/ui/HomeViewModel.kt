@@ -22,36 +22,49 @@ import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
+import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.UsfmBookSource
+import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.downloading_usfm
+import wordanalysistool.composeapp.generated.resources.fetching_batches
 import wordanalysistool.composeapp.generated.resources.fetching_heart_languages
 import wordanalysistool.composeapp.generated.resources.fetching_resource_types
 import wordanalysistool.composeapp.generated.resources.preparing_for_analysis
 import wordanalysistool.composeapp.generated.resources.unknown_error
+
+data class BatchItem(
+    val language: LanguageInfo,
+    val resourceType: String,
+    val username: String
+)
 
 data class HomeState(
     val alert: Alert? = null,
     val progress: Progress? = null,
     val verses: List<Verse> = emptyList(),
     val heartLanguages: List<LanguageInfo> = emptyList(),
-    val resourceTypes: List<String> = emptyList()
+    val resourceTypes: List<String> = emptyList(),
+    val batches: List<BatchItem> = emptyList()
 )
 
 sealed class HomeEvent {
     data object Idle: HomeEvent()
     data class FetchResourceTypes(val ietfCode: String): HomeEvent()
-    data class FetchUsfm(val ietfCode: String, val resourceType: String): HomeEvent()
+    data class FetchUsfm(val language: LanguageInfo, val resourceType: String): HomeEvent()
+    data class VersesLoaded(val language: LanguageInfo, val resourceType: String): HomeEvent()
     data object OnBeforeNavigate: HomeEvent()
 }
 
 class HomeViewModel(
     private val bielGraphQlApi: BielGraphQlApi,
     private val downloadUsfm: DownloadUsfm,
-    private val usfmBookSource: UsfmBookSource
+    private val usfmBookSource: UsfmBookSource,
+    private val watApi: WatApi,
+    private val user: User
 ) : ScreenModel {
 
     private var _state = MutableStateFlow(HomeState())
@@ -63,13 +76,13 @@ class HomeViewModel(
             initialValue = HomeState()
         )
 
-    private val _event: Channel<AnalyzeEvent> = Channel()
+    private val _event: Channel<HomeEvent> = Channel()
     val event = _event.receiveAsFlow()
 
     fun onEvent(event: HomeEvent) {
         when (event) {
             is HomeEvent.FetchResourceTypes -> fetchResourceTypes(event.ietfCode)
-            is HomeEvent.FetchUsfm -> fetchUsfm(event.ietfCode, event.resourceType)
+            is HomeEvent.FetchUsfm -> fetchUsfm(event.language, event.resourceType)
             is HomeEvent.OnBeforeNavigate -> onBeforeNavigate()
             else -> resetChannel()
         }
@@ -83,6 +96,8 @@ class HomeViewModel(
             val ru = LanguageInfo("ru", "Русский", "Russian", Direction.LTR)
             updateHeartLanguages(bielGraphQlApi.getHeartLanguages() + en + ru)
             updateProgress(null)
+
+            fetchBatchesInProgress()
         }
     }
 
@@ -100,18 +115,51 @@ class HomeViewModel(
         }
     }
 
+    private fun fetchBatchesInProgress() {
+        screenModelScope.launch {
+            updateProgress(Progress(0f, getString(Res.string.fetching_batches)))
+            watApi.getBatchesInProgress(user.token.accessToken)
+                .onSuccess { batches ->
+                    val batchItems = batches.map { batch ->
+                        val language = _state.value.heartLanguages.find {
+                            it.ietfCode == batch.ietfCode
+                        } ?: LanguageInfo(
+                            ietfCode = batch.ietfCode,
+                            name = batch.ietfCode,
+                            angName = batch.ietfCode,
+                            direction = Direction.LTR
+                        )
+                        BatchItem(
+                            language = language,
+                            resourceType = batch.resourceType,
+                            username = batch.creator.username
+                        )
+                    }
+                    updateBatches(batchItems)
+                }
+                .onError {
+                    updateAlert(
+                        Alert(it.description ?: getString(Res.string.unknown_error)) {
+                            updateAlert(null)
+                        }
+                    )
+                }
+            updateProgress(null)
+        }
+    }
+
     private fun fetchUsfm(
-        ietfCode: String,
+        language: LanguageInfo,
         resourceType: String
     ) {
         screenModelScope.launch {
             updateProgress(Progress(0f, getString(Res.string.downloading_usfm)))
 
             // TODO Remove debug code
-            val books = when(ietfCode) {
+            val books = when(language.ietfCode) {
                 "en" -> listOf(ContentInfo("", "Jude", "jud", null))
                 "ru" ->listOf(ContentInfo("", "Послание Иуды", "jud", null))
-                else -> bielGraphQlApi.getBooksForTranslation(ietfCode, resourceType)
+                else -> bielGraphQlApi.getBooksForTranslation(language.ietfCode, resourceType)
             }
 
             val totalBooks = books.size
@@ -123,7 +171,7 @@ class HomeViewModel(
                         val currentProgress = (index+1)/totalBooks.toFloat()
 
                         // TODO Remove debug code
-                        if (ietfCode !in listOf("en","ru")) {
+                        if (language.ietfCode !in listOf("en","ru")) {
                             val response = downloadUsfm(url)
 
                             response.onSuccess { bytes ->
@@ -138,7 +186,7 @@ class HomeViewModel(
                                 return@withContext
                             }
                         } else {
-                            if (ietfCode == "en") {
+                            if (language.ietfCode == "en") {
                                 allVerses.addAll(getEnglishFakeVerses())
                             } else {
                                 allVerses.addAll(getRussianFakeVerses())
@@ -157,6 +205,8 @@ class HomeViewModel(
             updateProgress(Progress(0f, getString(Res.string.preparing_for_analysis)))
             delay(1000)
             updateProgress(null)
+
+            _event.send(HomeEvent.VersesLoaded(language, resourceType))
         }
     }
 
@@ -173,6 +223,12 @@ class HomeViewModel(
     private fun updateResourceTypes(resourceTypes: List<String>) {
         _state.update {
             it.copy(resourceTypes = resourceTypes)
+        }
+    }
+
+    private fun updateBatches(batches: List<BatchItem>) {
+        _state.update {
+            it.copy(batches = batches)
         }
     }
 
@@ -196,7 +252,7 @@ class HomeViewModel(
 
     private fun resetChannel() {
         screenModelScope.launch {
-            _event.send(AnalyzeEvent.Idle)
+            _event.send(HomeEvent.Idle)
         }
     }
 

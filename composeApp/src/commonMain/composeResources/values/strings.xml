@@ -62,4 +62,8 @@
     <string name="sort_by_alphabet">Sort A-Z</string>
     <string name="sort_by_alphabet_desc">Sort Z-A</string>
     <string name="sort_by_reviewed">Reviewed</string>
+    <string name="language">Language</string>
+    <string name="resource_type">Resource Type</string>
+    <string name="creator">Creator</string>
+    <string name="fetching_batches">Fetching projects...</string>
 </resources>

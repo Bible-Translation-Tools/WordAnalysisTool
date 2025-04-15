@@ -20,6 +20,7 @@ export type Batch = {
   ietf_code: string;
   resource_type: string;
   details: BatchDetails;
+  creator: PublicUser;
 };
 
 export type BatchProgress = {
@@ -48,6 +49,10 @@ export type ModelResponse = {
 export type ChatResponse = {
   word: string;
   status: number;
+};
+
+export type PublicUser = {
+  username: string;
 };
 
 export enum BatchStatus {
