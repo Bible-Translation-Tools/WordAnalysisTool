@@ -154,7 +154,6 @@ class HomeScreen(private val user: User) : Screen {
                         ) {
                             items(state.batches) { batch ->
                                 Row(
-                                    //horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
                                         .height(50.dp)
