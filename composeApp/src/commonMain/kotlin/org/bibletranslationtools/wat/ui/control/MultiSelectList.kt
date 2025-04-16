@@ -31,6 +31,9 @@ fun <T> MultiSelectList(
             val background = if (model in selected) {
                 MaterialTheme.colorScheme.primary
             } else MaterialTheme.colorScheme.background
+            val foreground = if (model in selected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else MaterialTheme.colorScheme.onBackground
 
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -41,7 +44,8 @@ fun <T> MultiSelectList(
                     .padding(8.dp)
             ) {
                 Text(
-                    text = valueConverter(model)
+                    text = valueConverter(model),
+                    color = foreground
                 )
             }
         }
