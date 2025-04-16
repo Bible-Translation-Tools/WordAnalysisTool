@@ -39,6 +39,7 @@ import org.bibletranslationtools.wat.domain.WordStatus
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
+import org.bibletranslationtools.wat.ui.AnalyzeEvent.RefreshSelectedWord
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.all_results_received
@@ -80,6 +81,7 @@ sealed class AnalyzeEvent {
     data object SaveReport : AnalyzeEvent()
     data class UpdateCorrect(val word: String, val correct: Boolean): AnalyzeEvent()
     data class UpdateSelectedWord(val value: Boolean?): AnalyzeEvent()
+    data object RefreshSelectedWord : AnalyzeEvent()
     data object Logout : AnalyzeEvent()
 }
 
@@ -212,6 +214,7 @@ class AnalyzeViewModel(
                     }
 
                     batch.details.error?.let(::updateStatus)
+                    _event.send(RefreshSelectedWord)
                 }.onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
@@ -468,17 +471,19 @@ class AnalyzeViewModel(
 
             val report = header.toString() + words
 
-            FileKit.saveFile(
-                baseName = "report",
+            val saved = FileKit.saveFile(
+                baseName = "report_${language.ietfCode}_${resourceType}",
                 extension = "csv",
                 bytes = report.encodeToByteArray()
             )
 
-            updateAlert(
-                Alert(getString(Res.string.report_saved)) {
-                    updateAlert(null)
-                }
-            )
+            if (saved != null) {
+                updateAlert(
+                    Alert(getString(Res.string.report_saved)) {
+                        updateAlert(null)
+                    }
+                )
+            }
         }
     }
 

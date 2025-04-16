@@ -18,11 +18,12 @@ enum class Theme {
 }
 
 enum class Model(val value: String) {
+    GPT_4_1("gpt-4.1"),
+    GPT_4_1_MINI("gpt-4.1-mini"),
+    GPT_4_1_NANO("gpt-4.1-nano"),
     GPT_4_O("gpt-4o"),
+    GPT_4_O_MINI("gpt-4o-mini"),
     GPT_4_TURBO("gpt-4-turbo"),
-    GPT_3_5_TURBO("gpt-3.5-turbo"),
-    O_3_MINI("o3-mini"),
-    O_1_MINI("o1-mini"),
     CLAUDE_3_7_SONNET_LATEST("claude-3-7-sonnet-latest"),
     CLAUDE_3_5_SONNET_LATEST("claude-3-5-sonnet-latest"),
     CLAUDE_3_5_HAIKU_LATEST("claude-3-5-haiku-latest"),

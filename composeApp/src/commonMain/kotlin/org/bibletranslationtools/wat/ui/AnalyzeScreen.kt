@@ -155,6 +155,10 @@ class AnalyzeScreen(
                     val correct = (event as AnalyzeEvent.UpdateSelectedWord).value
                     selectedWord = selectedWord?.copy(correct = correct)
                 }
+                is AnalyzeEvent.RefreshSelectedWord -> {
+                    selectedWord = state.singletons.find { it.word == selectedWord?.word }
+                    viewModel.onEvent(AnalyzeEvent.Idle)
+                }
                 else -> Unit
             }
         }

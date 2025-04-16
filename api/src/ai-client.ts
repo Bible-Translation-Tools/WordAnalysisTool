@@ -7,7 +7,14 @@ export default class AiClient {
   private baseUrl: string;
 
   private models = {
-    openai: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo", "o3-mini", "o1-mini"],
+    openai: [
+      "gpt-4.1",
+      "gpt-4.1-mini",
+      "gpt-4.1-nano",
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-4-turbo",
+    ],
     anthropic: [
       "claude-3-7-sonnet-latest",
       "claude-3-5-sonnet-latest",
