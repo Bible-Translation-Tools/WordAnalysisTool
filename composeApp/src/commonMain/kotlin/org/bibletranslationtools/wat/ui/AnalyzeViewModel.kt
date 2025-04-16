@@ -214,7 +214,6 @@ class AnalyzeViewModel(
                     }
 
                     batch.details.error?.let(::updateStatus)
-                    _event.send(RefreshSelectedWord)
                 }.onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
@@ -240,6 +239,8 @@ class AnalyzeViewModel(
 
                 delay(BATCH_REQUEST_DELAY)
             }
+
+            _event.send(RefreshSelectedWord)
 
             updateBatchProgress(-1f)
             updateStatus("Batch results received")
