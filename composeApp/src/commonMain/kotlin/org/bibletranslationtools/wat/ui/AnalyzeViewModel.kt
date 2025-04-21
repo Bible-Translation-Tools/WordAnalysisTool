@@ -74,15 +74,14 @@ sealed class AnalyzeEvent {
     data object Idle : AnalyzeEvent()
     data object BatchWords : AnalyzeEvent()
     data object DeleteBatch : AnalyzeEvent()
-    data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
-    data class UpdateModels(val value: List<String>) : AnalyzeEvent()
-    data class UpdateSorting(val value: WordsSorting) : AnalyzeEvent()
     data object WordsSorted : AnalyzeEvent()
     data object SaveReport : AnalyzeEvent()
-    data class UpdateCorrect(val word: String, val correct: Boolean): AnalyzeEvent()
-    data class UpdateSelectedWord(val value: Boolean?): AnalyzeEvent()
     data object RefreshSelectedWord : AnalyzeEvent()
     data object Logout : AnalyzeEvent()
+    data class UpdateModels(val value: List<String>) : AnalyzeEvent()
+    data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
+    data class UpdateCorrect(val word: String, val correct: Boolean): AnalyzeEvent()
+    data class UpdateSelectedWord(val value: Boolean?): AnalyzeEvent()
 }
 
 enum class WordsSorting {
@@ -125,7 +124,6 @@ class AnalyzeViewModel(
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.BatchWords -> createBatch()
             is AnalyzeEvent.DeleteBatch -> deleteBatch()
-            is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
             is AnalyzeEvent.UpdateCorrect -> updateWordCorrect(event.word, event.correct)
             else -> resetChannel()
@@ -432,7 +430,6 @@ class AnalyzeViewModel(
                 } ?: singleton
             }
         )
-        sortWords(_state.value.sorting)
     }
 
     private fun saveReport() {
@@ -488,79 +485,10 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun sortWords(sort: WordsSorting) {
-        if (_state.value.singletons.isEmpty()) return
-
-        screenModelScope.launch {
-            when (sort) {
-                WordsSorting.ALPHABET -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedBy { it.word.lowercase() }
-                    )
-                }
-
-                WordsSorting.ALPHABET_DESC -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending { it.word.lowercase() }
-                    )
-                }
-
-                WordsSorting.NAME -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.result?.consensus == Consensus.NAME
-                        }
-                    )
-                }
-
-                WordsSorting.LIKELY_CORRECT -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.result?.consensus == Consensus.LIKELY_CORRECT
-                        }
-                    )
-                }
-
-                WordsSorting.LIKELY_INCORRECT -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.result?.consensus == Consensus.LIKELY_INCORRECT
-                        }
-                    )
-                }
-
-                WordsSorting.NEEDS_REVIEW -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.result?.consensus == Consensus.NEEDS_REVIEW
-                        }
-                    )
-                }
-
-                WordsSorting.REVIEWED -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.correct != null
-                        }
-                    )
-                }
-            }
-
-            _event.send(AnalyzeEvent.WordsSorted)
-        }
-    }
-
     private fun updateBatch(batch: Batch?) {
         _state.update {
             it.copy(batch = batch)
         }
-    }
-
-    private fun updateSorting(sort: WordsSorting) {
-        _state.update {
-            it.copy(sorting = sort)
-        }
-        sortWords(sort)
     }
 
     private fun updateSingletons(words: List<SingletonWord>) {

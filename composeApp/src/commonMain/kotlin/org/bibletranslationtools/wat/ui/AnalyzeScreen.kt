@@ -39,7 +39,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -58,6 +57,7 @@ import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
@@ -105,7 +105,6 @@ class AnalyzeScreen(
         }
 
         val navigator = LocalNavigator.currentOrThrow
-        val scope = rememberCoroutineScope()
 
         val state by viewModel.state.collectAsStateWithLifecycle()
         val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
@@ -131,6 +130,8 @@ class AnalyzeScreen(
         } catch (_: Exception) {
             WordsSorting.ALPHABET
         }
+
+        var filteredSingletons by remember { mutableStateOf(state.singletons) }
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
@@ -173,13 +174,8 @@ class AnalyzeScreen(
             viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
         }
 
-        LaunchedEffect(wordsSorting) {
-            val sorting = try {
-                WordsSorting.valueOf(wordsSorting)
-            } catch (_: Exception) {
-                WordsSorting.ALPHABET
-            }
-            viewModel.onEvent(AnalyzeEvent.UpdateSorting(sorting))
+        LaunchedEffect(state.singletons, wordsSorting) {
+            filteredSingletons = filterSingletons(state.singletons, sorting)
         }
 
         LaunchedEffect(state.status) {
@@ -275,7 +271,7 @@ class AnalyzeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
                                 LazyColumn(state = wordsListState) {
-                                    items(items = state.singletons, key = { it.word }) { singleton ->
+                                    items(items = filteredSingletons, key = { it.word }) { singleton ->
                                         SingletonRow(
                                             singleton = singleton,
                                             selected = selectedWord == singleton,
@@ -401,5 +397,20 @@ private fun localizeSorting(sorting: WordsSorting): String {
         WordsSorting.NEEDS_REVIEW -> stringResource(Res.string.review_needed)
         WordsSorting.NAME -> stringResource(Res.string.names)
         WordsSorting.REVIEWED -> stringResource(Res.string.sort_by_reviewed)
+    }
+}
+
+private fun filterSingletons(
+    singletons: List<SingletonWord>,
+    filter: WordsSorting
+): List<SingletonWord> {
+    return when (filter) {
+        WordsSorting.ALPHABET -> singletons.sortedBy { it.word.lowercase() }
+        WordsSorting.ALPHABET_DESC -> singletons.sortedByDescending { it.word.lowercase() }
+        WordsSorting.LIKELY_CORRECT -> singletons.filter { it.result?.consensus == Consensus.LIKELY_CORRECT }
+        WordsSorting.LIKELY_INCORRECT -> singletons.filter { it.result?.consensus == Consensus.LIKELY_INCORRECT }
+        WordsSorting.NEEDS_REVIEW -> singletons.filter { it.result?.consensus == Consensus.NEEDS_REVIEW }
+        WordsSorting.NAME -> singletons.filter { it.result?.consensus == Consensus.NAME }
+        WordsSorting.REVIEWED -> singletons.filter { it.correct != null }
     }
 }
