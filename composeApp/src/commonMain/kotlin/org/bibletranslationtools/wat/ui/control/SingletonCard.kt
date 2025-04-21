@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,12 +47,13 @@ import wordanalysistool.composeapp.generated.resources.names
 import wordanalysistool.composeapp.generated.resources.no
 import wordanalysistool.composeapp.generated.resources.review_needed
 import wordanalysistool.composeapp.generated.resources.scripture_reference
+import wordanalysistool.composeapp.generated.resources.undo
 import wordanalysistool.composeapp.generated.resources.yes
 
 @Composable
 fun SingletonCard(
     word: SingletonWord,
-    onAnswer: (Boolean) -> Unit,
+    onAnswer: (Boolean?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val question = if (word.result?.consensus == Consensus.NAME) {
@@ -168,6 +170,21 @@ fun SingletonCard(
                             )
                         ) {
                             Text(text = answerCorrect)
+                        }
+                    } else if (word.correct != null) {
+                        Button(
+                            onClick = { onAnswer(null) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = stringResource(Res.string.undo))
                         }
                     }
                 }

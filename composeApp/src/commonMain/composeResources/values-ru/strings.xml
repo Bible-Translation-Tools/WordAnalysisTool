@@ -66,4 +66,5 @@
     <string name="resource_type">Тип ресурса</string>
     <string name="creator">Автор</string>
     <string name="fetching_batches">Загрузка проектов...</string>
+    <string name="undo">Отменить</string>
 </resources>

@@ -49,7 +49,7 @@ data class WordRequest(
     @SerialName("batch_id")
     val batchId: String,
     val word: String,
-    val correct: Boolean
+    val correct: Boolean?
 )
 
 @Serializable

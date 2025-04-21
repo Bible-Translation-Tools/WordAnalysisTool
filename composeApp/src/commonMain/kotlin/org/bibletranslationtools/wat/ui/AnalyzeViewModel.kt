@@ -80,7 +80,7 @@ sealed class AnalyzeEvent {
     data object Logout : AnalyzeEvent()
     data class UpdateModels(val value: List<String>) : AnalyzeEvent()
     data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
-    data class UpdateCorrect(val word: String, val correct: Boolean): AnalyzeEvent()
+    data class UpdateCorrect(val word: String, val correct: Boolean?): AnalyzeEvent()
     data class UpdateSelectedWord(val value: Boolean?): AnalyzeEvent()
 }
 
@@ -377,7 +377,7 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateWordCorrect(word: String, correct: Boolean) {
+    private fun updateWordCorrect(word: String, correct: Boolean?) {
         screenModelScope.launch {
             if (_state.value.batch == null) {
                 updateAlert(
