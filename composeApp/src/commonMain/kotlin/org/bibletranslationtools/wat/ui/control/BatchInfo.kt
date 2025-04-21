@@ -136,7 +136,7 @@ fun BatchInfo(singletons: List<SingletonWord>) {
                 fontSize = 16.sp
             )
             Spacer(modifier = Modifier.weight(1f))
-            Text(text = singletons.size.toString())
+            Text(text = "${singletons.count { it.result != null }}/${singletons.size}")
         }
     }
 }

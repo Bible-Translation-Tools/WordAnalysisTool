@@ -31,7 +31,7 @@
     <string name="delete_batch">Удалить результаты</string>
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="report_saved">Отчет сохранен.</string>
-    <string name="total_singletons">Всего слов</string>
+    <string name="total_singletons">Всего обработано</string>
     <string name="likely_correct">Возможно правильно</string>
     <string name="likely_incorrect">Возможно ошибка</string>
     <string name="review_needed">Требуется проверка</string>
