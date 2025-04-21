@@ -36,6 +36,7 @@
     <string name="likely_incorrect">Likely Incorrect</string>
     <string name="review_needed">Review Needed</string>
     <string name="names">Names</string>
+    <string name="name">Name</string>
     <string name="login">Login with WACS</string>
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>

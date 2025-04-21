@@ -36,6 +36,7 @@
     <string name="likely_incorrect">Возможно ошибка</string>
     <string name="review_needed">Требуется проверка</string>
     <string name="names">Имена</string>
+    <string name="name">Имя</string>
     <string name="login">Войти с помощью WACS</string>
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>

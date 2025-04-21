@@ -49,11 +49,17 @@ import wordanalysistool.composeapp.generated.resources.creating_batch
 import wordanalysistool.composeapp.generated.resources.deleting_batch
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
 import wordanalysistool.composeapp.generated.resources.invalid_batch_id
+import wordanalysistool.composeapp.generated.resources.likely_correct
+import wordanalysistool.composeapp.generated.resources.likely_incorrect
+import wordanalysistool.composeapp.generated.resources.name
+import wordanalysistool.composeapp.generated.resources.no
 import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.report_saved
+import wordanalysistool.composeapp.generated.resources.review_needed
 import wordanalysistool.composeapp.generated.resources.token_invalid
 import wordanalysistool.composeapp.generated.resources.updating_word
 import wordanalysistool.composeapp.generated.resources.wrong_model_selected
+import wordanalysistool.composeapp.generated.resources.yes
 
 private const val BATCH_REQUEST_DELAY = 3000L
 private const val BATCH_REQUESTS_LIMIT = 12
@@ -434,13 +440,21 @@ class AnalyzeViewModel(
 
     private fun saveReport() {
         screenModelScope.launch {
+            val yes = getString(Res.string.yes)
+            val no = getString(Res.string.no)
+            val likelyCorrect = getString(Res.string.likely_correct)
+            val likelyIncorrect = getString(Res.string.likely_incorrect)
+            val reviewNeeded = getString(Res.string.review_needed)
+            val name = getString(Res.string.name)
+
             val header = StringBuilder()
             header.append("word,book,chapter,verse,")
             _state.value.models.forEachIndexed { i, model ->
                 header.append("model${i+1}")
                 header.append(",")
             }
-            header.append("consensus\n")
+            header.append("consensus,")
+            header.append("correct\n")
 
             val words = _state.value.singletons.joinToString("\n") { singleton ->
                 val builder = StringBuilder()
@@ -455,15 +469,38 @@ class AnalyzeViewModel(
                 builder.append(",")
 
                 singleton.result?.models?.forEach {
+                    val status = when (it.status) {
+                        WordStatus.INCORRECT -> likelyIncorrect
+                        WordStatus.CORRECT -> likelyCorrect
+                        WordStatus.NAME -> name
+                        else -> ""
+                    }
+
                     builder.append("\"")
                     builder.append(it.model)
                     builder.append("\n")
-                    builder.append(it.status.name)
+                    builder.append(status)
                     builder.append("\"")
                     builder.append(",")
                 }
 
-                builder.append(singleton.result?.consensus?.name)
+                val correct = when (singleton.correct) {
+                    true -> yes
+                    false -> no
+                    else -> ""
+                }
+
+                val consensus = when (singleton.result?.consensus) {
+                    Consensus.LIKELY_CORRECT -> likelyCorrect
+                    Consensus.LIKELY_INCORRECT -> likelyIncorrect
+                    Consensus.NEEDS_REVIEW -> reviewNeeded
+                    Consensus.NAME -> name
+                    null -> ""
+                }
+
+                builder.append(consensus)
+                builder.append(",")
+                builder.append(correct)
                 builder.toString()
             }
 
