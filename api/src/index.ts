@@ -8,6 +8,7 @@ import { jwt, sign } from "hono/jwt";
 import SqlString from "sqlstring";
 import { v4 as uuid4 } from "uuid";
 import AiClient from "./ai-client";
+import { isAdmin } from "./utils";
 import {
   Batch,
   BatchDetails,
@@ -18,6 +19,7 @@ import {
   PublicUser,
   WordResponse,
 } from "./types";
+import { use } from "hono/jsx";
 
 interface AppVariables extends JwtVariables {
   prisma: PrismaClient;
@@ -75,13 +77,10 @@ app.get("/auth/tokens/:state", async (c) => {
     },
   });
 
-  const admins = c.env.WAT_ADMINS.split(",");
-  const admin = admins.includes(user.username);
-
   const payload = {
     username: user.username,
     email: user.email,
-    admin: admin,
+    admin: isAdmin(user.username, c.env),
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
   };
   return c.json({
@@ -228,6 +227,10 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
 
     if (user == null) {
       throw new HTTPException(404, { message: "user not found" });
+    }
+
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
     }
 
     const creator: PublicUser = {
@@ -559,6 +562,10 @@ app.delete("/api/batch/:batch_id", async (c) => {
       throw new HTTPException(404, {
         message: "user not found",
       });
+    }
+
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
     }
 
     // TODO Delete only by current user (AND user_id = ? - user.id)
