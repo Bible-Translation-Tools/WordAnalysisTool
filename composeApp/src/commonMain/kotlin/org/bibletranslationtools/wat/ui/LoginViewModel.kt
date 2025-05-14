@@ -72,7 +72,6 @@ class LoginViewModel(
         }
     }
 
-    @OptIn(ExperimentalUuidApi::class)
     private fun authorize() {
         screenModelScope.launch {
             watApi.getAuthUrl()
@@ -95,8 +94,7 @@ class LoginViewModel(
         fetchJob = screenModelScope.launch {
             updateProgress(true)
 
-            var token: Token? = null
-            while (token == null) {
+            while (true) {
                 watApi.getAuthToken()
                     .onSuccess {
                         tokenToUser(it)

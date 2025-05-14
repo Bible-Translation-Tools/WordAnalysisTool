@@ -19,6 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,11 @@ fun TopNavigationBar(
 ) {
     val navigator = LocalNavigator.currentOrThrow
     var showDropDownMenu by remember { mutableStateOf(false) }
+    var actionsState by remember { mutableStateOf(extraAction) }
+
+    LaunchedEffect(extraAction) {
+        actionsState = extraAction
+    }
 
     TopAppBar(
         title = {
@@ -111,7 +117,7 @@ fun TopNavigationBar(
                         }
                     )
                 }
-                extraAction.forEach {
+                actionsState.forEach {
                     DropdownMenuItem(
                         text = { Text(it.title) },
                         leadingIcon = {

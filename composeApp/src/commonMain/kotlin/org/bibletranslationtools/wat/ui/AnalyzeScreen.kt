@@ -22,10 +22,10 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -140,7 +140,11 @@ class AnalyzeScreen(
 
         var showStatuses by remember { mutableStateOf(false) }
 
-        val localizedSorting = WordsSorting.entries.associate { it to localizeSorting(it) }
+        val localizedSorting = WordsSorting.entries.associateWith { localizeSorting(it) }
+        var adminActions by remember { mutableStateOf<List<ExtraAction>>(emptyList()) }
+
+        val processWordsText = stringResource(Res.string.process_words)
+        val deleteBatchText = stringResource(Res.string.delete_batch)
 
         LaunchedEffect(event) {
             when (event) {
@@ -190,34 +194,50 @@ class AnalyzeScreen(
             }
         }
 
+        LaunchedEffect(user) {
+            adminActions = if (user.admin) {
+                listOf(
+                    ExtraAction(
+                        title = processWordsText,
+                        icon = Icons.Default.Sync,
+                        onClick = {
+                            viewModel.onEvent(AnalyzeEvent.BatchWords)
+                        }
+                    ),
+                    ExtraAction(
+                        title = deleteBatchText,
+                        icon = Icons.Default.Delete,
+                        onClick = {
+                            viewModel.onEvent(AnalyzeEvent.DeleteBatch)
+                        }
+                    )
+                )
+            } else emptyList()
+        }
+
         Scaffold(
             topBar = {
                 TopNavigationBar(
                     title = "[${language.ietfCode}] ${language.name} - $resourceType",
                     user = user,
                     page = PageType.ANALYZE,
-                    ExtraAction(
-                        title = stringResource(Res.string.delete_batch),
-                        icon = Icons.Default.Refresh,
-                        onClick = {
-                            viewModel.onEvent(AnalyzeEvent.DeleteBatch)
-                        }
-                    ),
-                    ExtraAction(
-                        title = stringResource(Res.string.save_report),
-                        icon = Icons.Default.Save,
-                        onClick = {
-                            viewModel.onEvent(AnalyzeEvent.SaveReport)
-                        }
-                    ),
-                    ExtraAction(
-                        title = stringResource(Res.string.logout),
-                        icon = Icons.AutoMirrored.Filled.Logout,
-                        onClick = {
-                            accessToken = null
-                            navigator.popUntilRoot()
-                        }
-                    )
+                    extraAction = (adminActions + listOf(
+                        ExtraAction(
+                            title = stringResource(Res.string.save_report),
+                            icon = Icons.Default.Save,
+                            onClick = {
+                                viewModel.onEvent(AnalyzeEvent.SaveReport)
+                            }
+                        ),
+                        ExtraAction(
+                            title = stringResource(Res.string.logout),
+                            icon = Icons.AutoMirrored.Filled.Logout,
+                            onClick = {
+                                accessToken = null
+                                navigator.popUntilRoot()
+                            }
+                        )
+                    )).toTypedArray()
                 )
             }
         ) { paddingValues ->
@@ -248,13 +268,6 @@ class AnalyzeScreen(
                                             progress = state.batchProgress,
                                             modifier = Modifier.fillMaxWidth()
                                         )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = { viewModel.onEvent(AnalyzeEvent.BatchWords) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(stringResource(Res.string.process_words))
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     ComboBox(

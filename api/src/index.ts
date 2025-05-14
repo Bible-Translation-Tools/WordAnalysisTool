@@ -63,7 +63,7 @@ app.get("/auth/tokens/:state", async (c) => {
   });
 
   if (user === null) {
-    throw new HTTPException(404, { message: "wrong or expired state" });
+    throw new HTTPException(400, { message: "wrong or expired state" });
   }
 
   await prisma.user.updateMany({
@@ -75,9 +75,13 @@ app.get("/auth/tokens/:state", async (c) => {
     },
   });
 
+  const admins = c.env.WAT_ADMINS.split(",");
+  const admin = admins.includes(user.username);
+
   const payload = {
     username: user.username,
     email: user.email,
+    admin: admin,
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
   };
   return c.json({
@@ -95,7 +99,7 @@ app.get("/auth/callback", async (c) => {
     };
 
     if (params.code === undefined || params.state === undefined) {
-      throw new HTTPException(404, { message: "wrong parameters" });
+      throw new HTTPException(400, { message: "wrong parameters" });
     }
 
     const tokenRes = await fetch(c.env.AUTH_URL, {

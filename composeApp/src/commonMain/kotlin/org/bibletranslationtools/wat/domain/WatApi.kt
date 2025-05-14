@@ -101,12 +101,14 @@ data class WordResponse(
 private data class TokenUser(
     val username: String,
     val email: String,
+    val admin: Boolean
 )
 
 @Serializable
 data class User(
     val username: String,
     val email: String,
+    val admin: Boolean,
     val token: Token
 ) {
     companion object {
@@ -114,9 +116,12 @@ data class User(
             val jsonObject: JsonObject = JWT.from(token.accessToken).claims
             val tokenUser = JsonLenient.decodeFromJsonElement<TokenUser>(jsonObject)
 
+            println(tokenUser)
+
             return User(
                 username = tokenUser.username,
                 email = tokenUser.email,
+                admin = tokenUser.admin,
                 token = token
             )
         }
