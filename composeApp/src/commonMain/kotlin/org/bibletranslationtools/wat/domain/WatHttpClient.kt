@@ -41,7 +41,10 @@ internal fun createAiHttpClient(
             socketTimeoutMillis = 30000
         }
         install(ContentNegotiation) {
-            register(ContentType.Application.Json, KotlinxSerializationConverter(JsonLenient))
+            register(
+                ContentType.Application.Json,
+                KotlinxSerializationConverter(JsonLenient)
+            )
         }
     }
     return HttpClient(engine, configuration)

@@ -75,6 +75,7 @@ import org.bibletranslationtools.wat.ui.control.StatusBox
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
@@ -143,9 +144,6 @@ class AnalyzeScreen(
         val localizedSorting = WordsSorting.entries.associateWith { localizeSorting(it) }
         var adminActions by remember { mutableStateOf<List<ExtraAction>>(emptyList()) }
 
-        val processWordsText = stringResource(Res.string.process_words)
-        val deleteBatchText = stringResource(Res.string.delete_batch)
-
         LaunchedEffect(event) {
             when (event) {
                 is AnalyzeEvent.WordsSorted -> {
@@ -195,6 +193,9 @@ class AnalyzeScreen(
         }
 
         LaunchedEffect(user) {
+            val processWordsText = getString(Res.string.process_words)
+            val deleteBatchText = getString(Res.string.delete_batch)
+
             adminActions = if (user.admin) {
                 listOf(
                     ExtraAction(

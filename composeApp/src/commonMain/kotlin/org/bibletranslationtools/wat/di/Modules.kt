@@ -1,6 +1,5 @@
 package org.bibletranslationtools.wat.di
 
-import com.russhwolf.settings.ExperimentalSettingsApi
 import io.github.mxaln.kotlin.document.store.core.KotlinDocumentStore
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Verse
@@ -25,7 +24,6 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-@OptIn(ExperimentalSettingsApi::class)
 val sharedModule = module {
     single { KotlinDocumentStore(dbStore) }
     singleOf(::WordDataSourceImpl).bind<WordDataSource>()

@@ -116,8 +116,6 @@ data class User(
             val jsonObject: JsonObject = JWT.from(token.accessToken).claims
             val tokenUser = JsonLenient.decodeFromJsonElement<TokenUser>(jsonObject)
 
-            println(tokenUser)
-
             return User(
                 username = tokenUser.username,
                 email = tokenUser.email,

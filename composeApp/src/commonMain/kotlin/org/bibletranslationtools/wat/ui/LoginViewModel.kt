@@ -26,7 +26,6 @@ import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.token_invalid
 import wordanalysistool.composeapp.generated.resources.unknown_error
-import kotlin.uuid.ExperimentalUuidApi
 
 data class LoginState(
     val user: User? = null,
@@ -114,7 +113,16 @@ class LoginViewModel(
 
             watApi.verifyUser(token.accessToken)
                 .onSuccess {
-                    updateUser(User.fromToken(token))
+                    try {
+                        updateUser(User.fromToken(token))
+                    } catch (e: Exception) {
+                        updateAlert(
+                            Alert(getString(Res.string.token_invalid)) {
+                                updateAlert(null)
+                            }
+                        )
+                        _event.send(LoginEvent.TokenInvalid)
+                    }
                 }
                 .onError {
                     when (it.type) {

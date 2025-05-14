@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -61,7 +61,7 @@ fun <T> ComboBox(
             enabled = isEnabled(),
             modifier = Modifier.fillMaxWidth()
                 .menuAnchor(
-                    ExposedDropdownMenuAnchorType.PrimaryEditable,
+                    MenuAnchorType.PrimaryEditable,
                     true
                 ),
             readOnly = true,
