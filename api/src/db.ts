@@ -105,8 +105,6 @@ export default class DbHelper {
         .map((m) => SqlString.escape(m))
         .join()}) AND w.batch_id = ${SqlString.escape(batchId)}`;
 
-    console.warn(sql);
-
     await this.prisma.$executeRawUnsafe(sql);
 
     return errorDetails;
