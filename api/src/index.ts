@@ -18,7 +18,6 @@ import {
 } from "./types";
 import { SQL_BATCH_LIMIT, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
-import { Model, Word } from "@prisma/client";
 import { stream } from "hono/streaming";
 
 interface AppVariables extends JwtVariables {
@@ -82,6 +81,7 @@ app.get("/auth/tokens/:state", async (c) => {
     admin: isAdmin(user.username, c.env),
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
   };
+
   return c.json({
     accessToken: await sign(payload, c.env.JWT_SECRET_KEY),
   });
