@@ -11,6 +11,7 @@ generator client {
 model Batch {
     id            String   @id
     ietf_code     String
+    language      String   @default("")
     resource_type String
     pending       Boolean  @default(false)
     total_pending Int

@@ -28,6 +28,7 @@
     <string name="preparing_for_analysis">Поготовка к анализу...</string>
     <string name="models">Модели</string>
     <string name="did_not_respond">Нет ответа</string>
+    <string name="cancel_batch">Отменить получение результатов</string>
     <string name="delete_batch">Удалить результаты</string>
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="report_saved">Отчет сохранен.</string>
@@ -41,6 +42,8 @@
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
     <string name="token_invalid">Срок действия кода доступа истек. Пожалуйста, войдите снова.</string>
+    <string name="batch_not_cancelled">Не удалось отменить получение результатов. Попробуйте еще раз.</string>
+    <string name="batch_cancelled">Получение результатов успешно отменено.</string>
     <string name="batch_not_deleted">Не удалось удалить результаты. Попробуйте еще раз.</string>
     <string name="batch_deleted">Результаты успешно удалены.</string>
     <string name="process_words">Получить результаты</string>
@@ -55,6 +58,7 @@
     <string name="incorrect">Неверно</string>
     <string name="yes">Да</string>
     <string name="no">Нет</string>
+    <string name="cancelling_batch">Отменяем получение результатов...</string>
     <string name="deleting_batch">Удаление результатов...</string>
     <string name="updating_word">Обновление слова...</string>
     <string name="invalid_batch_id">Неверный идентификатор.</string>

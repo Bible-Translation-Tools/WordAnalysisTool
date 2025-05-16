@@ -1,0 +1,3 @@
+-- Migration number: 0002 	 2025-05-15T15:51:26.966Z
+ALTER TABLE Batches
+ADD COLUMN language TEXT NOT NULL DEFAULT '';

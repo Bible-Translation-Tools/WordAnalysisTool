@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Delete
@@ -79,6 +80,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.cancel_batch
 import wordanalysistool.composeapp.generated.resources.delete_batch
 import wordanalysistool.composeapp.generated.resources.likely_correct
 import wordanalysistool.composeapp.generated.resources.likely_incorrect
@@ -194,6 +196,7 @@ class AnalyzeScreen(
 
         LaunchedEffect(user) {
             val processWordsText = getString(Res.string.process_words)
+            val cancelBatchText = getString(Res.string.cancel_batch)
             val deleteBatchText = getString(Res.string.delete_batch)
 
             adminActions = if (user.admin) {
@@ -203,6 +206,13 @@ class AnalyzeScreen(
                         icon = Icons.Default.Sync,
                         onClick = {
                             viewModel.onEvent(AnalyzeEvent.BatchWords)
+                        }
+                    ),
+                    ExtraAction(
+                        title = cancelBatchText,
+                        icon = Icons.Default.Cancel,
+                        onClick = {
+                            viewModel.onEvent(AnalyzeEvent.CancelBatch)
                         }
                     ),
                     ExtraAction(

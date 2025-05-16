@@ -5,6 +5,7 @@ This is WordAnalysisTool targeting Android, Web, Desktop.
 The app uses cloudflare as an API. Here are the secrets that should be created:
 
 `JWT_SECRET_KEY` - Secret key to sign JWT access tokens  
+`WAT_ADMINS` - Comma separated list of admin users  
 `CLOUDFLARE_ID` - Cloudflare account ID  
 
 `OPENAI_API_KEY` - [OpenAI API key](https://platform.openai.com)  
@@ -31,6 +32,14 @@ In `api/wrangler.jsonc` file change `database_id` to your database id.
 Create database tables in cloudflare by running:
 
 `npx wrangler d1 execute batches --remote --file=./schema.sql`
+
+Run database migrations after that:
+
+`npx wrangler d1 migrations apply batches --remote`
+
+Add migrations:
+
+`npx wrangler d1 migrations create batches <MIGRATION_NAME>`
 
 # Build
 

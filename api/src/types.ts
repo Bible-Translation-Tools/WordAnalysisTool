@@ -61,3 +61,17 @@ export enum BatchStatus {
   COMPLETE = "complete",
   ERRORED = "errored",
 }
+
+export type WordId = {
+  id: number;
+};
+
+export type ModelResult = {
+  model: string;
+  results: ChatResponse[];
+};
+
+export type SplitBatchJson = {
+  left: string;
+  right: string;
+};

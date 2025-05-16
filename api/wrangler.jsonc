@@ -13,6 +13,14 @@
     "observability": {
         "enabled": true
     },
+    "limits": {
+        "cpu_ms": 60000, // default is 30000 (30 seconds)
+    },
+    "triggers": {
+        "crons": [
+            "* * * * *", // run cron job every 5 minutes
+        ]
+    },
     /**
      * Smart Placement
      * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -24,26 +32,6 @@
      * databases, object storage, AI inference, real-time communication and more.
      * https://developers.cloudflare.com/workers/runtime-apis/bindings/
      */
-    "queues": {
-        "producers": [
-            {
-                "binding": "WAT_QUEUE",
-                "queue": "wat-queue",
-                "delivery_delay": 0
-            }
-        ],
-        "consumers": [
-            {
-                "queue": "wat-queue",
-                "max_batch_size": 1,
-                "max_batch_timeout": 5,
-                "max_retries": 0,
-                // "retry_delay": 0,
-                // "dead_letter_queue": "errors-queue"
-                // "max_concurrency": 1,
-            }
-        ]
-    },
     "d1_databases": [
         {
             "binding": "DB",

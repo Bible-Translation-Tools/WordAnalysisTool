@@ -83,10 +83,13 @@ export default class AiClient {
 
     try {
       let result = response.choices[0].message.content || "[]";
-      result = result.replace("```json", "");
-      result = result.replace("```", "");
-      result = result.trim();
-      return JSON.parse(result);
+      const json = this.extractJson(result);
+
+      if (json == null) {
+        throw new Error("invalid json response");
+      }
+
+      return JSON.parse(json);
     } catch (error) {
       console.error(error);
       console.error(response.choices[0].message.content);
@@ -118,5 +121,21 @@ export default class AiClient {
     } else {
       return null;
     }
+  }
+
+  private extractJson(json: string): string | null {
+    const startIndex = json.indexOf("[");
+
+    if (startIndex === -1) {
+      return null; // No opening bracket found
+    }
+
+    const endIndex = json.lastIndexOf("]") + 1;
+
+    if (endIndex <= startIndex) {
+      return null; // No corresponding closing bracket or it appears before the start
+    }
+
+    return json.substring(startIndex, endIndex);
   }
 }
