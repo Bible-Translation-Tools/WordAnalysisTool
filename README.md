@@ -2,22 +2,27 @@ This is WordAnalysisTool targeting Android, Web, Desktop.
 
 # Secrets
 
-The app uses cloudflare as an API. Here are the secrets that should be created:
+The app uses cloudflare as an API. Run the following command to add a secret and enter corresponding secret value.
+
+`npx wrangler secret put <SECRET_NAME>`
+
+Here are the secrets that should be created:
 
 `JWT_SECRET_KEY` - Secret key to sign JWT access tokens  
 `WAT_ADMINS` - Comma separated list of admin users  
 `CLOUDFLARE_ID` - Cloudflare account ID  
+`DATABASE_URL` - Database connection url (currently Supabase)
 
 `OPENAI_API_KEY` - [OpenAI API key](https://platform.openai.com)  
 `QWEN_API_KEY` - [Alibaba API key](https://home.console.alibabacloud.com)  
 `CLAUDEAI_API_KEY` - [Anthropic API key](https://console.anthropic.com)  
-`MISTRAL_API_KEY` - [Mistral AI API key](https://console.mistral.ai)  
+`MISTRAL_API_KEY` - [Mistral AI API key](https://console.mistral.ai)
 
 WACS client configuration [obtain here](https://content.bibletranslationtools.org/user/settings/applications):
 
 `WACS_CLIENT` - WACS Client ID  
 `WACS_SECRET` - WACS Client Secret  
-`WACS_CALLBACK` - WACS Redirect Uri  
+`WACS_CALLBACK` - WACS Redirect Uri
 
 # Configuration
 
@@ -27,19 +32,15 @@ To build with Api and WACS client configuration, first run:
 
 # Database
 
-In `api/wrangler.jsonc` file change `database_id` to your database id.
+Create schema on remote database by running:
 
-Create database tables in cloudflare by running:
+`npm run db:migrate`
 
-`npx wrangler d1 execute batches --remote --file=./schema.sql`
+To add new migrations, edit `api/src/db/schema.ts` and run:
 
-Run database migrations after that:
+`npm run db:generate`
 
-`npx wrangler d1 migrations apply batches --remote`
-
-Add migrations:
-
-`npx wrangler d1 migrations create batches <MIGRATION_NAME>`
+Then use migrate command again
 
 # Build
 
@@ -52,7 +53,7 @@ To build desktop clients (on a corresponding OS only) run:
 
 `./gradlew packageDmg` - for Mac  
 `./gradlew packageMsi` - for Windows  
-`./gradlew packageDeb` - for Linux  
+`./gradlew packageDeb` - for Linux
 
 To build android client run:
 

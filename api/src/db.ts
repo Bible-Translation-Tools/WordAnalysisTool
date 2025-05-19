@@ -1,32 +1,37 @@
 import { SQL_BATCH_LIMIT } from "./constants";
-import { PrismaD1 } from "@prisma/adapter-d1";
-import { PrismaClient } from "@prisma/client";
-import SqlString from "sqlstring";
-import { ModelResult, WordId } from "./types";
+import { ModelResult } from "./types";
+import * as schema from "./db/schema";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
 export default class DbHelper {
-  private prisma: PrismaClient;
+  private db;
 
-  constructor(database: D1Database) {
-    const adapter = new PrismaD1(database);
-    this.prisma = new PrismaClient({ adapter });
+  constructor(env: CloudflareBindings) {
+    const client = postgres(env.DATABASE_URL);
+    this.db = drizzle(client, { schema });
   }
 
-  getPrisma(): PrismaClient {
-    return this.prisma;
+  getDb() {
+    return this.db;
   }
 
-  async insertOtUpdateWords(words: string[], batchId: string) {
+  async insertWords(words: string[], batchId: string) {
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
-      const wordValues = batch.map((item) => {
-        return `(${SqlString.escape(item)},${SqlString.escape(batchId)})`;
-      });
+      const wordValues = batch.map((word) => ({
+        word: word,
+        batchId: batchId,
+      }));
 
       if (wordValues.length > 0) {
-        await this.prisma.$executeRawUnsafe(
-          `INSERT OR REPLACE INTO Words (word, batch_id) VALUES ${wordValues.join()}`
-        );
+        await this.db
+          .insert(schema.wordsTable)
+          .values(wordValues)
+          .onConflictDoNothing({
+            target: [schema.wordsTable.word, schema.wordsTable.batchId],
+          });
       }
     }
   }
@@ -36,33 +41,43 @@ export default class DbHelper {
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
       if (batch.length > 0) {
-        const escaped = batch.map((w) => SqlString.escape(w));
-        const result: WordId[] = await this.prisma.$queryRawUnsafe(
-          `SELECT id FROM Words WHERE batch_id = ${SqlString.escape(
-            batchId
-          )} AND word IN (${escaped.join(",")})`
-        );
-        wordIds.push(...result.map((w) => w.id));
+        const result = await this.db
+          .select({
+            id: schema.wordsTable.id,
+          })
+          .from(schema.wordsTable)
+          .where(
+            and(
+              eq(schema.wordsTable.batchId, batchId),
+              inArray(schema.wordsTable.word, batch)
+            )
+          );
+
+        wordIds.push(...result.map((row) => row.id));
       }
     }
     return wordIds;
   }
 
-  async insertOrUpdateModels(wordIds: number[], models: string[]) {
+  async insertModels(wordIds: number[], models: string[]) {
     const limit = Math.round(SQL_BATCH_LIMIT / models.length);
     for (let i = 0; i < wordIds.length; i += limit) {
       const wordIdBatch = wordIds.slice(i, i + limit);
       if (wordIdBatch.length > 0) {
         const modelValuesBatch = wordIdBatch.flatMap((wordId) =>
-          models.map((model) => {
-            return `(${SqlString.escape(model)},-1,${wordId})`;
-          })
+          models.map((model) => ({
+            model: model,
+            status: -1,
+            wordId: wordId,
+          }))
         );
-
         if (modelValuesBatch.length > 0) {
-          await this.prisma.$executeRawUnsafe(
-            `INSERT OR REPLACE INTO Models (model, status, word_id) VALUES ${modelValuesBatch.join()}`
-          );
+          await this.db
+            .insert(schema.modelsTable)
+            .values(modelValuesBatch)
+            .onConflictDoNothing({
+              target: [schema.modelsTable.model, schema.modelsTable.wordId],
+            });
         }
       }
     }
@@ -73,55 +88,75 @@ export default class DbHelper {
     batchId: string,
     results: ModelResult[]
   ): Promise<string | null> {
-    let errorDetails = null;
-
-    let sql = `UPDATE Models AS m SET status = CASE w.word `;
-
-    const params = [];
-    let caseStatements = "";
-    let wordList = [];
-    let modelList = [];
+    let error = null;
+    const wordsSet = new Set(words);
+    const modelNames: string[] = [];
+    const wordStatusMap = new Map<string, number>();
 
     for (const modelResult of results) {
       const modelName = modelResult.model;
-      modelList.push(modelName);
+      if (!modelNames.includes(modelName)) {
+        modelNames.push(modelName);
+      }
+
       for (const result of modelResult.results) {
         const word = result.word.trim();
-        if (words.includes(word)) {
-          const escapedWord = SqlString.escape(word);
-          const escapedStatus = SqlString.escape(result.status);
-
-          caseStatements += `WHEN ${escapedWord} THEN ${escapedStatus} `;
-          wordList.push(word);
+        if (wordsSet.has(word)) {
+          wordStatusMap.set(word, result.status);
         } else {
-          errorDetails = `model ${modelName} returned wrong word result: ${word}`;
+          error = `Model "${modelName}" returned a result for word "${word}" which is not in the allowed word list.`;
         }
       }
     }
 
-    sql +=
-      caseStatements +
-      ` ELSE m.status END FROM Words AS w WHERE m.word_id = w.id AND m.model IN (${modelList
-        .map((m) => SqlString.escape(m))
-        .join()}) AND w.batch_id = ${SqlString.escape(batchId)}`;
+    if (modelNames.length === 0 || wordStatusMap.size === 0) {
+      return error;
+    }
 
-    await this.prisma.$executeRawUnsafe(sql);
+    const caseWhenParts: Array<ReturnType<typeof sql>> = [];
+    for (const [word, status] of wordStatusMap.entries()) {
+      caseWhenParts.push(sql`WHEN ${word} THEN ${status}`);
+    }
 
-    return errorDetails;
+    const caseWhenFragment = sql.join(caseWhenParts, sql` `);
+
+    await this.db
+      .update(schema.modelsTable)
+      .set({
+        status: sql`CASE ${schema.wordsTable.word} ${caseWhenFragment} ELSE ${schema.modelsTable.status} END`,
+      })
+      .from(schema.wordsTable)
+      .where(
+        and(
+          eq(schema.modelsTable.wordId, schema.wordsTable.id),
+          inArray(schema.modelsTable.model, modelNames),
+          eq(schema.wordsTable.batchId, batchId)
+        )
+      );
+
+    return error;
   }
 
   async getCompletedWordsCount(batchId: string): Promise<number> {
-    return await this.prisma.word.count({
-      where: {
-        batch_id: batchId,
-        models: {
-          none: {
-            status: {
-              lte: -1,
-            },
-          },
-        },
-      },
-    });
+    const result = await this.db
+      .select({
+        count: sql<number>`count(${schema.wordsTable.id})`,
+      })
+      .from(schema.wordsTable)
+      .leftJoin(
+        schema.modelsTable,
+        and(
+          eq(schema.wordsTable.id, schema.modelsTable.wordId),
+          lte(schema.modelsTable.status, -1)
+        )
+      )
+      .where(
+        and(
+          eq(schema.wordsTable.batchId, batchId),
+          isNull(schema.modelsTable.id)
+        )
+      );
+
+    return result[0].count;
   }
 }

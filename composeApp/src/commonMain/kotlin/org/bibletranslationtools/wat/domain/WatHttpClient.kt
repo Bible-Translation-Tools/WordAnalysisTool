@@ -36,9 +36,9 @@ internal fun createAiHttpClient(
             exponentialDelay()
         }
         install(HttpTimeout) {
-            requestTimeoutMillis = 60000
-            connectTimeoutMillis = 60000
-            socketTimeoutMillis = 60000
+            requestTimeoutMillis = 360000
+            connectTimeoutMillis = 360000
+            socketTimeoutMillis = 360000
         }
         install(ContentNegotiation) {
             register(
