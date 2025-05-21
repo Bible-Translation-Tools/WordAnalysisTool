@@ -4,7 +4,7 @@
  */
 {
     "$schema": "node_modules/wrangler/config-schema.json",
-    "name": "wat-worker",
+    "name": "word-analysis-tool",
     "main": "src/index.ts",
     "compatibility_date": "2025-03-13",
     "compatibility_flags": [
@@ -46,7 +46,7 @@
     "vars": {
         "AUTH_URL": "https://content.bibletranslationtools.org/login/oauth/access_token",
         "WACS_API": "https://content.bibletranslationtools.org/api/v1",
-        "WACS_CALLBACK": "https://wat-worker.mxaln.workers.dev/auth/callback"
+        "WACS_CALLBACK": "https://word-analysis-tool.wycliffe-associates-account.workers.dev/auth/callback"
     },
     /**
      * Note: Use secrets to store sensitive data.
