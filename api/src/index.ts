@@ -666,113 +666,121 @@ export default {
     env: CloudflareBindings,
     ctx: ExecutionContext
   ) {
-    const client = new AiClient(env);
-    const dbHelper = new DbHelper(env);
-    const batch = await dbHelper.getDb().query.batchesTable.findFirst({
-      where: eq(batchesTable.pending, true),
-      orderBy: [asc(batchesTable.createdAt)],
-    });
-
-    if (batch) {
-      const batchId = batch.id;
-      let errorDetails: string | null = null;
-
-      const words = await dbHelper.getDb().query.wordsTable.findMany({
-        where: (words, { and, eq }) =>
-          and(
-            eq(words.batchId, batchId),
-            exists(
-              dbHelper
-                .getDb()
-                .select({ id: modelsTable.id })
-                .from(modelsTable)
-                .where(
-                  and(
-                    eq(modelsTable.wordId, words.id),
-                    eq(modelsTable.status, -1)
-                  )
-                )
-            )
-          ),
-        with: {
-          models: true,
-        },
-        limit: WORDS_PER_BATCH,
+    try {
+      const client = new AiClient(env);
+      const dbHelper = new DbHelper(env);
+      const batch = await dbHelper.getDb().query.batchesTable.findFirst({
+        where: eq(batchesTable.pending, true),
+        orderBy: [asc(batchesTable.createdAt)],
       });
 
-      if (words.length > 0) {
-        interface TmpModel {
-          model: string;
-          words: { word: string }[];
-        }
+      if (batch) {
+        const batchId = batch.id;
+        let errorDetails: string | null = null;
 
-        const models = words.reduce((acc: TmpModel[], wordObj) => {
-          wordObj.models.forEach((modelObj) => {
-            const existingModel = acc.find((m) => m.model === modelObj.model);
-            if (existingModel) {
-              existingModel.words.push({ word: wordObj.word });
-            } else {
-              acc.push({
-                model: modelObj.model,
-                words: [{ word: wordObj.word }],
-              });
+        const words = await dbHelper.getDb().query.wordsTable.findMany({
+          where: (words, { and, eq }) =>
+            and(
+              eq(words.batchId, batchId),
+              exists(
+                dbHelper
+                  .getDb()
+                  .select({ id: modelsTable.id })
+                  .from(modelsTable)
+                  .where(
+                    and(
+                      eq(modelsTable.wordId, words.id),
+                      eq(modelsTable.status, -1)
+                    )
+                  )
+              )
+            ),
+          with: {
+            models: true,
+          },
+          limit: WORDS_PER_BATCH,
+        });
+
+        if (words.length > 0) {
+          interface TmpModel {
+            model: string;
+            words: { word: string }[];
+          }
+
+          const models = words.reduce((acc: TmpModel[], wordObj) => {
+            wordObj.models.forEach((modelObj) => {
+              const existingModel = acc.find((m) => m.model === modelObj.model);
+              if (existingModel) {
+                existingModel.words.push({ word: wordObj.word });
+              } else {
+                acc.push({
+                  model: modelObj.model,
+                  words: [{ word: wordObj.word }],
+                });
+              }
+            });
+            return acc;
+          }, []);
+
+          const modelsResults: ModelResult[] = [];
+          let prompt = `Language: ${batch.language}. Words: ${words
+            .map((w) => w.word)
+            .join(", ")}`;
+
+          for (const model of models) {
+            try {
+              // const results = words.map((w) => {
+              //   const resp: ChatResponse = {
+              //     word: w.word,
+              //     status: 1,
+              //   };
+              //   return resp;
+              // });
+              const results = await client.chat(model.model, prompt);
+              if (results !== null) {
+                const modelResult: ModelResult = {
+                  model: model.model,
+                  results: results,
+                };
+                modelsResults.push(modelResult);
+              } else {
+                errorDetails = `model ${model.model} returned invalid json`;
+              }
+            } catch (error: any) {
+              errorDetails = `model ${model.model} failed. ${
+                error.message || error
+              }`;
             }
-          });
-          return acc;
-        }, []);
+          }
 
-        const modelsResults: ModelResult[] = [];
-        let prompt = `Language: ${batch.language}. Words: ${words
-          .map((w) => w.word)
-          .join(", ")}`;
+          const updateErrorDetails = await dbHelper.updateModelResults(
+            words.map((w) => w.word),
+            batchId,
+            modelsResults
+          );
 
-        for (const model of models) {
-          try {
-            // const results = words.map((w) => {
-            //   const resp: ChatResponse = {
-            //     word: w.word,
-            //     status: 1,
-            //   };
-            //   return resp;
-            // });
-            const results = await client.chat(model.model, prompt);
-            if (results !== null) {
-              const modelResult: ModelResult = {
-                model: model.model,
-                results: results,
-              };
-              modelsResults.push(modelResult);
-            } else {
-              errorDetails = `model ${model.model} returned invalid json`;
-            }
-          } catch (error: any) {
-            errorDetails = `model ${model.model} failed. ${
-              error.message || error
-            }`;
+          if (updateErrorDetails) {
+            errorDetails = updateErrorDetails;
           }
         }
 
-        errorDetails = await dbHelper.updateModelResults(
-          words.map((w) => w.word),
-          batchId,
-          modelsResults
-        );
+        const toUpdate: any = {
+          error: errorDetails,
+          updatedAt: new Date(),
+        };
+
+        if (words.length == 0) {
+          toUpdate.pending = false;
+        }
+
+        await dbHelper
+          .getDb()
+          .update(batchesTable)
+          .set(toUpdate)
+          .where(eq(batchesTable.id, batchId));
       }
-
-      const toUpdate: any = {
-        error: errorDetails,
-        updatedAt: new Date(),
-      };
-
-      if (words.length == 0) {
-        toUpdate.pending = false;
-      }
-
-      await dbHelper
-        .getDb()
-        .update(batchesTable)
-        .set(toUpdate)
-        .where(eq(batchesTable.id, batchId));
+    } catch (error) {
+      console.log(error);
     }
   },
 };
