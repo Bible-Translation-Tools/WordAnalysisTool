@@ -15,20 +15,21 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
-import org.bibletranslationtools.wat.domain.WatAiApi
+import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.token_invalid
-import kotlin.uuid.ExperimentalUuidApi
+import wordanalysistool.composeapp.generated.resources.unknown_error
 
 data class LoginState(
     val user: User? = null,
-    val alert: String? = null,
+    val alert: Alert? = null,
     val progress: Boolean = false
 )
 
@@ -44,7 +45,7 @@ sealed class LoginEvent {
 }
 
 class LoginViewModel(
-    private val watAiApi: WatAiApi
+    private val watApi: WatApi
 ) : ScreenModel {
     private var _state = MutableStateFlow(LoginState())
     val state: StateFlow<LoginState> = _state
@@ -70,15 +71,18 @@ class LoginViewModel(
         }
     }
 
-    @OptIn(ExperimentalUuidApi::class)
     private fun authorize() {
         screenModelScope.launch {
-            watAiApi.getAuthUrl()
+            watApi.getAuthUrl()
                 .onSuccess {
                     _event.send(LoginEvent.OnAuthOpen(it))
                 }
                 .onError {
-                    updateAlert(it.description)
+                    updateAlert(
+                        Alert(it.description ?: getString(Res.string.unknown_error)) {
+                            updateAlert(null)
+                        }
+                    )
                 }
         }
     }
@@ -89,9 +93,8 @@ class LoginViewModel(
         fetchJob = screenModelScope.launch {
             updateProgress(true)
 
-            var token: Token? = null
-            while (token == null) {
-                watAiApi.getAuthToken()
+            while (true) {
+                watApi.getAuthToken()
                     .onSuccess {
                         tokenToUser(it)
                         fetchJob?.cancel()
@@ -108,17 +111,34 @@ class LoginViewModel(
         screenModelScope.launch {
             updateProgress(true)
 
-            watAiApi.verifyUser(token.accessToken)
+            watApi.verifyUser(token.accessToken)
                 .onSuccess {
-                    updateUser(User.fromToken(token))
+                    try {
+                        updateUser(User.fromToken(token))
+                    } catch (e: Exception) {
+                        updateAlert(
+                            Alert(getString(Res.string.token_invalid)) {
+                                updateAlert(null)
+                            }
+                        )
+                        _event.send(LoginEvent.TokenInvalid)
+                    }
                 }
                 .onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
-                            updateAlert(getString(Res.string.token_invalid))
+                            updateAlert(
+                                Alert(getString(Res.string.token_invalid)) {
+                                    updateAlert(null)
+                                }
+                            )
                             _event.send(LoginEvent.TokenInvalid)
                         }
-                        else -> updateAlert(it.description)
+                        else -> updateAlert(
+                            Alert(it.description ?: getString(Res.string.unknown_error)) {
+                                updateAlert(null)
+                            }
+                        )
                     }
                 }
 
@@ -132,9 +152,9 @@ class LoginViewModel(
         }
     }
 
-    private fun updateAlert(message: String?) {
+    private fun updateAlert(alert: Alert?) {
         _state.update {
-            it.copy(alert = message)
+            it.copy(alert = alert)
         }
     }
 

@@ -1,37 +1,27 @@
 package org.bibletranslationtools.wat.data
 
-enum class Consensus {
-    MISSPELLING,
-    PROPER_NAME,
-    SOMETHING_ELSE,
-    UNDEFINED;
+import org.bibletranslationtools.wat.domain.WordStatus
 
-    companion object {
-        fun of(answer: String): Consensus {
-            return when {
-                answer.contains("proper name") -> PROPER_NAME
-                answer.contains("proper noun") -> PROPER_NAME
-                answer.contains("misspell") -> MISSPELLING
-                answer.contains("typo") -> MISSPELLING
-                answer.contains("something else") -> SOMETHING_ELSE
-                else -> UNDEFINED
-            }
-        }
-    }
+enum class Consensus {
+    LIKELY_INCORRECT,
+    LIKELY_CORRECT,
+    NEEDS_REVIEW,
+    NAME
 }
 
-data class ModelConsensus(
+data class ModelStatus(
     val model: String,
-    val consensus: Consensus
+    val status: WordStatus
 )
 
 data class ConsensusResult(
-    val models: List<ModelConsensus>,
+    val models: List<ModelStatus>,
     val consensus: Consensus
 )
 
 data class SingletonWord(
     val word: String,
     val ref: Verse,
+    val correct: Boolean? = null,
     var result: ConsensusResult? = null
 )

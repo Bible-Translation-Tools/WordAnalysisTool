@@ -113,12 +113,18 @@ suspend fun postFile(
 suspend fun post(
     httpClient: HttpClient,
     url: String,
-    body: Any
+    body: Any,
+    headers: Map<String, String> = emptyMap()
 ): NetworkResponse {
     return runNetworkRequest {
         httpClient.post(url) {
             setBody(body)
             contentType(ContentType.Application.Json)
+            headers {
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+            }
         }
     }
 }

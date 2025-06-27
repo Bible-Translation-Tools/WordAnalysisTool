@@ -18,73 +18,86 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import org.bibletranslationtools.wat.asSource
+import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.ConsensusResult
 import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.data.ModelConsensus
+import org.bibletranslationtools.wat.data.ModelStatus
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
-import org.bibletranslationtools.wat.domain.AiResponse
+import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
+import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.User
-import org.bibletranslationtools.wat.domain.WatAiApi
-import org.bibletranslationtools.wat.formatWith
+import org.bibletranslationtools.wat.domain.WatApi
+import org.bibletranslationtools.wat.domain.WordRequest
+import org.bibletranslationtools.wat.domain.WordResponse
+import org.bibletranslationtools.wat.domain.WordStatus
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
+import org.bibletranslationtools.wat.ui.AnalyzeEvent.RefreshSelectedWord
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.all_results_received
 import wordanalysistool.composeapp.generated.resources.batch_deleted
 import wordanalysistool.composeapp.generated.resources.batch_not_deleted
 import wordanalysistool.composeapp.generated.resources.creating_batch
+import wordanalysistool.composeapp.generated.resources.deleting_batch
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
+import wordanalysistool.composeapp.generated.resources.invalid_batch_id
+import wordanalysistool.composeapp.generated.resources.likely_correct
+import wordanalysistool.composeapp.generated.resources.likely_incorrect
+import wordanalysistool.composeapp.generated.resources.name
+import wordanalysistool.composeapp.generated.resources.no
 import wordanalysistool.composeapp.generated.resources.no_model_selected
-import wordanalysistool.composeapp.generated.resources.prompt_not_set
 import wordanalysistool.composeapp.generated.resources.report_saved
+import wordanalysistool.composeapp.generated.resources.review_needed
 import wordanalysistool.composeapp.generated.resources.token_invalid
-import kotlin.math.min
+import wordanalysistool.composeapp.generated.resources.updating_word
+import wordanalysistool.composeapp.generated.resources.wrong_model_selected
+import wordanalysistool.composeapp.generated.resources.yes
 
-private const val BATCH_REQUEST_DELAY = 1000L
-private const val BATCH_REQUESTS_LIMIT = 10
-
-data class Alert(
-    val message: String,
-    val onClosed: () -> Unit = {}
-)
+private const val BATCH_REQUEST_DELAY = 3000L
+private const val BATCH_REQUESTS_LIMIT = 12
 
 data class AnalyzeState(
+    val batch: Batch? = null,
     val batchProgress: Float = -1f,
     val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
-    val sorting: WordsSorting = WordsSorting.BY_ALPHABET,
+    val sorting: WordsSorting = WordsSorting.ALPHABET,
     val models: List<String> = emptyList(),
     val alert: Alert? = null,
-    val progress: Progress? = null
+    val progress: Progress? = null,
+    val status: String? = null
 )
 
 sealed class AnalyzeEvent {
     data object Idle : AnalyzeEvent()
     data object BatchWords : AnalyzeEvent()
     data object DeleteBatch : AnalyzeEvent()
-    data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
-    data class UpdatePrompt(val value: String) : AnalyzeEvent()
-    data class UpdateModels(val value: List<String>) : AnalyzeEvent()
-    data class UpdateSorting(val value: WordsSorting) : AnalyzeEvent()
     data object WordsSorted : AnalyzeEvent()
     data object SaveReport : AnalyzeEvent()
+    data object RefreshSelectedWord : AnalyzeEvent()
     data object Logout : AnalyzeEvent()
+    data class UpdateModels(val value: List<String>) : AnalyzeEvent()
+    data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
+    data class UpdateCorrect(val word: String, val correct: Boolean?): AnalyzeEvent()
+    data class UpdateSelectedWord(val value: Boolean?): AnalyzeEvent()
 }
 
-enum class WordsSorting(val value: String) {
-    BY_ALPHABET("By alphabet"),
-    BY_ERROR("By misspelling"),
-    BY_UNDEFINED("By undefined")
+enum class WordsSorting {
+    ALPHABET,
+    ALPHABET_DESC,
+    NAME,
+    LIKELY_CORRECT,
+    LIKELY_INCORRECT,
+    NEEDS_REVIEW,
+    REVIEWED
 }
 
 class AnalyzeViewModel(
@@ -92,7 +105,7 @@ class AnalyzeViewModel(
     private val resourceType: String,
     private val verses: List<Verse>,
     private val user: User,
-    private val watAiApi: WatAiApi
+    private val watApi: WatApi
 ) : ScreenModel {
 
     private var _state = MutableStateFlow(AnalyzeState())
@@ -117,9 +130,8 @@ class AnalyzeViewModel(
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.BatchWords -> createBatch()
             is AnalyzeEvent.DeleteBatch -> deleteBatch()
-            is AnalyzeEvent.UpdatePrompt -> updatePrompt(event.value)
-            is AnalyzeEvent.UpdateSorting -> updateSorting(event.value)
             is AnalyzeEvent.SaveReport -> saveReport()
+            is AnalyzeEvent.UpdateCorrect -> updateWordCorrect(event.word, event.correct)
             else -> resetChannel()
         }
     }
@@ -183,17 +195,29 @@ class AnalyzeViewModel(
                 BatchStatus.UNKNOWN
             )
             while (status !in completionStatuses) {
-                watAiApi.getBatch(
+                updateStatus("Fetching batch status...")
+
+                watApi.getBatch(
                     language.ietfCode,
                     resourceType,
                     user.token.accessToken
                 ).onSuccess { batch ->
-                    batch.details.output?.let { parseResponses(it) }
+                    parseResponses(batch.details.output)
                     status = batch.details.status
 
-                    val current = batch.details.progress.completed + batch.details.progress.failed
+                    updateBatch(batch)
+
+                    val current = batch.details.progress.completed
                     val total = batch.details.progress.total.toFloat()
-                    updateBatchProgress(current / total)
+
+                    if (total > 0) {
+                        updateBatchProgress(current / total)
+                        updateStatus(
+                            "Current batch progress: ${((current / total) * 100).toInt()}"
+                        )
+                    }
+
+                    batch.details.error?.let(::updateStatus)
                 }.onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
@@ -207,7 +231,7 @@ class AnalyzeViewModel(
                             )
                         }
                         else -> {
-                            println(it.description)
+                            updateStatus(it.description)
                             if (!loop) {
                                 status = BatchStatus.ERRORED
                             }
@@ -220,7 +244,11 @@ class AnalyzeViewModel(
                 delay(BATCH_REQUEST_DELAY)
             }
 
+            _event.send(RefreshSelectedWord)
+
             updateBatchProgress(-1f)
+            updateStatus("Batch results received")
+            updateStatus("Idle")
         }
     }
 
@@ -235,9 +263,9 @@ class AnalyzeViewModel(
                 return@launch
             }
 
-            if (_state.value.prompt?.trim().isNullOrEmpty()) {
+            if (_state.value.models.size != MODELS_SIZE) {
                 updateAlert(
-                    Alert(getString(Res.string.prompt_not_set)) {
+                    Alert(getString(Res.string.wrong_model_selected, MODELS_SIZE)) {
                         updateAlert(null)
                     }
                 )
@@ -250,16 +278,7 @@ class AnalyzeViewModel(
                 .filter { it.result == null }
                 .take(BATCH_REQUESTS_LIMIT)
 
-            val requests = singletons
-                .map { singleton ->
-                    BatchRequest(
-                        id = singleton.word,
-                        prompt = getPrompt(singleton.word, singleton.ref),
-                        models = _state.value.models
-                    )
-                }
-
-            if (requests.isEmpty()) {
+            if (singletons.isEmpty()) {
                 updateAlert(
                     Alert(getString(Res.string.all_results_received)) {
                         updateAlert(null)
@@ -269,15 +288,21 @@ class AnalyzeViewModel(
                 return@launch
             }
 
-            val json = buildJsonlFile(requests)
-            val source = json.asSource()
+            val request = BatchRequest(
+                language = language.angName,
+                words = singletons.map { it.word },
+                models = _state.value.models
+            )
 
-            watAiApi.createBatch(
+            updateStatus("Sending batch request...")
+
+            watApi.createBatch(
                 language.ietfCode,
                 resourceType,
-                source,
+                request,
                 user.token.accessToken
             ).onSuccess {
+                updateStatus("Batch request sent, waiting for result...")
                 fetchBatch()
             }.onError {
                 when (it.type) {
@@ -292,11 +317,14 @@ class AnalyzeViewModel(
                         )
                     }
 
-                    else -> updateAlert(
-                        Alert(it.description ?: "Error code: ${it.code}") {
-                            updateAlert(null)
-                        }
-                    )
+                    else -> {
+                        updateStatus(it.description)
+                        updateAlert(
+                            Alert(it.description ?: "Error code: ${it.code}") {
+                                updateAlert(null)
+                            }
+                        )
+                    }
                 }
             }
 
@@ -306,11 +334,27 @@ class AnalyzeViewModel(
 
     private fun deleteBatch() {
         screenModelScope.launch {
-            watAiApi.deleteBatch(language.ietfCode, resourceType, user.token.accessToken)
+            if (_state.value.batch == null) {
+                updateAlert(
+                    Alert(getString(Res.string.invalid_batch_id)) {
+                        updateAlert(null)
+                    }
+                )
+                return@launch
+            }
+
+            updateStatus("Deleting batch results...")
+            updateProgress(Progress(-1f, getString(Res.string.deleting_batch)))
+
+            watApi.deleteBatch(_state.value.batch!!.id, user.token.accessToken)
                 .onSuccess { deleted ->
                     if (deleted) {
+                        updateBatch(null)
+                        updateStatus("Batch results deleted")
                         updateSingletons(
-                            _state.value.singletons.map { it.copy(result = null) }
+                            _state.value.singletons.map {
+                                it.copy(result = null, correct = null)
+                            }
                         )
                         updateAlert(
                             Alert(getString(Res.string.batch_deleted)) {
@@ -318,6 +362,7 @@ class AnalyzeViewModel(
                             }
                         )
                     } else {
+                        updateStatus("Could not delete batch results.")
                         updateAlert(
                             Alert(getString(Res.string.batch_not_deleted)) {
                                 updateAlert(null)
@@ -326,36 +371,90 @@ class AnalyzeViewModel(
                     }
                 }
                 .onError {
+                    updateStatus(it.description)
                     updateAlert(
                         Alert(it.description ?: "") {
                             updateAlert(null)
                         }
                     )
                 }
+
+            updateProgress(null)
         }
     }
 
-    private fun parseResponses(responses: List<AiResponse>) {
-        val consensusMap: Map<String, ConsensusResult> = makeConsensus(responses)
+    private fun updateWordCorrect(word: String, correct: Boolean?) {
+        screenModelScope.launch {
+            if (_state.value.batch == null) {
+                updateAlert(
+                    Alert(getString(Res.string.invalid_batch_id)) {
+                        updateAlert(null)
+                    }
+                )
+                return@launch
+            }
+
+            updateProgress(Progress(-1f, getString(Res.string.updating_word)))
+
+            val request = WordRequest(
+                _state.value.batch!!.id,
+                word,
+                correct
+            )
+            watApi.updateWordCorrect(request, user.token.accessToken)
+                .onSuccess {
+                    updateSingletons(
+                        _state.value.singletons.map { singleton ->
+                            if (singleton.word == request.word) {
+                                singleton.copy(correct = request.correct)
+                            } else {
+                                singleton
+                            }
+                        }
+                    )
+                    _event.send(AnalyzeEvent.UpdateSelectedWord(request.correct))
+                }
+                .onError {
+                    updateStatus(it.description)
+                    updateAlert(
+                        Alert(it.description ?: "") {
+                            updateAlert(null)
+                        }
+                    )
+                }
+
+            updateProgress(null)
+        }
+    }
+
+    private fun parseResponses(responses: List<WordResponse>) {
+        val consensusMap: Map<String, Pair<Boolean?, ConsensusResult>> = makeConsensus(responses)
         updateSingletons(
             _state.value.singletons.map { singleton ->
                 consensusMap[singleton.word]?.let { answer ->
-                    singleton.copy(result = answer)
+                    singleton.copy(correct = answer.first, result = answer.second)
                 } ?: singleton
             }
         )
-        sortWords(_state.value.sorting)
     }
 
     private fun saveReport() {
         screenModelScope.launch {
+            val yes = getString(Res.string.yes)
+            val no = getString(Res.string.no)
+            val likelyCorrect = getString(Res.string.likely_correct)
+            val likelyIncorrect = getString(Res.string.likely_incorrect)
+            val reviewNeeded = getString(Res.string.review_needed)
+            val name = getString(Res.string.name)
+
             val header = StringBuilder()
             header.append("word,book,chapter,verse,")
-            _state.value.models.forEach {
-                header.append(it)
+            _state.value.models.forEachIndexed { i, model ->
+                header.append("model${i+1}")
                 header.append(",")
             }
-            header.append("consensus\n")
+            header.append("consensus,")
+            header.append("correct\n")
 
             val words = _state.value.singletons.joinToString("\n") { singleton ->
                 val builder = StringBuilder()
@@ -370,67 +469,63 @@ class AnalyzeViewModel(
                 builder.append(",")
 
                 singleton.result?.models?.forEach {
-                    builder.append(it.consensus.name)
+                    val status = when (it.status) {
+                        WordStatus.INCORRECT -> likelyIncorrect
+                        WordStatus.CORRECT -> likelyCorrect
+                        WordStatus.NAME -> name
+                        else -> ""
+                    }
+
+                    builder.append("\"")
+                    builder.append(it.model)
+                    builder.append("\n")
+                    builder.append(status)
+                    builder.append("\"")
                     builder.append(",")
                 }
 
-                builder.append(singleton.result?.consensus?.name)
+                val correct = when (singleton.correct) {
+                    true -> yes
+                    false -> no
+                    else -> ""
+                }
+
+                val consensus = when (singleton.result?.consensus) {
+                    Consensus.LIKELY_CORRECT -> likelyCorrect
+                    Consensus.LIKELY_INCORRECT -> likelyIncorrect
+                    Consensus.NEEDS_REVIEW -> reviewNeeded
+                    Consensus.NAME -> name
+                    null -> ""
+                }
+
+                builder.append(consensus)
+                builder.append(",")
+                builder.append(correct)
                 builder.toString()
             }
 
             val report = header.toString() + words
 
-            FileKit.saveFile(
-                baseName = "report",
+            val saved = FileKit.saveFile(
+                baseName = "report_${language.ietfCode}_${resourceType}",
                 extension = "csv",
                 bytes = report.encodeToByteArray()
             )
 
-            updateAlert(
-                Alert(getString(Res.string.report_saved)) {
-                    updateAlert(null)
-                }
-            )
-        }
-    }
-
-    private fun sortWords(sort: WordsSorting) {
-        if (_state.value.singletons.isEmpty()) return
-
-        screenModelScope.launch {
-            when (sort) {
-                WordsSorting.BY_ALPHABET -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedBy { it.word.lowercase() }
-                    )
-                }
-
-                WordsSorting.BY_ERROR -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.result?.consensus == Consensus.MISSPELLING
-                        }
-                    )
-                }
-
-                WordsSorting.BY_UNDEFINED -> {
-                    updateSingletons(
-                        _state.value.singletons.sortedByDescending {
-                            it.result?.consensus == Consensus.UNDEFINED
-                        }
-                    )
-                }
+            if (saved != null) {
+                updateAlert(
+                    Alert(getString(Res.string.report_saved)) {
+                        updateAlert(null)
+                    }
+                )
             }
-
-            _event.send(AnalyzeEvent.WordsSorted)
         }
     }
 
-    private fun updateSorting(sort: WordsSorting) {
+    private fun updateBatch(batch: Batch?) {
         _state.update {
-            it.copy(sorting = sort)
+            it.copy(batch = batch)
         }
-        sortWords(sort)
     }
 
     private fun updateSingletons(words: List<SingletonWord>) {
@@ -443,26 +538,6 @@ class AnalyzeViewModel(
         _state.update {
             it.copy(models = models)
         }
-    }
-
-    private fun updatePrompt(prompt: String) {
-        _state.update {
-            it.copy(prompt = prompt)
-        }
-    }
-
-    private fun getPrompt(word: String, verse: Verse): String {
-        return _state.value.prompt!!.formatWith(
-            mapOf<String, String>(
-                "language" to language.angName,
-                "book_name" to verse.bookName,
-                "book_code" to verse.bookSlug,
-                "chapter" to verse.chapter.toString(),
-                "verse" to verse.number.toString(),
-                "word" to word,
-                "text" to verse.text
-            )
-        )
     }
 
     private fun updateProgress(progress: Progress?) {
@@ -483,30 +558,36 @@ class AnalyzeViewModel(
         }
     }
 
+    private fun updateStatus(status: String?) {
+        _state.update {
+            it.copy(status = status)
+        }
+    }
+
     private fun resetChannel() {
         screenModelScope.launch {
             _event.send(AnalyzeEvent.Idle)
         }
     }
 
-    private fun makeConsensus(results: List<AiResponse>): Map<String, ConsensusResult> {
-        val consensusMap = mutableMapOf<String, ConsensusResult>()
+    private fun makeConsensus(
+        responses: List<WordResponse>
+    ): Map<String, Pair<Boolean?, ConsensusResult>> {
+        val consensusMap = mutableMapOf<String, Pair<Boolean?, ConsensusResult>>()
 
-        results.forEach { response ->
-            response.results?.let {
-                consensusMap[response.id] = ConsensusResult(
-                    models = it.map {
-                        ModelConsensus(
+        responses.forEach { response ->
+            val hasUnchecked = response.results.any { it.status == WordStatus.UNCHECKED }
+
+            if (!hasUnchecked) {
+                consensusMap[response.word] = response.correct to ConsensusResult(
+                    models = response.results.map {
+                        ModelStatus(
                             model = it.model,
-                            consensus = Consensus.of(it.result)
+                            status = it.status
                         )
                     },
-                    consensus = findWinner(it)
+                    consensus = findWinner(response.results)
                 )
-            } ?: run {
-                if (response.errored) {
-                    println("Word '${response.id}' has errored with message: ${response.lastError}")
-                }
             }
         }
 
@@ -514,56 +595,24 @@ class AnalyzeViewModel(
     }
 
     private fun findWinner(results: List<ModelResponse>): Consensus {
-        var misspell = 0
-        var properName = 0
-        var somethingElse = 0
-        results.forEach { result ->
-            // Limit long answers to 20 characters
-            val limit = min(20, result.result.length)
-            val answer = result.result.substring(0, limit).lowercase()
+        var incorrect = 0
+        var correct = 0
+        var name = 0
 
-            when {
-                answer.contains("proper name") -> properName++
-                answer.contains("proper noun") -> properName++
-                answer.contains("misspell") -> misspell++
-                answer.contains("typo") -> misspell++
-                answer.contains("something else") -> somethingElse++
+        results.forEach { result ->
+            when (result.status) {
+                WordStatus.CORRECT -> correct++
+                WordStatus.INCORRECT -> incorrect++
+                WordStatus.NAME -> name++
+                else -> Unit
             }
         }
 
-        var max = maxOf(misspell, properName, somethingElse)
-        var winners = 0
-        var winnerName = Consensus.UNDEFINED
-
-        if (misspell == max) {
-            winners++
-            winnerName = Consensus.MISSPELLING
-        }
-
-        if (properName == max) {
-            winners++
-            winnerName = Consensus.PROPER_NAME
-        }
-
-        if (somethingElse == max) {
-            winners++
-            winnerName = Consensus.SOMETHING_ELSE
-        }
-
-        val ratio = max / results.size.toFloat()
-        if (ratio < 0.5f || winners > 1) {
-            winnerName = Consensus.UNDEFINED
-        }
-
-        return winnerName
-    }
-
-    private fun buildJsonlFile(
-        requests: List<BatchRequest>,
-        json: Json = Json
-    ): String = buildString {
-        for (request in requests) {
-            appendLine(json.encodeToString(request))
+        return when {
+            correct == results.size -> Consensus.LIKELY_CORRECT
+            incorrect == results.size -> Consensus.LIKELY_INCORRECT
+            name == results.size -> Consensus.NAME
+            else -> Consensus.NEEDS_REVIEW
         }
     }
 }

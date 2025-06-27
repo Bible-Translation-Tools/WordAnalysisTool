@@ -5,8 +5,9 @@ import org.bibletranslationtools.wat.GetBooksForTranslationQuery
 import org.bibletranslationtools.wat.GetGatewayLanguagesQuery
 import org.bibletranslationtools.wat.GetHeartLanguagesQuery
 import org.bibletranslationtools.wat.GetUsfmForHeartLanguageQuery
-import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.ContentInfo
+import org.bibletranslationtools.wat.data.Direction
+import org.bibletranslationtools.wat.data.LanguageInfo
 
 class BielGraphQlApi {
     private val graphQlServer = "https://api.bibleineverylanguage.org/v1/graphql"
@@ -22,7 +23,8 @@ class BielGraphQlApi {
                 LanguageInfo(
                     ietfCode = it.ietf_code,
                     name = it.national_name,
-                    angName = it.english_name
+                    angName = it.english_name,
+                    direction = Direction.of(it.direction)
                 )
             }
         } ?: listOf()
@@ -35,7 +37,8 @@ class BielGraphQlApi {
                 LanguageInfo(
                     ietfCode = it.ietf_code,
                     name = it.national_name,
-                    angName = it.english_name
+                    angName = it.english_name,
+                    direction = Direction.of(it.direction)
                 )
             }
         } ?: listOf()

@@ -18,6 +18,11 @@ internal fun createSimpleHttpClient(
             retryOnServerErrors(maxRetries = 5)
             exponentialDelay()
         }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30000
+            connectTimeoutMillis = 30000
+            socketTimeoutMillis = 30000
+        }
     }
     return HttpClient(engine, configuration)
 }
@@ -36,7 +41,10 @@ internal fun createAiHttpClient(
             socketTimeoutMillis = 30000
         }
         install(ContentNegotiation) {
-            register(ContentType.Application.Json, KotlinxSerializationConverter(JsonLenient))
+            register(
+                ContentType.Application.Json,
+                KotlinxSerializationConverter(JsonLenient)
+            )
         }
     }
     return HttpClient(engine, configuration)

@@ -1,16 +1,19 @@
 import OpenAI from "openai";
+import { oneLine } from "common-tags";
+import { ChatResponse } from "./types";
 
 export default class AiClient {
   private env: CloudflareBindings;
+  private baseUrl: string;
 
   private models = {
     openai: [
+      "gpt-4.1",
+      "gpt-4.1-mini",
+      "gpt-4.1-nano",
       "gpt-4o",
+      "gpt-4o-mini",
       "gpt-4-turbo",
-      "gpt-3.5-turbo",
-      "o3-mini",
-      "o1",
-      "o1-mini",
     ],
     anthropic: [
       "claude-3-7-sonnet-latest",
@@ -34,14 +37,30 @@ export default class AiClient {
     ],
   };
 
-  private baseUrl =
-    "https://gateway.ai.cloudflare.com/v1/485970843693dfad3d42377c66e89309/wat-ai";
+  private systemPrompt: string = oneLine`You are a language expert who is checking spelling. 
+  You will be given a list of words and a language and you will respond with 
+  whether the words exist in the language and whether they are proper names. 
+  You will respond with JSON, like this: 
+  [
+    {
+      "word": "TestWord1",
+      "status": 0
+    },
+    {
+      "word": "TestWord2",
+      "status": 1
+    }
+  ]. 
+  Where status: 0 - doesn't exist, 1 - exists, 2 - proper name. 
+  Give no other commentary. 
+  Here are the language and words to test.`;
 
   constructor(env: CloudflareBindings) {
     this.env = env;
+    this.baseUrl = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ID}/wat-ai`;
   }
 
-  async chat(model: string, prompt: string): Promise<string | null> {
+  async chat(model: string, prompt: string): Promise<ChatResponse[] | null> {
     const client = this.getClient(model);
 
     if (client === null) {
@@ -52,13 +71,27 @@ export default class AiClient {
       model: model,
       messages: [
         {
+          role: "system",
+          content: this.systemPrompt,
+        },
+        {
           role: "user",
           content: prompt,
         },
       ],
     });
 
-    return response.choices[0].message.content;
+    try {
+      let result = response.choices[0].message.content || "[]";
+      result = result.replace("```json", "");
+      result = result.replace("```", "");
+      result = result.trim();
+      return JSON.parse(result);
+    } catch (error) {
+      console.error(error);
+      console.error(response.choices[0].message.content);
+      return null;
+    }
   }
 
   private getClient(model: string): OpenAI | null {

@@ -7,6 +7,9 @@
     "name": "wat-worker",
     "main": "src/index.ts",
     "compatibility_date": "2025-03-13",
+    "compatibility_flags": [
+        "nodejs_compat"
+    ],
     "observability": {
         "enabled": true
     },
@@ -21,9 +24,6 @@
      * databases, object storage, AI inference, real-time communication and more.
      * https://developers.cloudflare.com/workers/runtime-apis/bindings/
      */
-    "ai": {
-        "binding": "AI"
-    },
     "queues": {
         "producers": [
             {
@@ -35,28 +35,15 @@
         "consumers": [
             {
                 "queue": "wat-queue",
-                "max_batch_size": 10,
-                "max_batch_timeout": 30,
-                "max_retries": 2,
-                "retry_delay": 10,
-                "dead_letter_queue": "errors-queue"
-                // "max_concurrency": 1,
-            },
-            {
-                "queue": "errors-queue",
                 "max_batch_size": 1,
-                "max_batch_timeout": 1,
-                "max_retries": 0
+                "max_batch_timeout": 5,
+                "max_retries": 0,
+                // "retry_delay": 0,
+                // "dead_letter_queue": "errors-queue"
+                // "max_concurrency": 1,
             }
         ]
     },
-    "workflows": [
-        {
-            "name": "wat-workflow",
-            "binding": "WAT_WORKFLOW",
-            "class_name": "WatWorkflow"
-        }
-    ],
     "d1_databases": [
         {
             "binding": "DB",

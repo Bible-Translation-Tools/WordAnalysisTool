@@ -1,64 +1,44 @@
-import {
-  WorkflowEntrypoint,
-  WorkflowEvent,
-  WorkflowStep,
-} from "cloudflare:workers";
+import { PrismaD1 } from "@prisma/adapter-d1";
+import { PrismaClient } from "@prisma/client";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
-import { jwt, sign, verify } from "hono/jwt";
 import type { JwtVariables } from "hono/jwt";
-import { jsonl } from "js-jsonl";
+import { jwt, sign } from "hono/jwt";
+import SqlString from "sqlstring";
 import { v4 as uuid4 } from "uuid";
-import {
-  WordsParams,
-  BatchRequest,
-  WordRequest,
-  BatchProgress,
-  BatchDetails,
-  BatchStatus,
-  Batch,
-  BatchEntity,
-  WordEntity,
-  WordResponse,
-  ModelResponse,
-} from "./types";
 import AiClient from "./ai-client";
+import { isAdmin } from "./utils";
+import {
+  Batch,
+  BatchDetails,
+  BatchProgress,
+  BatchRequest,
+  BatchStatus,
+  ModelResponse,
+  PublicUser,
+  WordResponse,
+} from "./types";
+import { use } from "hono/jsx";
+
+interface AppVariables extends JwtVariables {
+  prisma: PrismaClient;
+}
 
 const app = new Hono<{
   Bindings: CloudflareBindings;
-  Variables: JwtVariables;
+  Variables: AppVariables;
 }>();
 app.use("*", cors());
 
-export class WatWorkflow extends WorkflowEntrypoint<
-  CloudflareBindings,
-  WordsParams
-> {
-  async run(event: WorkflowEvent<WordsParams>, step: WorkflowStep) {
-    await step.do("sending words to the queue", async () => {
-      const batchId = event.payload.batchId;
-      const words = event.payload.words;
+app.use("*", async (c, next) => {
+  const adapter = new PrismaD1(c.env.DB);
+  const prisma = new PrismaClient({ adapter });
+  c.set("prisma", prisma);
+  await next();
+});
 
-      for (const word of words) {
-        await step.do(`sending word: ${word.id}`, async () => {
-          // wait a bit before sending message
-          //await step.sleep("sleep", "1 second");
-
-          const batchRequest: BatchRequest = {
-            batchId: batchId,
-            request: word,
-          };
-          await this.env.WAT_QUEUE.send(batchRequest);
-        });
-      }
-
-      return true;
-    });
-  }
-}
-
-app.use("/api/*", (c, next) => {
+app.use("/api/*", async (c, next) => {
   const jwtMiddleware = jwt({
     secret: c.env.JWT_SECRET_KEY,
   });
@@ -71,25 +51,36 @@ app.get("/", async (c) => {
 
 app.get("/auth/tokens/:state", async (c) => {
   const state = c.req.param("state");
+  const prisma = c.get("prisma");
 
   // Expire state after 30 minutes
-  const user = (await c.env.DB.prepare(
-    "SELECT * FROM Users WHERE state = ? AND updated_at > DATETIME('now', '-30 minutes')"
-  )
-    .bind(state)
-    .first()) as any;
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const user = await prisma.user.findFirst({
+    where: {
+      state: state,
+      updated_at: {
+        gt: thirtyMinutesAgo,
+      },
+    },
+  });
 
   if (user === null) {
-    throw new HTTPException(404, { message: "wrong or expired state" });
+    throw new HTTPException(400, { message: "wrong or expired state" });
   }
 
-  await c.env.DB.prepare("UPDATE Users SET state = NULL WHERE state = ?")
-    .bind(state)
-    .run();
+  await prisma.user.updateMany({
+    where: {
+      state: state,
+    },
+    data: {
+      state: null,
+    },
+  });
 
   const payload = {
     username: user.username,
     email: user.email,
+    admin: isAdmin(user.username, c.env),
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
   };
   return c.json({
@@ -98,6 +89,8 @@ app.get("/auth/tokens/:state", async (c) => {
 });
 
 app.get("/auth/callback", async (c) => {
+  const prisma = c.get("prisma");
+
   try {
     const params = {
       code: c.req.query("code"),
@@ -105,7 +98,7 @@ app.get("/auth/callback", async (c) => {
     };
 
     if (params.code === undefined || params.state === undefined) {
-      throw new HTTPException(404, { message: "wrong parameters" });
+      throw new HTTPException(400, { message: "wrong parameters" });
     }
 
     const tokenRes = await fetch(c.env.AUTH_URL, {
@@ -124,6 +117,10 @@ app.get("/auth/callback", async (c) => {
         redirect_uri: c.env.WACS_CALLBACK,
       }),
     });
+
+    if (tokenRes.status != 200) {
+      return c.text("Unable to authorize. Please try again later.");
+    }
 
     const tokens = (await tokenRes.json()) as any;
 
@@ -149,56 +146,28 @@ app.get("/auth/callback", async (c) => {
       });
     }
 
-    const { count } = (await c.env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM Users WHERE email = ?"
-    )
-      .bind(user.email)
-      .first()) as any;
-
-    if (count > 0) {
-      await c.env.DB.prepare(
-        `UPDATE Users 
-        SET access_token = ?, refresh_token = ?,
-        token_type = ?, state = ?, 
-        wacs_user_id = ?, username = ?, 
-        updated_at = CURRENT_TIMESTAMP
-        WHERE email = ?`
-      )
-        .bind(
-          tokens.access_token,
-          tokens.refresh_token,
-          tokens.token_type,
-          params.state,
-          user.id,
-          user.username,
-          user.email
-        )
-        .run();
-    } else {
-      await c.env.DB.prepare(
-        `INSERT INTO Users
-        (
-            username,
-            email,
-            wacs_user_id,
-            access_token,
-            refresh_token,
-            token_type,
-            state
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)`
-      )
-        .bind(
-          user.username,
-          user.email,
-          user.id,
-          tokens.access_token,
-          tokens.refresh_token,
-          tokens.token_type,
-          params.state
-        )
-        .run();
-    }
+    await prisma.user.upsert({
+      where: {
+        email: user.email,
+      },
+      create: {
+        email: user.email,
+        username: user.username,
+        wacs_user_id: user.id,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        token_type: tokens.token_type,
+        state: params.state,
+      },
+      update: {
+        username: user.username,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        token_type: tokens.token_type,
+        state: params.state,
+        updated_at: new Date(),
+      },
+    });
 
     const html = `
     <!DOCTYPE html>
@@ -228,93 +197,157 @@ app.get("/api/verify", async (c) => {
 });
 
 app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
+  const prisma = c.get("prisma");
   const ietf_code = c.req.param("ietf_code");
   const resource_type = c.req.param("resource_type");
+  const json = await c.req.json();
+  const models: string[] = json.models || [];
+  const words: string[] = json.words || [];
+  const language: string = json.language || null;
   const payload = c.get("jwtPayload");
-  const body = await c.req.blob();
-
-  if (body.type !== "application/octet-stream") {
-    throw new HTTPException(403, { message: "invalid file" });
-  }
 
   try {
-    const text = await new Response(body).text();
-    const words = jsonl.parse<WordRequest>(text);
-
-    const user = (await c.env.DB.prepare("SELECT id FROM Users WHERE email = ?")
-      .bind(payload.email)
-      .first()) as any;
-
-    // TODO add current user (AND user_id = ? - user.id)
-    const existentBatch = (await c.env.DB.prepare(
-      `SELECT * FROM Batches
-      WHERE ietf_code = ? AND resource_type = ?`
-    )
-      .bind(ietf_code, resource_type)
-      .first()) as any;
-
-    let batch_id: string;
-
-    if (existentBatch !== null) {
-      const { incomplete } = (await c.env.DB.prepare(
-        `SELECT COUNT(*) AS incomplete 
-        FROM Words
-        WHERE batch_id = ? AND result IS NULL AND errored = 0`
-      )
-        .bind(existentBatch.id)
-        .first()) as any;
-
-      if (incomplete > 0) {
-        throw new HTTPException(403, { message: "batch in progress" });
-      }
-
-      await c.env.DB.prepare(`UPDATE Batches SET total = ? WHERE id = ?`)
-        .bind(words.length, existentBatch.id)
-        .run();
-
-      batch_id = existentBatch.id;
-    } else {
-      batch_id = uuid4();
-      await c.env.DB.prepare(
-        `INSERT INTO Batches 
-        (id, ietf_code, resource_type, total, user_id) 
-        VALUES (?, ?, ?, ?, ?)`
-      )
-        .bind(batch_id, ietf_code, resource_type, words.length, user.id)
-        .run();
+    if (models.length === 0) {
+      throw new HTTPException(404, { message: "no models provided" });
     }
 
-    for (const word of words) {
-      await c.env.DB.prepare("INSERT INTO Words (word, batch_id) VALUES(?, ?)")
-        .bind(word.id, batch_id)
-        .run();
+    if (words.length === 0) {
+      throw new HTTPException(404, { message: "no words provided" });
+    }
+
+    if (language == null || language.trim() === "") {
+      throw new HTTPException(404, { message: "no language provided" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: payload.email,
+      },
+    });
+
+    if (user == null) {
+      throw new HTTPException(404, { message: "user not found" });
+    }
+
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
+    }
+
+    const creator: PublicUser = {
+      username: user.username,
+    };
+
+    // TODO add current user (AND user_id = ? - user.id)
+    const dbBatch = await prisma.batch.findUnique({
+      where: {
+        idx_unique_batch: {
+          ietf_code: ietf_code,
+          resource_type: resource_type,
+        },
+      },
+      select: {
+        id: true,
+        pending: true,
+      },
+    });
+
+    let batchId = dbBatch?.id;
+    const pending = dbBatch?.pending;
+
+    if (!batchId) {
+      batchId = uuid4();
+
+      await prisma.batch.create({
+        data: {
+          id: batchId,
+          ietf_code: ietf_code,
+          resource_type: resource_type,
+          pending: true,
+          total_pending: words.length * models.length,
+          user_id: user.id,
+        },
+      });
+    } else {
+      if (pending) {
+        throw new HTTPException(403, { message: "batch in progress" });
+      }
+      await prisma.batch.update({
+        where: {
+          id: batchId,
+        },
+        data: {
+          pending: true,
+          total_pending: words.length * models.length,
+          error: null,
+        },
+      });
+    }
+
+    try {
+      // Reset current words
+      const wordValues = words.map((item) => {
+        return `(${SqlString.escape(item)},${SqlString.escape(batchId)})`;
+      });
+
+      await prisma.$executeRawUnsafe(
+        `INSERT OR REPLACE INTO Words (word, batch_id) VALUES ${wordValues}`
+      );
+
+      const dbWords = await prisma.word.findMany({
+        where: {
+          word: {
+            in: words,
+          },
+          batch_id: batchId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const wordIds = dbWords.map((word) => word.id);
+
+      // Reset model results
+      const modelValues = wordIds.flatMap((wordId) =>
+        models.map((model) => {
+          return `(${SqlString.escape(model)},-1,${wordId})`;
+        })
+      );
+
+      await prisma.$executeRawUnsafe(
+        `INSERT OR REPLACE INTO Models (model, status, word_id) VALUES ${modelValues}`
+      );
+    } catch (error) {
+      console.error(error);
     }
 
     const progress: BatchProgress = {
       completed: 0,
-      failed: 0,
       total: words.length,
     };
 
     const details: BatchDetails = {
       status: BatchStatus.QUEUED,
       error: null,
-      output: null,
+      output: [],
       progress: progress,
     };
 
     const batch: Batch = {
-      id: batch_id,
+      id: batchId,
       ietf_code: ietf_code,
       resource_type: resource_type,
       details: details,
+      creator: creator,
     };
 
-    const params: WordsParams = {
-      batchId: batch_id,
+    const batchRequest: BatchRequest = {
+      batchId: batchId,
+      language: language,
       words: words,
+      models: models,
     };
-    await c.env.WAT_WORKFLOW.create({ params: params });
+    await c.env.WAT_QUEUE.send(batchRequest);
 
     return c.json(batch);
   } catch (error: any) {
@@ -325,71 +358,90 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
 });
 
 app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
+  const prisma = c.get("prisma");
+
   try {
     const ietf_code = c.req.param("ietf_code");
     const resource_type = c.req.param("resource_type");
     const payload = c.get("jwtPayload");
 
     // TODO Get for current user (AND u.email = ? - payload.email)
-    const batchEntity = await c.env.DB.prepare(
-      `SELECT b.* FROM Batches AS b 
-      LEFT JOIN Users AS u ON u.id = b.user_id 
-      WHERE b.ietf_code = ? AND b.resource_type = ?`
-    )
-      .bind(ietf_code, resource_type)
-      .first<BatchEntity>();
+    const dbBatch = await prisma.batch.findUnique({
+      where: {
+        idx_unique_batch: {
+          ietf_code: ietf_code,
+          resource_type: resource_type,
+        },
+      },
+      select: {
+        id: true,
+        total_pending: true,
+        error: true,
+        user: true,
+      },
+    });
 
-    if (batchEntity === null) {
+    if (dbBatch === null) {
       throw new HTTPException(403, {
         message: "batch not found",
       });
     }
 
-    const { results } = await c.env.DB.prepare(
-      `SELECT json(result) AS result, * 
-      FROM Words 
-      WHERE batch_id = ?`
-    )
-      .bind(batchEntity.id)
-      .all<WordEntity>();
+    const modelsDb = await prisma.model.findMany({
+      where: {
+        word: {
+          batch_id: dbBatch.id,
+        },
+      },
+      select: {
+        word: {
+          select: {
+            word: true,
+            correct: true,
+          },
+        },
+        model: true,
+        status: true,
+      },
+    });
+
+    const words = Object.groupBy(modelsDb, (model) => model.word.word);
 
     const output: WordResponse[] = [];
-    let failed = 0;
 
-    for (const word of results) {
-      if (word.result !== null) {
-        const results: ModelResponse[] = JSON.parse(word.result);
-        const response: WordResponse = {
-          id: word.word,
-          errored: false,
-          last_error: null,
-          results: results,
-        };
-        output.push(response);
-      } else if (word.errored) {
-        const response: WordResponse = {
-          id: word.word,
-          errored: true,
-          last_error: word.last_error,
-          results: null,
-        };
-        output.push(response);
-        failed++;
-      }
+    for (const word of Object.keys(words)) {
+      const models = words[word];
+      if (!models) continue;
+
+      const response: WordResponse = {
+        word: word,
+        correct: models[0].word.correct,
+        results: models
+          .filter((item) => item.model !== null)
+          .map(
+            (item): ModelResponse => ({
+              model: item.model,
+              status: item.status,
+            })
+          ),
+      };
+      output.push(response);
     }
 
-    const incomplete = results.length - output.length;
-    const completed = batchEntity.total - incomplete - failed;
+    const incomplete = output
+      .map((item) => item.results.filter((res) => res.status < 0).length)
+      .reduce((a, b) => a + b, 0);
+
+    const completed = dbBatch.total_pending - incomplete;
 
     const progress: BatchProgress = {
       completed: completed,
-      failed: failed,
-      total: batchEntity.total,
+      total: dbBatch.total_pending,
     };
 
-    let p = 0;
+    let p = 1;
     if (progress.total > 0) {
-      p = (progress.completed + progress.failed) / progress.total;
+      p = progress.completed / progress.total;
     }
 
     let status: BatchStatus;
@@ -404,17 +456,25 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
         status = BatchStatus.RUNNING;
     }
 
+    if (dbBatch.error !== null) {
+      status = BatchStatus.ERRORED;
+    }
+
+    const creator: PublicUser = {
+      username: dbBatch.user.username,
+    };
     const details: BatchDetails = {
       status: status,
-      error: null,
+      error: dbBatch.error,
       progress: progress,
       output: output,
     };
     const batch: Batch = {
-      id: batchEntity.id,
+      id: dbBatch.id,
       ietf_code: ietf_code,
       resource_type: resource_type,
       details: details,
+      creator: creator,
     };
 
     return c.json(batch);
@@ -425,45 +485,144 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
   }
 });
 
-app.delete("/api/batch/:ietf_code/:resource_type", async (c) => {
+app.get("/api/batch/recent", async (c) => {
+  const prisma = c.get("prisma");
+
   try {
     const ietf_code = c.req.param("ietf_code");
     const resource_type = c.req.param("resource_type");
     const payload = c.get("jwtPayload");
 
-    const user = (await c.env.DB.prepare("SELECT id FROM Users WHERE email = ?")
-      .bind(payload.email)
-      .first()) as any;
+    const dbBatches = await prisma.batch.findMany({
+      where: {
+        words: {
+          some: {
+            models: {
+              some: {},
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        ietf_code: true,
+        resource_type: true,
+        user: true,
+      },
+    });
 
-    // TODO Get current user (AND user_id = ? - user.id)
-    const { count } = (await c.env.DB.prepare(
-      `SELECT COUNT(*) AS count 
-      FROM Batches 
-      WHERE ietf_code = ? AND resource_type = ?`
-    )
-      .bind(ietf_code, resource_type)
-      .first()) as any;
+    const progress: BatchProgress = {
+      completed: 0,
+      total: 0,
+    };
 
-    if (count === 0) {
+    const details: BatchDetails = {
+      status: BatchStatus.COMPLETE,
+      error: null,
+      progress: progress,
+      output: [],
+    };
+
+    const batches = dbBatches.map((item) => {
+      const creator: PublicUser = {
+        username: item.user.username,
+      };
+      const batch: Batch = {
+        id: item.id,
+        ietf_code: item.ietf_code,
+        resource_type: item.resource_type,
+        details: details,
+        creator: creator,
+      };
+      return batch;
+    });
+
+    return c.json(batches);
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `error fetching batch: ${error.message || error}`,
+    });
+  }
+});
+
+app.delete("/api/batch/:batch_id", async (c) => {
+  const prisma = c.get("prisma");
+
+  try {
+    const batch_id = c.req.param("batch_id");
+    const payload = c.get("jwtPayload");
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: payload.email,
+      },
+    });
+
+    if (user === null) {
       throw new HTTPException(404, {
-        message: "batch not found",
+        message: "user not found",
       });
     }
 
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
+    }
+
     // TODO Delete only by current user (AND user_id = ? - user.id)
-    const result = (await c.env.DB.prepare(
-      `DELETE FROM Batches 
-      WHERE ietf_code = ? AND resource_type = ?`
-    )
-      .bind(ietf_code, resource_type)
-      .run()) as any;
+    const deleted = await prisma.batch.delete({
+      where: {
+        id: batch_id,
+      },
+    });
 
-    const deleted = result.meta.changes > 0;
-
-    return c.json(deleted);
+    return c.json(deleted !== null);
   } catch (error: any) {
     throw new HTTPException(error.code || 403, {
       message: `error deleting batch: ${error.message || error}`,
+    });
+  }
+});
+
+app.post("/api/word", async (c) => {
+  const prisma = c.get("prisma");
+  const json = await c.req.json();
+
+  const batch_id = json.batch_id || null;
+  const word = json.word || null;
+  const correct = json.correct;
+  const payload = c.get("jwtPayload");
+
+  try {
+    if (!batch_id || !word) {
+      throw new HTTPException(403, { message: "invalid parameters" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: payload.email,
+      },
+    });
+
+    if (user == null) {
+      throw new HTTPException(404, { message: "user not found" });
+    }
+
+    await prisma.word.update({
+      where: {
+        idx_unique_word: {
+          batch_id: batch_id,
+          word: word,
+        },
+      },
+      data: {
+        correct: correct,
+      },
+    });
+
+    return c.json(true);
+  } catch (error: any) {
+    throw new HTTPException(error.code || 403, {
+      message: `error updating word: ${error.message || error}`,
     });
   }
 });
@@ -475,81 +634,68 @@ export default {
     env: CloudflareBindings,
     ctx: ExecutionContext
   ) {
-    if (batch.queue === "wat-queue") {
-      const client = new AiClient(env);
+    const client = new AiClient(env);
+    const adapter = new PrismaD1(env.DB);
+    const prisma = new PrismaClient({ adapter });
 
-      for (const message of batch.messages) {
-        const batchId = message.body.batchId;
-        const word = message.body.request;
+    for (const message of batch.messages) {
+      const batchId = message.body.batchId;
+      const language = message.body.language;
+      const words = message.body.words;
+      const models = message.body.models;
 
+      let prompt = `Language: ${language}. Words: ${words.join(", ")}`;
+      let errorDetails: string | null = null;
+
+      for (const model of models) {
         try {
-          const modelResults: ModelResponse[] = [];
+          const results = await client.chat(model, prompt);
+          if (results !== null) {
+            for (const result of results) {
+              const wordResult = result.word.trim();
+              const wordStatus = result.status;
 
-          for (const model of word.models) {
-            const request = {
-              messages: [
-                {
-                  role: "user",
-                  content: word.prompt,
-                },
-              ],
-            };
-
-            const result = await client.chat(model, word.prompt);
-            //const responses = ["misspell", "proper noun", "something else"];
-            //const randomItem =
-            //  responses[Math.floor(Math.random() * responses.length)];
-            //const result = randomItem;
-
-            const output: ModelResponse = {
-              model: model,
-              result: result,
-            };
-            modelResults.push(output);
+              if (words.includes(wordResult)) {
+                await prisma.model.updateMany({
+                  where: {
+                    model: model,
+                    word: {
+                      word: wordResult,
+                      batch_id: batchId,
+                    },
+                  },
+                  data: {
+                    status: wordStatus,
+                  },
+                });
+              } else {
+                errorDetails = `model ${model} returned wrong word result: ${wordResult}`;
+              }
+            }
+          } else {
+            errorDetails = `model ${model} returned invalid json`;
           }
-
-          await env.DB.prepare(
-            `UPDATE Words SET result = json(?), last_error = NULL WHERE word = ? AND batch_id = ?`
-          )
-            .bind(JSON.stringify(modelResults), word.id, batchId)
-            .run();
-
-          message.ack();
         } catch (error: any) {
-          await env.DB.prepare(
-            `UPDATE Words SET last_error = ? WHERE word = ? AND batch_id = ?`
-          )
-            .bind(`${error}`, word.id, batchId)
-            .run();
-
-          console.error(error);
-          message.retry({ delaySeconds: 1 });
+          errorDetails = `model ${model} failed. ${error.message || error}`;
         }
       }
-    } else if (batch.queue === "errors-queue") {
-      for (const message of batch.messages) {
-        const batchId = message.body.batchId;
-        const word = message.body.request;
 
-        const { last_error } = (await env.DB.prepare(
-          "SELECT last_error FROM Words WHERE word = ? AND batch_id = ?"
-        )
-          .bind(word.id, batchId)
-          .first()) as any;
-
-        let error = last_error;
-
-        if (last_error === null) {
-          error = "Unknown error occurred.";
-        }
-        await env.DB.prepare(
-          "UPDATE Words SET last_error = ?, errored = 1 WHERE word = ? AND batch_id = ?"
-        )
-          .bind(error, word.id, batchId)
-          .run();
-
-        message.ack();
+      try {
+        await prisma.batch.update({
+          where: {
+            id: batchId,
+          },
+          data: {
+            error: errorDetails,
+            pending: false,
+            total_pending: 0,
+          },
+        });
+      } catch (error) {
+        console.error(error);
       }
+
+      message.ack();
     }
   },
 };

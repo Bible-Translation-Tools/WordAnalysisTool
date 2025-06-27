@@ -6,21 +6,22 @@ android-targetSdk = "35"
 androidx-activityCompose = "1.10.1"
 androidx-appcompat = "1.7.0"
 androidx-constraintlayout = "2.2.1"
-androidx-core-ktx = "1.15.0"
+androidx-core-ktx = "1.16.0"
 androidx-espresso-core = "3.6.1"
 androidx-lifecycle = "2.8.4"
 androidx-material = "1.12.0"
 androidx-test-junit = "1.2.1"
-apollo = "4.1.1"
-compose-multiplatform = "1.8.0-alpha03"
+apollo = "4.2.0"
+compose-multiplatform = "1.8.0"
 composeRememberSetting = "1.0.2"
 filekitCore = "0.8.8"
 junit = "4.13.2"
 jwtKt = "1.1.0"
 koin = "4.0.2"
-kotlin = "2.1.10"
+kotlin = "2.1.20"
 kotlinx-coroutines = "1.10.1"
 kotlinDocumentStoreCore = "1.0.4-wasmjs"
+kotlinxDatetime = "0.6.2"
 ktor = "3.0.3"
 usfmtools = "1.9.1"
 voyagerNavigator = "1.1.0-beta03"
@@ -52,6 +53,7 @@ kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version
 kotlin-document-store-core = { module = "io.github.mxaln:kotlin-document-store-core", version.ref = "kotlinDocumentStoreCore" }
 kotlin-document-store-browser = { module = "io.github.mxaln:kotlin-document-store-browser", version.ref = "kotlinDocumentStoreCore" }
 kotlin-document-store-leveldb = { module = "io.github.mxaln:kotlin-document-store-leveldb", version.ref = "kotlinDocumentStoreCore" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }

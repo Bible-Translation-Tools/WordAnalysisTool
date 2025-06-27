@@ -5,10 +5,10 @@ import androidx.compose.runtime.MutableState
 enum class Settings {
     THEME,
     LOCALE,
-    PROMPT,
     APOSTROPHE_IS_SEPARATOR,
     SORT_WORDS,
-    ACCESS_TOKEN
+    ACCESS_TOKEN,
+    FONT
 }
 
 enum class Theme {
@@ -18,11 +18,12 @@ enum class Theme {
 }
 
 enum class Model(val value: String) {
+    GPT_4_1("gpt-4.1"),
+    GPT_4_1_MINI("gpt-4.1-mini"),
+    GPT_4_1_NANO("gpt-4.1-nano"),
     GPT_4_O("gpt-4o"),
+    GPT_4_O_MINI("gpt-4o-mini"),
     GPT_4_TURBO("gpt-4-turbo"),
-    GPT_3_5_TURBO("gpt-3.5-turbo"),
-    O_3_MINI("o3-mini"),
-    O_1_MINI("o1-mini"),
     CLAUDE_3_7_SONNET_LATEST("claude-3-7-sonnet-latest"),
     CLAUDE_3_5_SONNET_LATEST("claude-3-5-sonnet-latest"),
     CLAUDE_3_5_HAIKU_LATEST("claude-3-5-haiku-latest"),
@@ -44,13 +45,14 @@ enum class Locales(val value: String) {
     RU("Русский")
 }
 
+enum class Fonts(val value: String) {
+    NOTO_SANS("NotoSans"),
+    NOTO_SANS_ARABIC("NotoSans Arabic")
+}
+
 data class ModelStatus(
     val model: String,
     val active: MutableState<Boolean>
 )
 
-const val DEFAULT_PROMPT = "In the {language} translation of the Bible verse {book_name} "+
-        "({book_code}) {chapter}:{verse}, the word '{word}' appears. The verse text is: "+
-        "'{text}'. Determine if '{word}' in this context is a proper noun, a misspelling/typo, "+
-        "or something else. Provide only one of the following answers: proper noun, "+
-        "misspelling/typo, something else. Do not provide any explanation."
+const val MODELS_SIZE = 3

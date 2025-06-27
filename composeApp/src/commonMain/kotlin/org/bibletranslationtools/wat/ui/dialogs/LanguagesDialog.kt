@@ -1,6 +1,7 @@
 package org.bibletranslationtools.wat.ui.dialogs
 
 import ComboBox
+import Option
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,7 +70,7 @@ fun LanguagesDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.7f),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(16.dp),
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -90,7 +91,7 @@ fun LanguagesDialog(
 
                 ComboBox(
                     value = selectedResourceType,
-                    options = resourceTypes,
+                    options = resourceTypes.map(::Option),
                     onOptionSelected = { selectedResourceType = it },
                     modifier = Modifier.fillMaxWidth()
                 )

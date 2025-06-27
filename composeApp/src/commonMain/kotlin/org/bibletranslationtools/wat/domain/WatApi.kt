@@ -6,17 +6,17 @@ import config.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.http.encodeURLPathPart
-import kotlinx.io.Source
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import org.bibletranslationtools.wat.data.WordStatusSerializer
 import org.bibletranslationtools.wat.http.ApiResult
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.NetworkError
 import org.bibletranslationtools.wat.http.delete
 import org.bibletranslationtools.wat.http.get
-import org.bibletranslationtools.wat.http.postFile
+import org.bibletranslationtools.wat.http.post
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.unknown_error
@@ -36,32 +36,32 @@ enum class BatchStatus {
     @SerialName("unknown") UNKNOWN
 }
 
-@Serializable
-data class ModelResponse(
-    val model: String,
-    val result: String
-)
+@Serializable(with = WordStatusSerializer::class)
+enum class WordStatus(val value: Int) {
+    UNCHECKED(-1),
+    INCORRECT(0),
+    CORRECT(1),
+    NAME(2)
+}
 
 @Serializable
-data class AiResponse(
-    val id: String,
-    val errored: Boolean,
-    @SerialName("last_error")
-    val lastError: String?,
-    val results: List<ModelResponse>?
+data class WordRequest(
+    @SerialName("batch_id")
+    val batchId: String,
+    val word: String,
+    val correct: Boolean?
 )
 
 @Serializable
 data class BatchRequest(
-    val id: String,
-    val prompt: String,
+    val language: String,
+    val words: List<String>,
     val models: List<String>
 )
 
 @Serializable
 data class BatchProgress(
     val completed: Int,
-    val failed: Int,
     val total: Int
 )
 
@@ -69,8 +69,8 @@ data class BatchProgress(
 data class BatchDetails(
     val status: BatchStatus,
     val progress: BatchProgress,
-    val error: String?,
-    val output: List<AiResponse>? = null
+    val output: List<WordResponse>,
+    val error: String?
 )
 
 @Serializable
@@ -80,19 +80,35 @@ data class Batch(
     val ietfCode: String,
     @SerialName("resource_type")
     val resourceType: String,
-    val details: BatchDetails
+    val details: BatchDetails,
+    val creator: PublicUser
+)
+
+@Serializable
+data class ModelResponse(
+    val model: String,
+    val status: WordStatus
+)
+
+@Serializable
+data class WordResponse(
+    val word: String,
+    val correct: Boolean?,
+    val results: List<ModelResponse>
 )
 
 @Serializable
 private data class TokenUser(
     val username: String,
     val email: String,
+    val admin: Boolean
 )
 
 @Serializable
 data class User(
     val username: String,
     val email: String,
+    val admin: Boolean,
     val token: Token
 ) {
     companion object {
@@ -103,6 +119,7 @@ data class User(
             return User(
                 username = tokenUser.username,
                 email = tokenUser.email,
+                admin = tokenUser.admin,
                 token = token
             )
         }
@@ -110,11 +127,16 @@ data class User(
 }
 
 @Serializable
+data class PublicUser(
+    val username: String
+)
+
+@Serializable
 data class Token(
     val accessToken: String
 )
 
-interface WatAiApi {
+interface WatApi {
     suspend fun getAuthUrl(): ApiResult<String, NetworkError>
     suspend fun getAuthToken(): ApiResult<Token, NetworkError>
     suspend fun verifyUser(accessToken: String): ApiResult<Boolean, NetworkError>
@@ -127,20 +149,28 @@ interface WatAiApi {
     suspend fun createBatch(
         ietfCode: String,
         resourceType: String,
-        file: Source,
+        request: BatchRequest,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
 
     suspend fun deleteBatch(
-        ietfCode: String,
-        resourceType: String,
+        batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
+
+    suspend fun updateWordCorrect(
+        request: WordRequest,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError>
+
+    suspend fun getBatchesInProgress(
+        accessToken: String
+    ): ApiResult<List<Batch>, NetworkError>
 }
 
-class WatAiApiImpl(
+class WatApiImpl(
     private val httpClient: HttpClient
-) : WatAiApi {
+) : WatApi {
 
     private companion object {
         const val BASE_URL = BuildConfig.WAT_BASE_URL
@@ -209,7 +239,7 @@ class WatAiApiImpl(
             url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
+                "Content-Type" to "application/json"
             )
         )
         return when {
@@ -232,16 +262,16 @@ class WatAiApiImpl(
     override suspend fun createBatch(
         ietfCode: String,
         resourceType: String,
-        file: Source,
+        request: BatchRequest,
         accessToken: String
     ): ApiResult<Batch, NetworkError> {
-        val response = postFile(
+        val response = post(
             httpClient = httpClient,
             url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
-            file,
+            body = request,
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
+                "Content-Type" to "application/json"
             )
         )
         return when {
@@ -262,22 +292,79 @@ class WatAiApiImpl(
     }
 
     override suspend fun deleteBatch(
-        ietfCode: String,
-        resourceType: String,
+        batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError> {
         val response = delete(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
+            url = "$BASE_URL/api/batch/$batchId",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
+                "Content-Type" to "application/json"
             )
         )
         return when {
             response.data != null -> {
                 ApiResult.Success(
                     response.data.body<Boolean>()
+                )
+            }
+
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+            )
+        }
+    }
+
+    override suspend fun updateWordCorrect(
+        request: WordRequest,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError> {
+        val response = post(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/word",
+            body = request,
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            )
+        )
+        return when {
+            response.data != null -> {
+                ApiResult.Success(
+                    response.data.body<Boolean>()
+                )
+            }
+
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+            )
+        }
+    }
+
+    override suspend fun getBatchesInProgress(
+        accessToken: String
+    ): ApiResult<List<Batch>, NetworkError> {
+        val response = get(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/batch/recent",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            )
+        )
+        return when {
+            response.data != null -> {
+                ApiResult.Success(
+                    response.data.body<List<Batch>>()
                 )
             }
 
