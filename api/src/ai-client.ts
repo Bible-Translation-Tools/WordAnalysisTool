@@ -37,10 +37,10 @@ export default class AiClient {
     ],
   };
 
-  private systemPrompt: string = oneLine`You are a language expert who is checking spelling. 
-  You will be given a list of words and a language and you will respond with 
-  whether the words exist in the language and whether they are proper names. 
-  You will respond with JSON, like this: 
+  private systemPrompt: string = oneLine`You are a language expert who is checking spelling.
+  You will be given a list of words and a language and you will respond with
+  whether the words exist in the language and whether they are proper names.
+  You will respond with JSON, like this:
   [
     {
       "word": "TestWord1",
@@ -50,9 +50,9 @@ export default class AiClient {
       "word": "TestWord2",
       "status": 1
     }
-  ]. 
-  Where status: 0 - doesn't exist, 1 - exists, 2 - proper name. 
-  Give no other commentary. 
+  ].
+  Where status: 0 - doesn't exist, 1 - exists, 2 - proper name.
+  Give no other commentary.
   Here are the language and words to test.`;
 
   constructor(env: CloudflareBindings) {
