@@ -5,11 +5,16 @@ import com.appstractive.jwt.from
 import config.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.encodeURLPathPart
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readByteArray
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import org.bibletranslationtools.wat.asSource
 import org.bibletranslationtools.wat.data.WordStatusSerializer
 import org.bibletranslationtools.wat.http.ApiResult
 import org.bibletranslationtools.wat.http.ErrorType
@@ -17,6 +22,7 @@ import org.bibletranslationtools.wat.http.NetworkError
 import org.bibletranslationtools.wat.http.delete
 import org.bibletranslationtools.wat.http.get
 import org.bibletranslationtools.wat.http.post
+import org.bibletranslationtools.wat.http.postFile
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.unknown_error
@@ -158,6 +164,11 @@ interface WatApi {
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
 
+    suspend fun cancelBatch(
+        batchId: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError>
+
     suspend fun updateWordCorrect(
         request: WordRequest,
         accessToken: String
@@ -242,10 +253,15 @@ class WatApiImpl(
                 "Content-Type" to "application/json"
             )
         )
+
         return when {
             response.data != null -> {
+                val channel = response.data.bodyAsChannel()
+                val byteArray = channel.readRemaining().readByteArray()
+                val jsonString = byteArray.decodeToString()
+
                 ApiResult.Success(
-                    response.data.body<Batch>()
+                    JsonLenient.decodeFromString<Batch>(jsonString)
                 )
             }
 
@@ -265,10 +281,42 @@ class WatApiImpl(
         request: BatchRequest,
         accessToken: String
     ): ApiResult<Batch, NetworkError> {
-        val response = post(
+        val json = Json.encodeToString(request)
+        json.asSource().use { source ->
+            val response = postFile(
+                httpClient = httpClient,
+                url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
+                file = source,
+                headers = mapOf(
+                    "Authorization" to "Bearer $accessToken",
+                    "Content-Type" to "application/json"
+                )
+            )
+            return when {
+                response.data != null -> {
+                    ApiResult.Success(
+                        response.data.body<Batch>()
+                    )
+                }
+
+                response.error != null -> {
+                    ApiResult.Error(response.error)
+                }
+
+                else -> ApiResult.Error(
+                    NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                )
+            }
+        }
+    }
+
+    override suspend fun cancelBatch(
+        batchId: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError> {
+        val response = delete(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
-            body = request,
+            url = "$BASE_URL/api/batch/cancel/$batchId",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
@@ -277,7 +325,7 @@ class WatApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<Batch>()
+                    response.data.body<Boolean>()
                 )
             }
 
@@ -297,7 +345,7 @@ class WatApiImpl(
     ): ApiResult<Boolean, NetworkError> {
         val response = delete(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/$batchId",
+            url = "$BASE_URL/api/batch/delete/$batchId",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"

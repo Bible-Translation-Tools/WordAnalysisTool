@@ -43,8 +43,11 @@ import org.bibletranslationtools.wat.ui.AnalyzeEvent.RefreshSelectedWord
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.all_results_received
+import wordanalysistool.composeapp.generated.resources.batch_cancelled
 import wordanalysistool.composeapp.generated.resources.batch_deleted
+import wordanalysistool.composeapp.generated.resources.batch_not_cancelled
 import wordanalysistool.composeapp.generated.resources.batch_not_deleted
+import wordanalysistool.composeapp.generated.resources.cancelling_batch
 import wordanalysistool.composeapp.generated.resources.creating_batch
 import wordanalysistool.composeapp.generated.resources.deleting_batch
 import wordanalysistool.composeapp.generated.resources.finding_singleton_words
@@ -61,8 +64,7 @@ import wordanalysistool.composeapp.generated.resources.updating_word
 import wordanalysistool.composeapp.generated.resources.wrong_model_selected
 import wordanalysistool.composeapp.generated.resources.yes
 
-private const val BATCH_REQUEST_DELAY = 3000L
-private const val BATCH_REQUESTS_LIMIT = 12
+private const val BATCH_REQUEST_DELAY = 10000L
 
 data class AnalyzeState(
     val batch: Batch? = null,
@@ -79,6 +81,7 @@ data class AnalyzeState(
 sealed class AnalyzeEvent {
     data object Idle : AnalyzeEvent()
     data object BatchWords : AnalyzeEvent()
+    data object CancelBatch: AnalyzeEvent()
     data object DeleteBatch : AnalyzeEvent()
     data object WordsSorted : AnalyzeEvent()
     data object SaveReport : AnalyzeEvent()
@@ -129,6 +132,7 @@ class AnalyzeViewModel(
             is AnalyzeEvent.FindSingletons -> findSingletonWords(event.apostropheIsSeparator)
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.BatchWords -> createBatch()
+            is AnalyzeEvent.CancelBatch -> cancelBatch()
             is AnalyzeEvent.DeleteBatch -> deleteBatch()
             is AnalyzeEvent.SaveReport -> saveReport()
             is AnalyzeEvent.UpdateCorrect -> updateWordCorrect(event.word, event.correct)
@@ -276,7 +280,6 @@ class AnalyzeViewModel(
 
             val singletons = _state.value.singletons
                 .filter { it.result == null }
-                .take(BATCH_REQUESTS_LIMIT)
 
             if (singletons.isEmpty()) {
                 updateAlert(
@@ -288,13 +291,13 @@ class AnalyzeViewModel(
                 return@launch
             }
 
+            updateStatus("Sending batch request...")
+
             val request = BatchRequest(
                 language = language.angName,
                 words = singletons.map { it.word },
                 models = _state.value.models
             )
-
-            updateStatus("Sending batch request...")
 
             watApi.createBatch(
                 language.ietfCode,
@@ -332,6 +335,53 @@ class AnalyzeViewModel(
         }
     }
 
+    private fun cancelBatch() {
+        screenModelScope.launch {
+            if (_state.value.batch == null) {
+                updateAlert(
+                    Alert(getString(Res.string.invalid_batch_id)) {
+                        updateAlert(null)
+                    }
+                )
+                return@launch
+            }
+
+            updateStatus("Cancelling batch results...")
+            updateProgress(Progress(-1f, getString(Res.string.cancelling_batch)))
+
+            watApi.cancelBatch(_state.value.batch!!.id, user.token.accessToken)
+                .onSuccess { cancelled ->
+                    if (cancelled) {
+                        updateStatus("Batch cancelled")
+                        updateAlert(
+                            Alert(getString(Res.string.batch_cancelled)) {
+                                updateAlert(null)
+                            }
+                        )
+                        fetchJob?.cancel()
+                        updateBatchProgress(-1f)
+                    } else {
+                        updateStatus("Could not cancel batch.")
+                        updateAlert(
+                            Alert(getString(Res.string.batch_not_cancelled)) {
+                                updateAlert(null)
+                            }
+                        )
+                    }
+                }
+                .onError {
+                    updateStatus(it.description)
+                    updateAlert(
+                        Alert(it.description ?: "") {
+                            updateAlert(null)
+                        }
+                    )
+                }
+
+            updateProgress(null)
+        }
+    }
+
     private fun deleteBatch() {
         screenModelScope.launch {
             if (_state.value.batch == null) {
@@ -361,6 +411,8 @@ class AnalyzeViewModel(
                                 updateAlert(null)
                             }
                         )
+                        fetchJob?.cancel()
+                        updateBatchProgress(-1f)
                     } else {
                         updateStatus("Could not delete batch results.")
                         updateAlert(

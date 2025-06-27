@@ -3,12 +3,13 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy --minify",
-		"cf-typegen": "wrangler types --env-interface CloudflareBindings"
+		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "tsx migrate.ts"
 	},
 	"dependencies": {
-		"@prisma/adapter-d1": "^6.5.0",
-		"@prisma/client": "^6.5.0",
 		"common-tags": "^1.8.2",
+		"drizzle-orm": "0.43.1",
 		"hono": "^4.7.4",
 		"js-jsonl": "^1.1.1",
 		"openai": "^4.89.0",
@@ -18,7 +19,10 @@
 	"devDependencies": {
 		"@types/common-tags": "^1.8.4",
 		"@types/sqlstring": "^2.3.2",
-		"prisma": "^6.5.0",
+		"dotenv": "^16.5.0",
+		"drizzle-kit": "^0.31.1",
+		"postgres": "^3.4.5",
+		"tsx": "^4.19.4",
 		"wrangler": "^4.0.0"
 	}
 }

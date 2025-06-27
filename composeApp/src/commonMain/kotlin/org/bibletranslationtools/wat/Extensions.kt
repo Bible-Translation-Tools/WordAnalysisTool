@@ -4,7 +4,6 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.io.writeString
-import kotlin.collections.iterator
 
 fun String.asSource(): Source {
     val buffer = Buffer()

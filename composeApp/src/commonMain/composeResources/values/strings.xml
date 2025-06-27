@@ -28,6 +28,7 @@
     <string name="preparing_for_analysis">Preparing for analysis...</string>
     <string name="models">Models</string>
     <string name="did_not_respond">Did not respond</string>
+    <string name="cancel_batch">Cancel Batch</string>
     <string name="delete_batch">Delete Results</string>
     <string name="save_report">Save Report (.csv)</string>
     <string name="report_saved">Report saved.</string>
@@ -41,6 +42,8 @@
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>
     <string name="token_invalid">Access token expired. Please login again.</string>
+    <string name="batch_not_cancelled">Could not cancel batch. Please try again.</string>
+    <string name="batch_cancelled">Batch successfully cancelled.</string>
     <string name="batch_not_deleted">Could not delete results. Please try again.</string>
     <string name="batch_deleted">Results successfully deleted.</string>
     <string name="process_words">Get Results</string>
@@ -55,6 +58,7 @@
     <string name="incorrect">Incorrect</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
+    <string name="cancelling_batch">Cancelling batch...</string>
     <string name="deleting_batch">Deleting results...</string>
     <string name="updating_word">Updating word...</string>
     <string name="invalid_batch_id">Invalid ID.</string>

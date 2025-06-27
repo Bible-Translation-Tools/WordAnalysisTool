@@ -4,7 +4,7 @@
  */
 {
     "$schema": "node_modules/wrangler/config-schema.json",
-    "name": "wat-worker",
+    "name": "word-analysis-tool",
     "main": "src/index.ts",
     "compatibility_date": "2025-03-13",
     "compatibility_flags": [
@@ -12,6 +12,14 @@
     ],
     "observability": {
         "enabled": true
+    },
+    "limits": {
+        "cpu_ms": 60000, // default is 30000 (30 seconds)
+    },
+    "triggers": {
+        "crons": [
+            "* * * * *", // run cron job every 5 minutes
+        ]
     },
     /**
      * Smart Placement
@@ -24,33 +32,13 @@
      * databases, object storage, AI inference, real-time communication and more.
      * https://developers.cloudflare.com/workers/runtime-apis/bindings/
      */
-    "queues": {
-        "producers": [
-            {
-                "binding": "WAT_QUEUE",
-                "queue": "wat-queue",
-                "delivery_delay": 0
-            }
-        ],
-        "consumers": [
-            {
-                "queue": "wat-queue",
-                "max_batch_size": 1,
-                "max_batch_timeout": 5,
-                "max_retries": 0,
-                // "retry_delay": 0,
-                // "dead_letter_queue": "errors-queue"
-                // "max_concurrency": 1,
-            }
-        ]
-    },
-    "d1_databases": [
-        {
-            "binding": "DB",
-            "database_name": "batches",
-            "database_id": "a2a4cd5e-e39c-431d-8b47-303413da29b2"
-        }
-    ],
+    // "d1_databases": [
+    //     {
+    //         "binding": "DB",
+    //         "database_name": "batches",
+    //         "database_id": "a2a4cd5e-e39c-431d-8b47-303413da29b2"
+    //     }
+    // ],
     /**
      * Environment Variables
      * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
@@ -58,7 +46,7 @@
     "vars": {
         "AUTH_URL": "https://content.bibletranslationtools.org/login/oauth/access_token",
         "WACS_API": "https://content.bibletranslationtools.org/api/v1",
-        "WACS_CALLBACK": "https://wat-worker.mxaln.workers.dev/auth/callback"
+        "WACS_CALLBACK": "https://word-analysis-tool.wycliffe-associates-account.workers.dev/auth/callback"
     },
     /**
      * Note: Use secrets to store sensitive data.

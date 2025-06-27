@@ -21,13 +21,13 @@ export default class AiClient {
       "claude-3-5-haiku-latest",
       "claude-3-opus-latest",
     ],
-    qwen: [
-      "qwen2.5-7b-instruct",
-      "qwen2.5-14b-instruct",
-      "qwen-max",
-      "qwen-plus",
-      "qwen-turbo",
-    ],
+    // qwen: [
+    //   "qwen2.5-7b-instruct",
+    //   "qwen2.5-14b-instruct",
+    //   "qwen-max",
+    //   "qwen-plus",
+    //   "qwen-turbo",
+    // ],
     mistral: [
       "ministral-3b-latest",
       "codestral-latest",
@@ -37,10 +37,10 @@ export default class AiClient {
     ],
   };
 
-  private systemPrompt: string = oneLine`You are a language expert who is checking spelling. 
-  You will be given a list of words and a language and you will respond with 
-  whether the words exist in the language and whether they are proper names. 
-  You will respond with JSON, like this: 
+  private systemPrompt: string = oneLine`You are a language expert who is checking spelling.
+  You will be given a list of words and a language and you will respond with
+  whether the words exist in the language and whether they are proper names.
+  You will respond with JSON, like this:
   [
     {
       "word": "TestWord1",
@@ -50,9 +50,9 @@ export default class AiClient {
       "word": "TestWord2",
       "status": 1
     }
-  ]. 
-  Where status: 0 - doesn't exist, 1 - exists, 2 - proper name. 
-  Give no other commentary. 
+  ].
+  Where status: 0 - doesn't exist, 1 - exists, 2 - proper name.
+  Give no other commentary.
   Here are the language and words to test.`;
 
   constructor(env: CloudflareBindings) {
@@ -83,10 +83,13 @@ export default class AiClient {
 
     try {
       let result = response.choices[0].message.content || "[]";
-      result = result.replace("```json", "");
-      result = result.replace("```", "");
-      result = result.trim();
-      return JSON.parse(result);
+      const json = this.extractJson(result);
+
+      if (json == null) {
+        throw new Error("invalid json response");
+      }
+
+      return JSON.parse(json);
     } catch (error) {
       console.error(error);
       console.error(response.choices[0].message.content);
@@ -110,13 +113,31 @@ export default class AiClient {
         apiKey: this.env.MISTRAL_API_KEY,
         baseURL: `${this.baseUrl}/mistral`,
       });
-    } else if (this.models.qwen.includes(model)) {
-      return new OpenAI({
-        apiKey: this.env.QWEN_API_KEY,
-        baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
-      });
-    } else {
+    }
+    // } else if (this.models.qwen.includes(model)) {
+    //   return new OpenAI({
+    //     apiKey: this.env.QWEN_API_KEY,
+    //     baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+    //   });
+    // }
+    else {
       return null;
     }
+  }
+
+  private extractJson(json: string): string | null {
+    const startIndex = json.indexOf("[");
+
+    if (startIndex === -1) {
+      return null; // No opening bracket found
+    }
+
+    const endIndex = json.lastIndexOf("]") + 1;
+
+    if (endIndex <= startIndex) {
+      return null; // No corresponding closing bracket or it appears before the start
+    }
+
+    return json.substring(startIndex, endIndex);
   }
 }
