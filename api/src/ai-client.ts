@@ -21,13 +21,13 @@ export default class AiClient {
       "claude-3-5-haiku-latest",
       "claude-3-opus-latest",
     ],
-    qwen: [
-      "qwen2.5-7b-instruct",
-      "qwen2.5-14b-instruct",
-      "qwen-max",
-      "qwen-plus",
-      "qwen-turbo",
-    ],
+    // qwen: [
+    //   "qwen2.5-7b-instruct",
+    //   "qwen2.5-14b-instruct",
+    //   "qwen-max",
+    //   "qwen-plus",
+    //   "qwen-turbo",
+    // ],
     mistral: [
       "ministral-3b-latest",
       "codestral-latest",
@@ -113,12 +113,14 @@ export default class AiClient {
         apiKey: this.env.MISTRAL_API_KEY,
         baseURL: `${this.baseUrl}/mistral`,
       });
-    } else if (this.models.qwen.includes(model)) {
-      return new OpenAI({
-        apiKey: this.env.QWEN_API_KEY,
-        baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
-      });
-    } else {
+    }
+    // } else if (this.models.qwen.includes(model)) {
+    //   return new OpenAI({
+    //     apiKey: this.env.QWEN_API_KEY,
+    //     baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+    //   });
+    // }
+    else {
       return null;
     }
   }

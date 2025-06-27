@@ -33,11 +33,11 @@ enum class Model(val value: String) {
     MINISTRAL_LARGE_LATEST("mistral-large-latest"),
     PIXTRAL_LARGE_LATEST("pixtral-large-latest"),
     MINISTRAL_8B_LATEST("ministral-8b-latest"),
-    QWEN_2_5_7B_INSTRUCT("qwen2.5-7b-instruct"),
-    QWEN_2_5_14B_INSTRUCT("qwen2.5-14b-instruct"),
-    QWEN_MAX("qwen-max"),
-    QWEN_PLUS("qwen-plus"),
-    QWEN_TURBO("qwen-turbo"),
+//    QWEN_2_5_7B_INSTRUCT("qwen2.5-7b-instruct"),
+//    QWEN_2_5_14B_INSTRUCT("qwen2.5-14b-instruct"),
+//    QWEN_MAX("qwen-max"),
+//    QWEN_PLUS("qwen-plus"),
+//    QWEN_TURBO("qwen-turbo"),
 }
 
 enum class Locales(val value: String) {
