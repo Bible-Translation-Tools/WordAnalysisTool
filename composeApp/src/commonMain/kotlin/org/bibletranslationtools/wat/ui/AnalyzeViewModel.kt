@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.ConsensusResult
@@ -36,6 +39,7 @@ import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.domain.WordRequest
 import org.bibletranslationtools.wat.domain.WordResponse
 import org.bibletranslationtools.wat.domain.WordStatus
+import org.bibletranslationtools.wat.format
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
@@ -66,6 +70,11 @@ import wordanalysistool.composeapp.generated.resources.yes
 
 private const val BATCH_REQUEST_DELAY = 10000L
 
+data class Status(
+    val info: Any,
+    val time: String
+)
+
 data class AnalyzeState(
     val batch: Batch? = null,
     val batchProgress: Float = -1f,
@@ -75,7 +84,7 @@ data class AnalyzeState(
     val models: List<String> = emptyList(),
     val alert: Alert? = null,
     val progress: Progress? = null,
-    val status: String? = null
+    val status: Status? = null
 )
 
 sealed class AnalyzeEvent {
@@ -610,7 +619,13 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateStatus(status: String?) {
+    private fun updateStatus(details: Any?) {
+        val status = details?.let {
+            val time = Clock.System.now().toLocalDateTime(
+                TimeZone.currentSystemDefault()
+            )
+            Status(it, time.format())
+        }
         _state.update {
             it.copy(status = status)
         }

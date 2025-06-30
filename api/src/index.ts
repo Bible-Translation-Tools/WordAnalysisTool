@@ -11,10 +11,12 @@ import {
   BatchDetails,
   BatchProgress,
   BatchStatus,
+  ChatResponse,
   ModelResponse,
   ModelResult,
   PublicUser,
   WordResponse,
+  BatchError,
 } from "./types";
 import { SQL_BATCH_LIMIT, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
@@ -393,12 +395,25 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
     const creator: PublicUser = {
       username: dbBatch.user.username,
     };
+    let batchError: BatchError;
+    try {
+      batchError = JSON.parse(dbBatch.error || "");
+    } catch (error) {
+      batchError = {
+        prompt: "",
+        message: dbBatch.error || "",
+        model: null,
+        response: null,
+      };
+    }
+
     const details: BatchDetails = {
       status: status,
-      error: dbBatch.error,
+      error: batchError,
       progress: progress,
       output: [],
     };
+
     const batch: Batch = {
       id: dbBatch.id,
       ietf_code: ietf_code,
@@ -454,13 +469,10 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
                 await s.write(",");
               }
 
-              const modelResponses = word.models.map((m) => {
-                const modelResponse: ModelResponse = {
-                  model: m.model,
-                  status: m.status,
-                };
-                return modelResponse;
-              });
+              const modelResponses = word.models.map(({ model, status }) => ({
+                model,
+                status,
+              }));
               const wordResponse: WordResponse = {
                 word: word.word,
                 correct: word.correct,
@@ -599,19 +611,13 @@ app.get("/api/batch/recent", async (c) => {
       output: [],
     };
 
-    const batches = dbBatches.map((item) => {
-      const creator: PublicUser = {
-        username: item.user.username,
-      };
-      const batch: Batch = {
-        id: item.id,
-        ietf_code: item.ietfCode,
-        resource_type: item.resourceType,
-        details: details,
-        creator: creator,
-      };
-      return batch;
-    });
+    const batches = dbBatches.map((item) => ({
+      id: item.id,
+      ietf_code: item.ietfCode,
+      resource_type: item.resourceType,
+      details: details,
+      creator: { username: item.user.username },
+    }));
 
     return c.json(batches);
   } catch (error: any) {
@@ -676,7 +682,7 @@ export default {
 
       if (batch) {
         const batchId = batch.id;
-        let errorDetails: string | null = null;
+        let errorDetails: BatchError | null = null;
 
         const words = await dbHelper.getDb().query.wordsTable.findMany({
           where: (words, { and, eq }) =>
@@ -704,18 +710,26 @@ export default {
         if (words.length > 0) {
           interface TmpModel {
             model: string;
-            words: { word: string }[];
+            words: { word: string; status: number }[];
           }
 
           const models = words.reduce((acc: TmpModel[], wordObj) => {
             wordObj.models.forEach((modelObj) => {
               const existingModel = acc.find((m) => m.model === modelObj.model);
               if (existingModel) {
-                existingModel.words.push({ word: wordObj.word });
+                existingModel.words.push({
+                  word: wordObj.word,
+                  status: modelObj.status,
+                });
               } else {
                 acc.push({
                   model: modelObj.model,
-                  words: [{ word: wordObj.word }],
+                  words: [
+                    {
+                      word: wordObj.word,
+                      status: modelObj.status,
+                    },
+                  ],
                 });
               }
             });
@@ -729,27 +743,37 @@ export default {
 
           for (const model of models) {
             try {
-              // const results = words.map((w) => {
-              //   const resp: ChatResponse = {
-              //     word: w.word,
-              //     status: 1,
-              //   };
-              //   return resp;
-              // });
-              const results = await client.chat(model.model, prompt);
-              if (results !== null) {
+              // Use cached results
+              const completed = model.words.every((word) => word.status > -1);
+              if (completed) {
+                const results = model.words.map(({ word, status }) => ({
+                  word,
+                  status,
+                }));
                 const modelResult: ModelResult = {
                   model: model.model,
                   results: results,
                 };
                 modelsResults.push(modelResult);
               } else {
-                errorDetails = `model ${model.model} returned invalid json`;
+                const results = await client.chat(model.model, prompt);
+                if (!client.isChatError(results)) {
+                  const modelResult: ModelResult = {
+                    model: model.model,
+                    results: results,
+                  };
+                  modelsResults.push(modelResult);
+                } else {
+                  errorDetails = results;
+                }
               }
             } catch (error: any) {
-              errorDetails = `model ${model.model} failed. ${
-                error.message || error
-              }`;
+              errorDetails = {
+                prompt,
+                message: error.message || error,
+                model: model.model,
+                response: null,
+              };
             }
           }
 
@@ -760,12 +784,17 @@ export default {
           );
 
           if (updateErrorDetails) {
-            errorDetails = updateErrorDetails;
+            errorDetails = {
+              prompt,
+              message: updateErrorDetails,
+              model: null,
+              response: null,
+            };
           }
         }
 
         const toUpdate: any = {
-          error: errorDetails,
+          error: JSON.stringify(errorDetails),
           updatedAt: new Date(),
         };
 

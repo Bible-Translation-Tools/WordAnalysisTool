@@ -30,7 +30,7 @@ export type BatchProgress = {
 
 export type BatchDetails = {
   status: string;
-  error: string | null;
+  error: BatchError | null;
   progress: BatchProgress;
   output: WordResponse[];
 };
@@ -49,6 +49,13 @@ export type ModelResponse = {
 export type ChatResponse = {
   word: string;
   status: number;
+};
+
+export type BatchError = {
+  prompt: string;
+  message: string;
+  model: string | null;
+  response: string | null;
 };
 
 export type PublicUser = {

@@ -72,4 +72,7 @@
     <string name="creator">Creator</string>
     <string name="fetching_batches">Fetching projects...</string>
     <string name="undo">Undo</string>
+    <string name="prompt_info">Prompt:</string>
+    <string name="model_info">Model:</string>
+    <string name="response_info">Response:</string>
 </resources>

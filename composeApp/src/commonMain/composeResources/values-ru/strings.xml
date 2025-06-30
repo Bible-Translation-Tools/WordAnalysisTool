@@ -72,4 +72,7 @@
     <string name="creator">Автор</string>
     <string name="fetching_batches">Загрузка проектов...</string>
     <string name="undo">Отменить</string>
+    <string name="prompt_info">Запрос:</string>
+    <string name="model_info">Модель:</string>
+    <string name="response_info">Ответ:</string>
 </resources>

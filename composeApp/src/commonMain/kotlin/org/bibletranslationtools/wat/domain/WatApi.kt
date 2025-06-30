@@ -76,7 +76,15 @@ data class BatchDetails(
     val status: BatchStatus,
     val progress: BatchProgress,
     val output: List<WordResponse>,
-    val error: String?
+    val error: BatchError?
+)
+
+@Serializable
+data class BatchError(
+    val prompt: String,
+    val message: String,
+    val model: String?,
+    val response: String?
 )
 
 @Serializable

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { oneLine } from "common-tags";
-import { ChatResponse } from "./types";
+import { BatchError, ChatResponse } from "./types";
 
 export default class AiClient {
   private env: CloudflareBindings;
@@ -60,7 +60,10 @@ export default class AiClient {
     this.baseUrl = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ID}/wat-ai`;
   }
 
-  async chat(model: string, prompt: string): Promise<ChatResponse[] | null> {
+  async chat(
+    model: string,
+    prompt: string
+  ): Promise<ChatResponse[] | BatchError> {
     const client = this.getClient(model);
 
     if (client === null) {
@@ -91,10 +94,23 @@ export default class AiClient {
 
       return JSON.parse(json);
     } catch (error) {
-      console.error(error);
-      console.error(response.choices[0].message.content);
-      return null;
+      return {
+        prompt,
+        message: error instanceof Error ? error.message : String(error),
+        model,
+        response: response.choices[0].message.content,
+      };
     }
+  }
+
+  isChatError(obj: any): obj is BatchError {
+    return (
+      obj &&
+      typeof obj.model === "string" &&
+      typeof obj.prompt === "string" &&
+      typeof obj.message === "string" &&
+      typeof obj.details === "string"
+    );
   }
 
   private getClient(model: string): OpenAI | null {
