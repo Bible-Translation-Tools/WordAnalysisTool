@@ -230,7 +230,9 @@ class AnalyzeViewModel(
                         )
                     }
 
-                    batch.details.error?.let(::updateStatus)
+                    batch.details.error?.let {
+                        updateStatus(it)
+                    }
                 }.onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
@@ -619,13 +621,14 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateStatus(details: Any?) {
+    private suspend fun updateStatus(details: Any?) {
         val status = details?.let {
             val time = Clock.System.now().toLocalDateTime(
                 TimeZone.currentSystemDefault()
             )
             Status(it, time.format())
         }
+        delay(1)
         _state.update {
             it.copy(status = status)
         }

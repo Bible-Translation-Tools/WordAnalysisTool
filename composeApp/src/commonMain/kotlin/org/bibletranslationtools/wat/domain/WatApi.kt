@@ -81,8 +81,8 @@ data class BatchDetails(
 
 @Serializable
 data class BatchError(
-    val prompt: String,
     val message: String,
+    val prompt: String?,
     val model: String?,
     val response: String?
 )

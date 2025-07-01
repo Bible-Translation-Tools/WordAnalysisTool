@@ -36,6 +36,7 @@ export const batchesTable = pgTable(
     resourceType: varchar("resource_type", { length: 255 }).notNull(),
     pending: boolean("pending").default(false).notNull(),
     error: text("error"),
+    retries: integer("retries").default(0).notNull(),
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),

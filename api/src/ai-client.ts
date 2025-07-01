@@ -103,16 +103,6 @@ export default class AiClient {
     }
   }
 
-  isChatError(obj: any): obj is BatchError {
-    return (
-      obj &&
-      typeof obj.model === "string" &&
-      typeof obj.prompt === "string" &&
-      typeof obj.message === "string" &&
-      typeof obj.details === "string"
-    );
-  }
-
   private getClient(model: string): OpenAI | null {
     if (this.models.openai.includes(model)) {
       return new OpenAI({

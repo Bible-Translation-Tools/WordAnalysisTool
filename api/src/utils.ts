@@ -1,4 +1,4 @@
-import { SplitBatchJson } from "./types";
+import { BatchError, SplitBatchJson } from "./types";
 
 export const isAdmin = (username: string, env: CloudflareBindings) => {
   const admins = env.WAT_ADMINS.split(",");
@@ -36,4 +36,14 @@ export const splitBatchJson = (json: string) => {
   };
 
   return splitJson;
+};
+
+export const isChatError = (obj: any): obj is BatchError => {
+  return (
+    obj &&
+    typeof obj.message === "string" &&
+    (typeof obj.prompt === "string" || obj.prompt === null) &&
+    (typeof obj.model === "string" || obj.model === null) &&
+    (typeof obj.response === "string" || obj.response === null)
+  );
 };

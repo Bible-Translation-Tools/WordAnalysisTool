@@ -56,7 +56,7 @@ fun BatchErrorDialog(
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(stringResource(Res.string.prompt_info), fontWeight = FontWeight.Bold)
-                        Text(error.prompt.ifEmpty { "n/a" })
+                        Text(if (!error.prompt.isNullOrEmpty()) error.prompt else "n/a")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(stringResource(Res.string.model_info), fontWeight = FontWeight.Bold)

@@ -52,8 +52,8 @@ export type ChatResponse = {
 };
 
 export type BatchError = {
-  prompt: string;
   message: string;
+  prompt: string | null;
   model: string | null;
   response: string | null;
 };

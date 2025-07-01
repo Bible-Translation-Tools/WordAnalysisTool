@@ -40,7 +40,7 @@ To add new migrations, edit `api/src/db/schema.ts` and run:
 
 `npm run db:generate`
 
-Then use migrate command again
+Then use migrate command again or run migrations manually via SQL.
 
 # Build
 

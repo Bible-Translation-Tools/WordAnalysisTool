@@ -5,7 +5,7 @@ import type { JwtVariables } from "hono/jwt";
 import { jwt, sign } from "hono/jwt";
 import { v4 as uuid4 } from "uuid";
 import AiClient from "./ai-client";
-import { isAdmin, splitBatchJson } from "./utils";
+import { isAdmin, isChatError, splitBatchJson } from "./utils";
 import {
   Batch,
   BatchDetails,
@@ -18,7 +18,11 @@ import {
   WordResponse,
   BatchError,
 } from "./types";
-import { SQL_BATCH_LIMIT, WORDS_PER_BATCH } from "./constants";
+import {
+  BATCH_MAX_RETRIES,
+  SQL_BATCH_LIMIT,
+  WORDS_PER_BATCH,
+} from "./constants";
 import DbHelper from "./db";
 import { stream } from "hono/streaming";
 import { batchesTable, modelsTable, usersTable, wordsTable } from "./db/schema";
@@ -395,16 +399,19 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
     const creator: PublicUser = {
       username: dbBatch.user.username,
     };
-    let batchError: BatchError;
-    try {
-      batchError = JSON.parse(dbBatch.error || "");
-    } catch (error) {
-      batchError = {
-        prompt: "",
-        message: dbBatch.error || "",
-        model: null,
-        response: null,
-      };
+
+    let batchError: BatchError | null = null;
+    if (dbBatch.error) {
+      try {
+        batchError = JSON.parse(dbBatch.error);
+      } catch (error) {
+        batchError = {
+          message: dbBatch.error || "Unknown error occurred.",
+          prompt: null,
+          model: null,
+          response: null,
+        };
+      }
     }
 
     const details: BatchDetails = {
@@ -757,7 +764,7 @@ export default {
                 modelsResults.push(modelResult);
               } else {
                 const results = await client.chat(model.model, prompt);
-                if (!client.isChatError(results)) {
+                if (!isChatError(results)) {
                   const modelResult: ModelResult = {
                     model: model.model,
                     results: results,
@@ -777,29 +784,40 @@ export default {
             }
           }
 
-          const updateErrorDetails = await dbHelper.updateModelResults(
+          const updateError = await dbHelper.updateModelResults(
             words.map((w) => w.word),
             batchId,
             modelsResults
           );
 
-          if (updateErrorDetails) {
-            errorDetails = {
-              prompt,
-              message: updateErrorDetails,
-              model: null,
-              response: null,
-            };
+          if (updateError) {
+            updateError.prompt = prompt;
+            errorDetails = updateError;
           }
         }
 
         const toUpdate: any = {
-          error: JSON.stringify(errorDetails),
           updatedAt: new Date(),
         };
 
         if (words.length == 0) {
           toUpdate.pending = false;
+        }
+
+        if (errorDetails) {
+          let retries = batch.retries + 1;
+          if (retries >= BATCH_MAX_RETRIES) {
+            // stop batch when retries counter exceeds limit
+            toUpdate.pending = false;
+            toUpdate.retries = 0;
+          } else {
+            toUpdate.retries = retries;
+          }
+          toUpdate.error = JSON.stringify(errorDetails);
+        } else {
+          // reset retries if there was no error
+          toUpdate.retries = 0;
+          toUpdate.error = "";
         }
 
         await dbHelper
@@ -809,7 +827,7 @@ export default {
           .where(eq(batchesTable.id, batchId));
       }
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
   },
 };

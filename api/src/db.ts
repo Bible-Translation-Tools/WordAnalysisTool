@@ -1,5 +1,5 @@
 import { SQL_BATCH_LIMIT } from "./constants";
-import { ModelResult } from "./types";
+import { BatchError, ModelResult } from "./types";
 import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -87,8 +87,7 @@ export default class DbHelper {
     words: string[],
     batchId: string,
     results: ModelResult[]
-  ): Promise<string | null> {
-    let error = null;
+  ): Promise<BatchError | null> {
     const wordsSet = new Set(words);
     const modelNames: string[] = [];
     const wordStatusMap = new Map<string, number>();
@@ -104,13 +103,23 @@ export default class DbHelper {
         if (wordsSet.has(word)) {
           wordStatusMap.set(word, result.status);
         } else {
-          error = `Model "${modelName}" returned a result for word "${word}" which is not in the allowed word list.`;
+          return {
+            message: `Model returned a result for word "${word}" which was not in the list.`,
+            prompt: null,
+            model: modelName,
+            response: null,
+          };
         }
       }
     }
 
     if (modelNames.length === 0 || wordStatusMap.size === 0) {
-      return error;
+      return {
+        message: "Batch did not return any results.",
+        prompt: null,
+        model: null,
+        response: null,
+      };
     }
 
     const caseWhenParts: Array<ReturnType<typeof sql>> = [];
@@ -134,7 +143,7 @@ export default class DbHelper {
         )
       );
 
-    return error;
+    return null;
   }
 
   async getCompletedWordsCount(batchId: string): Promise<number> {

@@ -8,6 +8,13 @@
       "when": 1747670662638,
       "tag": "0000_new_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1751372514564,
+      "tag": "0001_fuzzy_rattler",
+      "breakpoints": true
     }
   ]
 }
