@@ -61,18 +61,10 @@ fun SingletonCard(
     } else {
         stringResource(Res.string.is_word_correct)
     }
-    val answerCorrect = if (word.result?.consensus == Consensus.NAME) {
-        stringResource(Res.string.yes)
-    } else {
-        stringResource(Res.string.correct)
-    }
-    val answerIncorrect = if (word.result?.consensus == Consensus.NAME) {
-        stringResource(Res.string.no)
-    } else {
-        stringResource(Res.string.incorrect)
-    }
+    val answerCorrect = stringResource(Res.string.yes)
+    val answerIncorrect = stringResource(Res.string.no)
 
-    val localizedConsensus = Consensus.entries.associate { it to localizeConsensus(it) }
+    val localizedConsensus = Consensus.entries.associateWith { localizeConsensus(it) }
 
     Surface(
         shape = RoundedCornerShape(8.dp),

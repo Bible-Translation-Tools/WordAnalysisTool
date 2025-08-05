@@ -19,9 +19,9 @@ internal fun createSimpleHttpClient(
             exponentialDelay()
         }
         install(HttpTimeout) {
-            requestTimeoutMillis = 30000
-            connectTimeoutMillis = 30000
-            socketTimeoutMillis = 30000
+            requestTimeoutMillis = 60000
+            connectTimeoutMillis = 60000
+            socketTimeoutMillis = 60000
         }
     }
     return HttpClient(engine, configuration)
@@ -36,9 +36,9 @@ internal fun createAiHttpClient(
             exponentialDelay()
         }
         install(HttpTimeout) {
-            requestTimeoutMillis = 30000
-            connectTimeoutMillis = 30000
-            socketTimeoutMillis = 30000
+            requestTimeoutMillis = 360000
+            connectTimeoutMillis = 360000
+            socketTimeoutMillis = 360000
         }
         install(ContentNegotiation) {
             register(

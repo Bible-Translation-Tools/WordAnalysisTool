@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Delete
@@ -54,17 +55,14 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.domain.BatchError
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
-import org.bibletranslationtools.wat.format
 import org.bibletranslationtools.wat.ui.control.BatchInfo
 import org.bibletranslationtools.wat.ui.control.BatchProgress
 import org.bibletranslationtools.wat.ui.control.ExtraAction
@@ -74,11 +72,13 @@ import org.bibletranslationtools.wat.ui.control.SingletonRow
 import org.bibletranslationtools.wat.ui.control.StatusBox
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
+import org.bibletranslationtools.wat.ui.dialogs.BatchErrorDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
+import wordanalysistool.composeapp.generated.resources.cancel_batch
 import wordanalysistool.composeapp.generated.resources.delete_batch
 import wordanalysistool.composeapp.generated.resources.likely_correct
 import wordanalysistool.composeapp.generated.resources.likely_incorrect
@@ -137,9 +137,10 @@ class AnalyzeScreen(
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val wordsListState = rememberLazyListState()
-        val statuses = remember { mutableStateListOf<String>() }
+        val statuses = remember { mutableStateListOf<Status>() }
 
         var showStatuses by remember { mutableStateOf(false) }
+        var batchError by remember { mutableStateOf<BatchError?>(null) }
 
         val localizedSorting = WordsSorting.entries.associateWith { localizeSorting(it) }
         var adminActions by remember { mutableStateOf<List<ExtraAction>>(emptyList()) }
@@ -182,18 +183,16 @@ class AnalyzeScreen(
 
         LaunchedEffect(state.status) {
             state.status?.let {
-                val time = Clock.System.now().toLocalDateTime(
-                    TimeZone.currentSystemDefault()
-                )
                 if (statuses.size > 1_000) {
                     statuses.removeAt(0)
                 }
-                statuses.add("${time.format()} $it")
+                statuses.add(it)
             }
         }
 
         LaunchedEffect(user) {
             val processWordsText = getString(Res.string.process_words)
+            val cancelBatchText = getString(Res.string.cancel_batch)
             val deleteBatchText = getString(Res.string.delete_batch)
 
             adminActions = if (user.admin) {
@@ -203,6 +202,13 @@ class AnalyzeScreen(
                         icon = Icons.Default.Sync,
                         onClick = {
                             viewModel.onEvent(AnalyzeEvent.BatchWords)
+                        }
+                    ),
+                    ExtraAction(
+                        title = cancelBatchText,
+                        icon = Icons.Default.Cancel,
+                        onClick = {
+                            viewModel.onEvent(AnalyzeEvent.CancelBatch)
                         }
                     ),
                     ExtraAction(
@@ -319,8 +325,15 @@ class AnalyzeScreen(
                             .height(36.dp)
                             .padding(start = 16.dp)
                     ) {
+                        val message = state.status?.let {
+                            when (it.info) {
+                                is String -> it.info
+                                is BatchError -> it.info.message
+                                else -> null
+                            }
+                        } ?: ""
                         Text(
-                            text = state.status ?: "",
+                            text = message,
                             fontSize = 12.sp
                         )
                         IconButton(onClick = { showStatuses = !showStatuses }) {
@@ -332,6 +345,7 @@ class AnalyzeScreen(
                 if (showStatuses) {
                     StatusBox(
                         statuses = statuses,
+                        onShowError = { batchError = it },
                         modifier = Modifier.align(Alignment.BottomEnd)
                     )
                 }
@@ -341,6 +355,13 @@ class AnalyzeScreen(
                 AlertDialog(
                     message = it.message,
                     onDismiss = it.onClosed
+                )
+            }
+
+            batchError?.let {
+                BatchErrorDialog(
+                    error = it,
+                    onDismiss = { batchError = null }
                 )
             }
 

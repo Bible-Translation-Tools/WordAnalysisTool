@@ -30,7 +30,7 @@ export type BatchProgress = {
 
 export type BatchDetails = {
   status: string;
-  error: string | null;
+  error: BatchError | null;
   progress: BatchProgress;
   output: WordResponse[];
 };
@@ -51,6 +51,13 @@ export type ChatResponse = {
   status: number;
 };
 
+export type BatchError = {
+  message: string;
+  prompt: string | null;
+  model: string | null;
+  response: string | null;
+};
+
 export type PublicUser = {
   username: string;
 };
@@ -61,3 +68,13 @@ export enum BatchStatus {
   COMPLETE = "complete",
   ERRORED = "errored",
 }
+
+export type ModelResult = {
+  model: string;
+  results: ChatResponse[];
+};
+
+export type SplitBatchJson = {
+  left: string;
+  right: string;
+};
