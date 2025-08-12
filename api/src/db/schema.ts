@@ -58,6 +58,7 @@ export const wordsTable = pgTable(
       .notNull()
       .references(() => batchesTable.id, { onDelete: "cascade" }),
     correct: boolean("correct"),
+    ref: varchar("ref", { length: 20 }).default("").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

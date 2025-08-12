@@ -18,18 +18,22 @@ import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.ContentInfo
 import org.bibletranslationtools.wat.data.Direction
 import org.bibletranslationtools.wat.data.LanguageInfo
+import org.bibletranslationtools.wat.data.MutableVerseRef
 import org.bibletranslationtools.wat.data.Progress
-import org.bibletranslationtools.wat.data.Verse
+import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
+import org.bibletranslationtools.wat.domain.JsonLenient
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
+import org.bibletranslationtools.wat.platform.createFileCache
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.downloading_usfm
+import wordanalysistool.composeapp.generated.resources.failed_download_usfm
 import wordanalysistool.composeapp.generated.resources.fetching_batches
 import wordanalysistool.composeapp.generated.resources.fetching_heart_languages
 import wordanalysistool.composeapp.generated.resources.fetching_resource_types
@@ -37,6 +41,7 @@ import wordanalysistool.composeapp.generated.resources.preparing_for_analysis
 import wordanalysistool.composeapp.generated.resources.unknown_error
 
 data class BatchItem(
+    val id: String,
     val language: LanguageInfo,
     val resourceType: String,
     val username: String
@@ -45,7 +50,7 @@ data class BatchItem(
 data class HomeState(
     val alert: Alert? = null,
     val progress: Progress? = null,
-    val verses: List<Verse> = emptyList(),
+    val verses: VerseRef = emptyMap(),
     val heartLanguages: List<LanguageInfo> = emptyList(),
     val resourceTypes: List<String> = emptyList(),
     val batches: List<BatchItem> = emptyList()
@@ -54,17 +59,25 @@ data class HomeState(
 sealed class HomeEvent {
     data object Idle: HomeEvent()
     data class FetchResourceTypes(val ietfCode: String): HomeEvent()
-    data class FetchUsfm(val language: LanguageInfo, val resourceType: String): HomeEvent()
-    data class VersesLoaded(val language: LanguageInfo, val resourceType: String): HomeEvent()
+    data class FetchUsfm(
+        val language: LanguageInfo,
+        val resourceType: String,
+        val batchId: String? = null
+    ): HomeEvent()
+    data class VersesLoaded(
+        val language: LanguageInfo,
+        val resourceType: String,
+        val batchId: String? = null
+    ): HomeEvent()
     data object OnBeforeNavigate: HomeEvent()
 }
 
 class HomeViewModel(
+    private val user: User,
     private val bielGraphQlApi: BielGraphQlApi,
     private val downloadUsfm: DownloadUsfm,
     private val usfmBookSource: UsfmBookSource,
-    private val watApi: WatApi,
-    private val user: User
+    private val watApi: WatApi
 ) : ScreenModel {
 
     private var _state = MutableStateFlow(HomeState())
@@ -79,10 +92,16 @@ class HomeViewModel(
     private val _event: Channel<HomeEvent> = Channel()
     val event = _event.receiveAsFlow()
 
+    val cache = createFileCache()
+
     fun onEvent(event: HomeEvent) {
         when (event) {
             is HomeEvent.FetchResourceTypes -> fetchResourceTypes(event.ietfCode)
-            is HomeEvent.FetchUsfm -> fetchUsfm(event.language, event.resourceType)
+            is HomeEvent.FetchUsfm -> fetchUsfm(
+                event.language,
+                event.resourceType,
+                event.batchId
+            )
             is HomeEvent.OnBeforeNavigate -> onBeforeNavigate()
             else -> resetChannel()
         }
@@ -115,9 +134,12 @@ class HomeViewModel(
         }
     }
 
-    private fun fetchBatchesInProgress() {
-        screenModelScope.launch {
-            updateProgress(Progress(0f, getString(Res.string.fetching_batches)))
+    private suspend fun fetchBatchesInProgress() {
+        updateProgress(Progress(
+            0f,
+            getString(Res.string.fetching_batches))
+        )
+        withContext(Dispatchers.Default) {
             watApi.getBatchesInProgress(user.token.accessToken)
                 .onSuccess { batches ->
                     val batchItems = batches.map { batch ->
@@ -130,6 +152,7 @@ class HomeViewModel(
                             direction = Direction.LTR
                         )
                         BatchItem(
+                            id = batch.id,
                             language = language,
                             resourceType = batch.resourceType,
                             username = batch.creator.username
@@ -144,26 +167,45 @@ class HomeViewModel(
                         }
                     )
                 }
-            updateProgress(null)
         }
+        updateProgress(null)
     }
 
     private fun fetchUsfm(
         language: LanguageInfo,
-        resourceType: String
+        resourceType: String,
+        batchId: String? = null
     ) {
         screenModelScope.launch {
-            updateProgress(Progress(0f, getString(Res.string.downloading_usfm)))
+            updateProgress(
+                Progress(
+                    0f,
+                    getString(Res.string.downloading_usfm)
+                )
+            )
 
             // TODO Remove debug code
             val books = when(language.ietfCode) {
-                "en" -> listOf(ContentInfo("", "Jude", "jud", null))
-                "ru" ->listOf(ContentInfo("", "Послание Иуды", "jud", null))
-                else -> bielGraphQlApi.getBooksForTranslation(language.ietfCode, resourceType)
+                "en" -> listOf(ContentInfo(
+                    "",
+                    "Jude",
+                    "jud",
+                    null
+                ))
+                "ru" ->listOf(ContentInfo(
+                    "",
+                    "Послание Иуды",
+                    "jud",
+                    null
+                ))
+                else -> bielGraphQlApi.getBooksForTranslation(
+                    language.ietfCode,
+                    resourceType
+                )
             }
 
             val totalBooks = books.size
-            val allVerses = mutableListOf<Verse>()
+            val allVerses: MutableVerseRef = mutableMapOf()
 
             withContext(Dispatchers.Default) {
                 books.forEachIndexed { index, book ->
@@ -172,13 +214,14 @@ class HomeViewModel(
 
                         // TODO Remove debug code
                         if (language.ietfCode !in listOf("en","ru")) {
-                            val response = downloadUsfm(url)
-
-                            response.onSuccess { bytes ->
-                                allVerses.addAll(usfmBookSource.parse(bytes.decodeToString()))
-                            }.onError { err ->
+                            val verses = getBookVerses(url)
+                            if (verses != null) {
+                                allVerses.putAll(verses)
+                            } else {
                                 updateAlert(
-                                    Alert(err.description ?: getString(Res.string.unknown_error)) {
+                                    Alert(getString(
+                                        Res.string.failed_download_usfm
+                                    )) {
                                         updateAlert(null)
                                     }
                                 )
@@ -187,14 +230,17 @@ class HomeViewModel(
                             }
                         } else {
                             if (language.ietfCode == "en") {
-                                allVerses.addAll(getEnglishFakeVerses())
+                                allVerses.putAll(getEnglishFakeVerses())
                             } else {
-                                allVerses.addAll(getRussianFakeVerses())
+                                allVerses.putAll(getRussianFakeVerses())
                             }
                         }
 
                         updateProgress(
-                            Progress(currentProgress, getString(Res.string.downloading_usfm))
+                            Progress(
+                                currentProgress,
+                                getString(Res.string.downloading_usfm)
+                            )
                         )
                     }
                 }
@@ -202,16 +248,55 @@ class HomeViewModel(
 
             updateVerses(allVerses)
 
-            updateProgress(Progress(0f, getString(Res.string.preparing_for_analysis)))
+            updateProgress(
+                Progress(
+                    0f,
+                    getString(Res.string.preparing_for_analysis)
+                )
+            )
             delay(1000)
             updateProgress(null)
 
-            _event.send(HomeEvent.VersesLoaded(language, resourceType))
+            _event.send(HomeEvent.VersesLoaded(language, resourceType, batchId))
+        }
+    }
+
+    private suspend fun getBookVerses(url: String): VerseRef? {
+        val cachedBytes = cache.get(url)
+        return if (cachedBytes != null) {
+            try {
+                JsonLenient.decodeFromString<VerseRef>(
+                    cachedBytes.decodeToString()
+                )
+            } catch (_: Exception) {
+                fetchAndCache(url)
+            }
+        } else {
+            fetchAndCache(url)
+        }
+    }
+
+    private suspend fun fetchAndCache(url: String): VerseRef? {
+        return try {
+            var verses: VerseRef? = null
+            downloadUsfm(url).onSuccess { data ->
+                verses = usfmBookSource.parse(data.decodeToString())
+                    .associateBy { it.toString() }
+                val json = JsonLenient.encodeToString(verses)
+                cache.put(url, json.encodeToByteArray())
+            }.onError { error ->
+                println("Failed to fetch verses: ${error.description}")
+                null
+            }
+            verses
+        } catch (e: Exception) {
+            println("Failed to fetch verses: ${e.message}")
+            null
         }
     }
 
     private fun onBeforeNavigate() {
-        updateVerses(emptyList())
+        updateVerses(emptyMap())
     }
 
     private fun updateHeartLanguages(heartLanguages: List<LanguageInfo>) {
@@ -232,7 +317,7 @@ class HomeViewModel(
         }
     }
 
-    private fun updateVerses(verses: List<Verse>) {
+    private fun updateVerses(verses: VerseRef) {
         _state.update {
             it.copy(verses = verses)
         }
@@ -257,7 +342,7 @@ class HomeViewModel(
     }
 
     // TODO Remove debug code
-    private suspend fun getEnglishFakeVerses(): List<Verse> {
+    private suspend fun getEnglishFakeVerses(): VerseRef {
         val usfm = """
         \id JUD Unlocked Literal Bible
         \ide UTF-8
@@ -321,11 +406,11 @@ class HomeViewModel(
         \v 24 Now to the one who is able to keep you from stumbling and to cause you to stand before his glorious presence without blemish and with great joy,
         \v 25 to the only God our Savior through Jesus Christ our Lord, be glory, majesty, dominion, and authority, before all time, now, and forever. Amen.
         """.trimIndent()
-        return usfmBookSource.parse(usfm)
+        return usfmBookSource.parse(usfm).associateBy { it.toString() }
     }
 
     // TODO Remove debug code
-    private suspend fun getRussianFakeVerses(): List<Verse> {
+    private suspend fun getRussianFakeVerses(): VerseRef {
         val usfm = """
         \id JUD
         \ide UTF-8
@@ -384,6 +469,6 @@ class HomeViewModel(
         \v 24 Тому, кто может сохранить вас от падения и поставить перед Своей славой безупречными в радости, 
         \v 25 Единому Премудрому Богу, нашему Спасителю через Иисуса Христа, нашего Господа, слава и величие, сила и власть прежде всех веков, теперь и в вечности. Аминь.
         """.trimIndent()
-        return usfmBookSource.parse(usfm)
+        return usfmBookSource.parse(usfm).associateBy { it.toString() }
     }
 }

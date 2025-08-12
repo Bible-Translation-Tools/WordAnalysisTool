@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
@@ -16,6 +15,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -42,18 +42,11 @@ data class ExtraAction(
     val onClick: () -> Unit
 )
 
-enum class PageType {
-    HOME,
-    SETTINGS,
-    ANALYZE
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopNavigationBar(
     title: String,
     user: User,
-    page: PageType,
     vararg extraAction: ExtraAction,
 ) {
     val navigator = LocalNavigator.currentOrThrow
@@ -68,16 +61,6 @@ fun TopNavigationBar(
         title = {
             SingleLineText(title)
         },
-        navigationIcon = {
-            if (page != PageType.HOME) {
-                IconButton(onClick = { navigator.pop() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null
-                    )
-                }
-            }
-        },
         actions = {
             IconButton(onClick = { showDropDownMenu = true }) {
                 Icon(
@@ -88,6 +71,7 @@ fun TopNavigationBar(
             DropdownMenu(
                 expanded = showDropDownMenu,
                 onDismissRequest = { showDropDownMenu = false },
+                containerColor = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.width(200.dp)
             ) {
                 Row(
@@ -100,23 +84,21 @@ fun TopNavigationBar(
 
                 HorizontalDivider()
 
-                if (page != PageType.SETTINGS) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.settings)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = null
-                            )
-                        },
-                        onClick = {
-                            showDropDownMenu = false
-                            if (navigator.lastItem !is SettingsScreen) {
-                                navigator.push(SettingsScreen(user))
-                            }
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.settings)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        showDropDownMenu = false
+                        if (navigator.lastItem !is SettingsScreen) {
+                            navigator.push(SettingsScreen(user))
                         }
-                    )
-                }
+                    }
+                )
                 actionsState.forEach {
                     DropdownMenuItem(
                         text = { Text(it.title) },

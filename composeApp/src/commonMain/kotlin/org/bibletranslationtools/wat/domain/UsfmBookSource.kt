@@ -4,7 +4,6 @@ import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.platform.AppUsfmParser
 import org.bibletranslationtools.wat.platform.markers.CMarker
 import org.bibletranslationtools.wat.platform.markers.FMarker
-import org.bibletranslationtools.wat.platform.markers.HMarker
 import org.bibletranslationtools.wat.platform.markers.TOC3Marker
 import org.bibletranslationtools.wat.platform.markers.TextBlock
 import org.bibletranslationtools.wat.platform.markers.UsfmDocument
@@ -12,7 +11,6 @@ import org.bibletranslationtools.wat.platform.markers.VMarker
 import org.bibletranslationtools.wat.platform.markers.XMarker
 
 interface UsfmBookSource {
-    suspend fun import(bytes: ByteArray)
     suspend fun parse(
         usfm: String,
         bookSlug: String? = null,
@@ -21,42 +19,6 @@ interface UsfmBookSource {
 }
 
 class UsfmBookSourceImpl : UsfmBookSource {
-
-    override suspend fun import(bytes: ByteArray) {
-        try {
-            val usfm = bytes.decodeToString()
-            val usfmParser = AppUsfmParser(arrayListOf("s5"), true)
-            val document = usfmParser.parseFromString(usfm)
-
-            val bookSlug = document
-                .getChildMarkers(TOC3Marker::class)
-                .firstOrNull()
-                ?.bookAbbreviation
-                ?.lowercase()
-
-            val bookName = document
-                .getChildMarkers(HMarker::class)
-                .firstOrNull()
-                ?.headerText
-
-            if (bookSlug == null || bookName == null) {
-                throw IllegalArgumentException("Book header is not complete.")
-            }
-
-//            val existentBook = bookDataSource.getBySlug(bookSlug)
-//            if (existentBook != null) {
-//                bookDataSource.update(existentBook.copy(content = usfm))
-//            } else {
-//                bookDataSource.add(
-//                    slug = bookSlug,
-//                    name = bookName,
-//                    content = usfm
-//                )
-//            }
-        } catch (e: Exception) {
-            throw IllegalArgumentException("Could not import file.", e)
-        }
-    }
 
     override suspend fun parse(
         usfm: String,
@@ -72,27 +34,20 @@ class UsfmBookSourceImpl : UsfmBookSource {
             ?.bookAbbreviation
             ?.lowercase() ?: "unknown"
 
-        val bookNameFinal = document
-            .getChildMarkers(HMarker::class)
-            .firstOrNull()
-            ?.headerText ?: "Unknown"
-
-        return getVerses(document, bookSlugFinal, bookNameFinal)
+        return getVerses(document, bookSlugFinal)
     }
 
     private fun getVerses(
         document: UsfmDocument,
-        bookSlug: String,
-        bookName: String
+        bookSlug: String
     ): List<Verse> {
         return document.getChildMarkers(CMarker::class).map { chapter ->
             chapter.getChildMarkers(VMarker::class).map { verse ->
                 Verse(
-                    number = verse.startingVerse,
-                    text = verse.getText(),
-                    bookSlug = bookSlug,
-                    bookName = bookName,
-                    chapter = chapter.number
+                    book = bookSlug,
+                    chapter = chapter.number,
+                    verse = verse.verseNumber,
+                    text = verse.getText()
                 )
             }
         }.flatten()

@@ -8,6 +8,11 @@ export default class AiClient {
 
   private models = {
     openai: [
+      "gpt-5",
+      "gpt-5-mini",
+      "gpt-5-nano",
+      "gpt-oss-120b",
+      "gpt-oss-20b",
       "gpt-4.1",
       "gpt-4.1-mini",
       "gpt-4.1-nano",
@@ -16,6 +21,9 @@ export default class AiClient {
       "gpt-4-turbo",
     ],
     anthropic: [
+      "claude-opus-4-1-20250805",
+      "claude-opus-4-20250514",
+      "claude-sonnet-4-20250514",
       "claude-3-7-sonnet-latest",
       "claude-3-5-sonnet-latest",
       "claude-3-5-haiku-latest",
@@ -29,8 +37,8 @@ export default class AiClient {
     //   "qwen-turbo",
     // ],
     mistral: [
+      "mistral-medium-2505",
       "ministral-3b-latest",
-      "codestral-latest",
       "mistral-large-latest",
       "pixtral-large-latest",
       "ministral-8b-latest",

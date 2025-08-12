@@ -3,7 +3,6 @@ package org.bibletranslationtools.wat.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -12,13 +11,25 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import org.jetbrains.compose.resources.Font
 import wordanalysistool.composeapp.generated.resources.Res
-import wordanalysistool.composeapp.generated.resources.noto_sans
-import wordanalysistool.composeapp.generated.resources.noto_sans_arabic
+import wordanalysistool.composeapp.generated.resources.noto_sans_arabic_bold
+import wordanalysistool.composeapp.generated.resources.noto_sans_arabic_regular
+import wordanalysistool.composeapp.generated.resources.noto_sans_bold
+import wordanalysistool.composeapp.generated.resources.noto_sans_chinese_simplified_bold
+import wordanalysistool.composeapp.generated.resources.noto_sans_chinese_simplified_regular
+import wordanalysistool.composeapp.generated.resources.noto_sans_korean_bold
+import wordanalysistool.composeapp.generated.resources.noto_sans_korean_regular
+import wordanalysistool.composeapp.generated.resources.noto_sans_malayalam_bold
+import wordanalysistool.composeapp.generated.resources.noto_sans_malayalam_regular
+import wordanalysistool.composeapp.generated.resources.noto_sans_regular
+import wordanalysistool.composeapp.generated.resources.noto_serif_tibetan_bold
+import wordanalysistool.composeapp.generated.resources.noto_serif_tibetan_regular
 
 val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF0056D1),
+    primary = Color(0xFF478CFF),
+    primaryContainer = Color(0xFFEEF0FF),
     secondary = Color(0xFFE99A2E),
     tertiary = Color(0xFF63C76C),
+    tertiaryContainer = Color(0xFFE2F7E7),
     background = Color(0xFFF2F2F2),
     surface = Color(0xFFFFFFFF),
     error = Color(0xFFC3362D),
@@ -26,13 +37,17 @@ val LightColorScheme = lightColorScheme(
     onSecondary = Color.White,
     onTertiary = Color.White,
     onBackground = Color(0xFF444444),
-    onSurface = Color(0xFF444444)
+    onSurface = Color(0xFF444444),
+    scrim = Color(0xFF444444),
+    outline = Color(0xFFE6E6E6)
 )
 
 val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF4B8EFF),
+    primaryContainer = Color(0xFFEEF0FF),
     secondary = Color(0xFFFFB655),
     tertiary = Color(0xFF7EE588),
+    tertiaryContainer = Color(0xFFE2F7E7),
     background = Color(0xFF141516),
     surface = Color(0xFF0F1011),
     error = Color(0xFFFF6B62),
@@ -40,47 +55,68 @@ val DarkColorScheme = darkColorScheme(
     onSecondary = Color.White,
     onTertiary = Color.White,
     onBackground = Color(0xFFC9C9C9),
-    onSurface = Color(0xFFC9C9C9)
-)
-
-val ColorScheme.semiTransparent: Color
-    @Composable get() = Color(0x88000000)
-
-@Composable
-fun NotoSansFontFamily() = FontFamily(
-    Font(Res.font.noto_sans, FontWeight.Normal),
+    onSurface = Color(0xFFC9C9C9),
+    scrim = Color(0xFF444444),
+    outline = Color(0xFFE6E6E6)
 )
 
 @Composable
-fun NotoSansArabicFontFamily() = FontFamily(
-    Font(Res.font.noto_sans_arabic, FontWeight.Normal),
+fun defaultFontFamily() = FontFamily(
+    Font(Res.font.noto_sans_regular, FontWeight.Normal),
+    Font(Res.font.noto_sans_bold, FontWeight.Bold)
 )
 
 @Composable
-fun NotoSansTypography(fontFamily: FontFamily) = Typography().run {
-    copy(
-        displayLarge = displayLarge.copy(fontFamily = fontFamily),
-        displayMedium = displayMedium.copy(fontFamily = fontFamily),
-        displaySmall = displaySmall.copy(fontFamily = fontFamily),
-        headlineLarge = headlineLarge.copy(fontFamily = fontFamily),
-        headlineMedium = headlineMedium.copy(fontFamily = fontFamily),
-        headlineSmall = headlineSmall.copy(fontFamily = fontFamily),
-        titleLarge = titleLarge.copy(fontFamily = fontFamily),
-        titleMedium = titleMedium.copy(fontFamily = fontFamily),
-        titleSmall = titleSmall.copy(fontFamily = fontFamily),
-        bodyLarge = bodyLarge.copy(fontFamily =  fontFamily),
-        bodyMedium = bodyMedium.copy(fontFamily = fontFamily),
-        bodySmall = bodySmall.copy(fontFamily = fontFamily),
-        labelLarge = labelLarge.copy(fontFamily = fontFamily),
-        labelMedium = labelMedium.copy(fontFamily = fontFamily),
-        labelSmall = labelSmall.copy(fontFamily = fontFamily)
-    )
+fun arabicFontFamily() = FontFamily(
+    Font(Res.font.noto_sans_arabic_regular, FontWeight.Normal),
+    Font(Res.font.noto_sans_arabic_bold, FontWeight.Bold)
+)
+
+@Composable
+fun chineseSimplifiedFontFamily() = FontFamily(
+    Font(Res.font.noto_sans_chinese_simplified_regular, FontWeight.Normal),
+    Font(Res.font.noto_sans_chinese_simplified_bold, FontWeight.Bold)
+)
+
+@Composable
+fun tibetanFontFamily() = FontFamily(
+    Font(Res.font.noto_serif_tibetan_regular, FontWeight.Normal),
+    Font(Res.font.noto_serif_tibetan_bold, FontWeight.Bold)
+)
+
+@Composable
+fun koreanFontFamily() = FontFamily(
+    Font(Res.font.noto_sans_korean_regular, FontWeight.Normal),
+    Font(Res.font.noto_sans_korean_bold, FontWeight.Bold)
+)
+
+@Composable
+fun malayalamFontFamily() = FontFamily(
+    Font(Res.font.noto_sans_malayalam_regular, FontWeight.Normal),
+    Font(Res.font.noto_sans_malayalam_bold, FontWeight.Bold)
+)
+
+@Composable
+fun getFontFamilyForText(text: String): FontFamily {
+    val arabicRegex = Regex(".*[\\u0600-\\u06FF].*")
+    val chineseSimplifiedRegex = Regex(".*[\\u4E00-\\u9FFF\\u3400-\\u4DBF\\uFF00-\\uFFEF].*")
+    val tibetanRegex = Regex(".*[\\u0F00-\\u0FFF].*")
+    val koreanRegex = Regex(".*[\\uAC00-\\uD7A3\\u1100-\\u11FF\\u3130-\\u318F\\uA960-\\uA97F\\uD7B0-\\uD7FF].*")
+    val malayalamRegex = Regex(".*[\\u0D00-\\u0D7F].*")
+
+    return when {
+        arabicRegex.matches(text) -> arabicFontFamily()
+        chineseSimplifiedRegex.matches(text) -> chineseSimplifiedFontFamily()
+        tibetanRegex.matches(text) -> tibetanFontFamily()
+        koreanRegex.matches(text) -> koreanFontFamily()
+        malayalamRegex.matches(text) -> malayalamFontFamily()
+        else -> defaultFontFamily()
+    }
 }
 
 @Composable
 fun MainAppTheme(
     themeColorScheme: ColorScheme? = null,
-    fontFamily: FontFamily = NotoSansFontFamily(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -91,7 +127,6 @@ fun MainAppTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        content = content,
-        typography = NotoSansTypography(fontFamily)
+        content = content
     )
 }

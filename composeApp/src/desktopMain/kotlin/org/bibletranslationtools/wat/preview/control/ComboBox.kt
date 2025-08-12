@@ -14,8 +14,7 @@ fun ComboBoxPreview() {
             value = "Option 2",
             options = listOf("Option 1", "Option 2", "Option 3").map(::Option),
             onOptionSelected = {},
-            valueConverter = { it },
-            label = "Select an option"
+            valueConverter = { it }
         )
     }
 }

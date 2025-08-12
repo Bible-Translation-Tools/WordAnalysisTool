@@ -5,10 +5,7 @@ import com.appstractive.jwt.from
 import config.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.encodeURLPathPart
-import io.ktor.utils.io.readRemaining
-import kotlinx.io.readByteArray
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -52,21 +49,37 @@ enum class WordStatus(val value: Int) {
 
 @Serializable
 data class WordRequest(
-    @SerialName("batch_id")
-    val batchId: String,
     val word: String,
     val correct: Boolean?
 )
 
 @Serializable
+data class WordsRequest(
+    val batchId: String,
+    val words: List<WordRequest>
+)
+
+@Serializable
 data class BatchRequest(
     val language: String,
-    val words: List<String>,
+    val words: List<WordData>,
     val models: List<String>
 )
 
 @Serializable
+data class WordData(
+    val word: String,
+    val ref: String
+)
+
+@Serializable
 data class BatchProgress(
+    val correct: Int,
+    val incorrect: Int,
+    val name: Int,
+    @SerialName("review_needed")
+    val reviewNeeded: Int,
+    val reviewed: Int,
     val completed: Int,
     val total: Int
 )
@@ -107,6 +120,7 @@ data class ModelResponse(
 @Serializable
 data class WordResponse(
     val word: String,
+    val ref: String,
     val correct: Boolean?,
     val results: List<ModelResponse>
 )
@@ -154,34 +168,41 @@ interface WatApi {
     suspend fun getAuthUrl(): ApiResult<String, NetworkError>
     suspend fun getAuthToken(): ApiResult<Token, NetworkError>
     suspend fun verifyUser(accessToken: String): ApiResult<Boolean, NetworkError>
-    suspend fun getBatch(
+    suspend fun getBatchStats(
         ietfCode: String,
         resourceType: String,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
-
+    suspend fun getBatchReport(
+        ietfCode: String,
+        resourceType: String,
+        accessToken: String
+    ): ApiResult<ByteArray, NetworkError>
+    suspend fun getReviewPage(
+        ietfCode: String,
+        resourceType: String,
+        page: Int,
+        limit: Int,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError>
     suspend fun createBatch(
         ietfCode: String,
         resourceType: String,
         request: BatchRequest,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
-
     suspend fun deleteBatch(
         batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
-
-    suspend fun cancelBatch(
+    suspend fun pauseBatch(
         batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
-
-    suspend fun updateWordCorrect(
-        request: WordRequest,
+    suspend fun updateWordsCorrect(
+        request: WordsRequest,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
-
     suspend fun getBatchesInProgress(
         accessToken: String
     ): ApiResult<List<Batch>, NetworkError>
@@ -209,7 +230,7 @@ class WatApiImpl(
         val response = get(httpClient, "$BASE_URL/auth/tokens/$state")
         return when {
             response.data != null -> {
-                ApiResult.Success(response.data.body<Token>())
+                ApiResult.Success(response.data.body())
             }
 
             response.error != null -> {
@@ -217,7 +238,11 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }
@@ -234,7 +259,7 @@ class WatApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<Boolean>()
+                    response.data.body()
                 )
             }
 
@@ -243,19 +268,23 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }
 
-    override suspend fun getBatch(
+    override suspend fun getBatchReport(
         ietfCode: String,
         resourceType: String,
         accessToken: String
-    ): ApiResult<Batch, NetworkError> {
+    ): ApiResult<ByteArray, NetworkError> {
         val response = get(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/$ietfCode/$resourceType",
+            url = "$BASE_URL/api/report/$ietfCode/$resourceType",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
@@ -264,12 +293,80 @@ class WatApiImpl(
 
         return when {
             response.data != null -> {
-                val channel = response.data.bodyAsChannel()
-                val byteArray = channel.readRemaining().readByteArray()
-                val jsonString = byteArray.decodeToString()
+                ApiResult.Success(response.data.body())
+            }
 
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
+            )
+        }
+    }
+
+    override suspend fun getBatchStats(
+        ietfCode: String,
+        resourceType: String,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError> {
+        val response = get(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/stats/$ietfCode/$resourceType",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            )
+        )
+
+        return when {
+            response.data != null -> {
+                ApiResult.Success(response.data.body())
+            }
+
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
+            )
+        }
+    }
+
+    override suspend fun getReviewPage(
+        ietfCode: String,
+        resourceType: String,
+        page: Int,
+        limit: Int,
+        accessToken: String
+    ): ApiResult<Batch, NetworkError> {
+        val response = get(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/review/$ietfCode/$resourceType",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            ),
+            params = mapOf(
+                "page" to page.toString(),
+                "limit" to limit.toString()
+            )
+        )
+
+        return when {
+            response.data != null -> {
                 ApiResult.Success(
-                    JsonLenient.decodeFromString<Batch>(jsonString)
+                    response.data.body()
                 )
             }
 
@@ -278,7 +375,11 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }
@@ -303,7 +404,7 @@ class WatApiImpl(
             return when {
                 response.data != null -> {
                     ApiResult.Success(
-                        response.data.body<Batch>()
+                        response.data.body()
                     )
                 }
 
@@ -312,19 +413,23 @@ class WatApiImpl(
                 }
 
                 else -> ApiResult.Error(
-                    NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                    NetworkError(
+                        ErrorType.Unknown,
+                        -1,
+                        getString(Res.string.unknown_error)
+                    )
                 )
             }
         }
     }
 
-    override suspend fun cancelBatch(
+    override suspend fun pauseBatch(
         batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError> {
         val response = delete(
             httpClient = httpClient,
-            url = "$BASE_URL/api/batch/cancel/$batchId",
+            url = "$BASE_URL/api/batch/pause/$batchId",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
@@ -333,7 +438,7 @@ class WatApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<Boolean>()
+                    response.data.body()
                 )
             }
 
@@ -342,7 +447,11 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }
@@ -362,7 +471,7 @@ class WatApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<Boolean>()
+                    response.data.body()
                 )
             }
 
@@ -371,18 +480,22 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }
 
-    override suspend fun updateWordCorrect(
-        request: WordRequest,
+    override suspend fun updateWordsCorrect(
+        request: WordsRequest,
         accessToken: String
     ): ApiResult<Boolean, NetworkError> {
         val response = post(
             httpClient = httpClient,
-            url = "$BASE_URL/api/word",
+            url = "$BASE_URL/api/words",
             body = request,
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
@@ -392,7 +505,7 @@ class WatApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<Boolean>()
+                    response.data.body()
                 )
             }
 
@@ -401,7 +514,11 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }
@@ -420,7 +537,7 @@ class WatApiImpl(
         return when {
             response.data != null -> {
                 ApiResult.Success(
-                    response.data.body<List<Batch>>()
+                    response.data.body()
                 )
             }
 
@@ -429,7 +546,11 @@ class WatApiImpl(
             }
 
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }

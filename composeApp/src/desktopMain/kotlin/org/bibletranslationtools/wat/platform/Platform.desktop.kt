@@ -1,7 +1,5 @@
 package org.bibletranslationtools.wat.platform
 
-import io.github.mxaln.kotlin.document.store.core.DataStore
-import io.github.mxaln.kotlin.document.store.stores.leveldb.LevelDBStore
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.cio.CIO
 import java.io.File
@@ -17,8 +15,6 @@ actual val appDirPath: String
         }
         return appDir.canonicalPath
     }
-
-actual val dbStore: DataStore = LevelDBStore.open(appDirPath)
 
 actual val httpClientEngine: HttpClientEngine
     get() {

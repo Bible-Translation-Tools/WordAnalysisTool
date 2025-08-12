@@ -1,16 +1,22 @@
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +25,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -35,6 +42,19 @@ data class Option<T>(
     val icon: OptionIcon? = null,
 )
 
+@ExperimentalMaterial3Api
+@Composable
+fun TrailingIcon(
+    expanded: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = Icons.Filled.KeyboardArrowDown,
+        contentDescription = null,
+        modifier.rotate(if (expanded) 180f else 0f)
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> ComboBox(
@@ -42,7 +62,6 @@ fun <T> ComboBox(
     options: List<Option<T>> = emptyList(),
     onOptionSelected: (T) -> Unit = {},
     valueConverter: (T) -> String = { it?.toString() ?: "" },
-    label: String? = null,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -57,7 +76,7 @@ fun <T> ComboBox(
         },
         modifier = modifier,
     ) {
-        TextField(
+        OutlinedTextField(
             enabled = isEnabled(),
             modifier = Modifier.fillMaxWidth()
                 .menuAnchor(
@@ -67,15 +86,19 @@ fun <T> ComboBox(
             readOnly = true,
             value = valueConverter(value),
             onValueChange = {},
-            label = label?.let {{ Text(text = it) }},
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
-            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            shape = MaterialTheme.shapes.small,
+            trailingIcon = { TrailingIcon(expanded = expanded) },
+            colors = OutlinedTextFieldDefaults.colors(
+
+            )
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             for (option in options) {
                 DropdownMenuItem(

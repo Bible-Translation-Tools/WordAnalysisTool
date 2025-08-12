@@ -11,6 +11,7 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.unknown_error
 
 class DownloadUsfm(private val httpClient: HttpClient) {
+
     suspend operator fun invoke(url: String): ApiResult<ByteArray, NetworkError> {
         val response = get(httpClient, url)
 
@@ -22,7 +23,11 @@ class DownloadUsfm(private val httpClient: HttpClient) {
                 ApiResult.Error(response.error)
             }
             else -> ApiResult.Error(
-                NetworkError(ErrorType.Unknown, -1, getString(Res.string.unknown_error))
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
             )
         }
     }

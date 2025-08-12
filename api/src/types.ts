@@ -1,11 +1,11 @@
 export type WordsParams = {
   batchId: string;
-  words: WordsRequest[];
+  words: WordRequest[];
 };
 
-export type WordsRequest = {
-  prompt: string;
-  models: any[];
+export type WordRequest = {
+  word: string;
+  correct: boolean | null;
 };
 
 export type BatchRequest = {
@@ -24,6 +24,11 @@ export type Batch = {
 };
 
 export type BatchProgress = {
+  correct: number;
+  incorrect: number;
+  name: number;
+  review_needed: number;
+  reviewed: number;
   completed: number;
   total: number;
 };
@@ -37,6 +42,7 @@ export type BatchDetails = {
 
 export type WordResponse = {
   word: string;
+  ref: string;
   correct: boolean | null;
   results: ModelResponse[];
 };
@@ -77,4 +83,9 @@ export type ModelResult = {
 export type SplitBatchJson = {
   left: string;
   right: string;
+};
+
+export type WordData = {
+  word: string;
+  ref: string;
 };

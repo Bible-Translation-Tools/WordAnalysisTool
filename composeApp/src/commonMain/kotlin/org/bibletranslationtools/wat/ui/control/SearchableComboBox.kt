@@ -5,6 +5,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -17,6 +18,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
+import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +59,9 @@ fun <T> SearchableComboBox(
             value = searchTextState,
             enabled = isEnabled(),
             label = label?.let {{ Text(text = it) }},
+            textStyle = LocalTextStyle.current.copy(
+                fontFamily = getFontFamilyForText(searchTextState.text)
+            ),
             onValueChange = {
                 searchTextState = it
                 expanded = true
@@ -78,7 +83,12 @@ fun <T> SearchableComboBox(
             filteredOptions
                 .forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(valueConverter(option)) },
+                        text = {
+                            Text(
+                                text = valueConverter(option),
+                                fontFamily = getFontFamilyForText(valueConverter(option))
+                            )
+                        },
                         onClick = {
                             searchTextState = TextFieldValue(valueConverter(option))
                             expanded = false

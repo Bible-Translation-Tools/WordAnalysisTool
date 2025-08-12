@@ -13,12 +13,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,11 +44,11 @@ import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.ui.control.ExtraAction
-import org.bibletranslationtools.wat.ui.control.PageType
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
+import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
@@ -75,7 +75,6 @@ class HomeScreen(private val user: User) : Screen {
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
-        var selectedResourceType by remember { mutableStateOf<String?>(null) }
         var showLanguagesDialog by remember { mutableStateOf(false) }
 
         LaunchedEffect(selectedHeartLanguage) {
@@ -89,8 +88,15 @@ class HomeScreen(private val user: User) : Screen {
                 is HomeEvent.VersesLoaded -> {
                     val language = (event as HomeEvent.VersesLoaded).language
                     val resourceType = (event as HomeEvent.VersesLoaded).resourceType
+                    val batchId = (event as HomeEvent.VersesLoaded).batchId
                     navigator.push(
-                        AnalyzeScreen(language, resourceType, state.verses, user)
+                        ReviewScreen(
+                            language = language,
+                            resourceType = resourceType,
+                            verses = state.verses,
+                            user = user,
+                            batchId = batchId
+                        )
                     )
                     viewModel.onEvent(HomeEvent.OnBeforeNavigate)
                 }
@@ -103,7 +109,6 @@ class HomeScreen(private val user: User) : Screen {
                 TopNavigationBar(
                     title = "",
                     user = user,
-                    page = PageType.HOME,
                     ExtraAction(
                         title = stringResource(Res.string.logout),
                         icon = Icons.AutoMirrored.Filled.Logout,
@@ -145,8 +150,12 @@ class HomeScreen(private val user: User) : Screen {
                         Text(stringResource(Res.string.creator))
                     }
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.shadow(4.dp, RoundedCornerShape(8.dp))
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier
+                            .shadow(
+                                elevation = 4.dp,
+                                shape = MaterialTheme.shapes.medium
+                            )
                     ) {
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth()
@@ -157,12 +166,13 @@ class HomeScreen(private val user: User) : Screen {
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
                                         .height(50.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .clip(MaterialTheme.shapes.medium)
                                         .clickable {
                                             viewModel.onEvent(
                                                 HomeEvent.FetchUsfm(
                                                     language = batch.language,
-                                                    resourceType = batch.resourceType
+                                                    resourceType = batch.resourceType,
+                                                    batchId = batch.id
                                                 )
                                             )
                                         }
@@ -170,7 +180,10 @@ class HomeScreen(private val user: User) : Screen {
                                 ) {
                                     Text(
                                         text = batch.language.toString(),
-                                        modifier = Modifier.weight(0.34f)
+                                        modifier = Modifier.weight(0.34f),
+                                        fontFamily = getFontFamilyForText(
+                                            batch.language.toString()
+                                        )
                                     )
                                     Text(
                                         text = batch.resourceType,
@@ -195,8 +208,12 @@ class HomeScreen(private val user: User) : Screen {
                     resourceTypes = state.resourceTypes,
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
-                        selectedResourceType = resourceType
-                        viewModel.onEvent(HomeEvent.FetchUsfm(language, resourceType))
+                        viewModel.onEvent(
+                            HomeEvent.FetchUsfm(
+                                language,
+                                resourceType
+                            )
+                        )
                     },
                     onDismiss = { showLanguagesDialog = false }
                 )

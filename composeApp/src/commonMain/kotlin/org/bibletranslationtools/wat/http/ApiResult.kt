@@ -62,13 +62,19 @@ typealias EmptyResult<E> = ApiResult<Unit, E>
 suspend fun get(
     httpClient: HttpClient,
     url: String,
-    headers: Map<String, String> = emptyMap()
+    headers: Map<String, String> = emptyMap(),
+    params: Map<String, String> = emptyMap()
 ): NetworkResponse {
     return runNetworkRequest {
         httpClient.get(url) {
             headers {
                 headers.forEach { (key, value) ->
                     header(key, value)
+                }
+            }
+            url {
+                params.forEach { (key, value) ->
+                    parameters.append(key, value)
                 }
             }
         }

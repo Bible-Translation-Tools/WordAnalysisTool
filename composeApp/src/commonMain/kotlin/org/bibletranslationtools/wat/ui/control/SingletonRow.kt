@@ -1,84 +1,165 @@
 package org.bibletranslationtools.wat.ui.control
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import org.bibletranslationtools.wat.data.Consensus
-import org.bibletranslationtools.wat.data.Direction
-import org.bibletranslationtools.wat.data.SingletonWord
+import androidx.compose.ui.unit.sp
+import org.bibletranslationtools.wat.data.ReviewWord
+import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
 
 @Composable
 fun SingletonRow(
-    singleton: SingletonWord,
-    selected: Boolean,
-    direction: Direction,
-    onSelect: () -> Unit
+    singleton: ReviewWord,
+    onFlagged: () -> Unit,
+    enabled: Boolean = true,
 ) {
-    Row(
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onSelect() }
-            .padding(horizontal = 8.dp)
-    ) {
-        if (direction == Direction.LTR) {
-            renderText(singleton, selected)
-            renderIcon(singleton.correct)
-        } else {
-            renderIcon(singleton.correct)
-            renderText(singleton, selected)
+    val density = LocalDensity.current
+    val reference = "${singleton.ref.book.uppercase()} " +
+            "${singleton.ref.chapter}:${singleton.ref.verse}"
+    val style = TextStyle.Default.copy(
+        lineHeight = 28.sp,
+        fontSize = 16.sp
+    )
+    val refHorizontalPadding = 8.dp
+    val refVerticalPadding = 2.dp
+
+    val textMeasurer = rememberTextMeasurer()
+    val placeholderWidth = remember(reference, refHorizontalPadding, textMeasurer, style) {
+        val textWidthInPixels = textMeasurer.measure(reference, style).size.width
+        val paddingInPixels = with(density) { (refHorizontalPadding * 2).toPx() }
+        val totalWidthInPixels = textWidthInPixels + paddingInPixels
+
+        with(density) {
+            totalWidthInPixels.toSp()
         }
     }
-}
 
-@Composable
-private fun renderIcon(correct: Boolean?) {
-    correct?.let {
-        Icon(
-            imageVector = Icons.Default.CheckCircle,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp)
-        )
-    } ?: Spacer(Modifier.size(16.dp))
-}
+    val flagged = singleton.correct == false
 
-@Composable
-private fun renderText(
-    singleton: SingletonWord,
-    selected: Boolean
-) {
-    Text(
-        text = singleton.word,
-        fontWeight = if (selected)
-            FontWeight.Bold else FontWeight.Normal,
-        color = when (singleton.result?.consensus) {
-            Consensus.LIKELY_INCORRECT -> MaterialTheme.colorScheme.error
-            Consensus.LIKELY_CORRECT -> MaterialTheme.colorScheme.tertiary
-            Consensus.NAME -> MaterialTheme.colorScheme.primary
-            Consensus.NEEDS_REVIEW -> MaterialTheme.colorScheme.secondary
-            else -> MaterialTheme.colorScheme.onBackground
-        },
-        style = LocalTextStyle.current.copy(
-            textDirection = TextDirection.ContentOrLtr
-        )
-    )
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SelectionContainer {
+            Text(
+                text = singleton.word,
+                style = LocalTextStyle.current.copy(
+                    textDirection = TextDirection.ContentOrLtr,
+                    fontFamily = getFontFamilyForText(singleton.word),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val referenceTag = "reference"
+            val referenceView = InlineTextContent(
+                placeholder = Placeholder(
+                    width = placeholderWidth,
+                    height = style.lineHeight,
+                    placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = MaterialTheme.colorScheme.background,
+                            shape = MaterialTheme.shapes.small
+                        )
+                        .padding(
+                            horizontal = refHorizontalPadding,
+                            vertical = refVerticalPadding
+                        )
+                ) {
+                    Text(
+                        text = reference,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            val annotatedText = buildAnnotatedString {
+                appendInlineContent(referenceTag, reference)
+
+                val textToSearch = singleton.ref.text
+                val wordToFind = singleton.word
+
+                val regex = Regex(
+                    pattern = "(?<!\\p{L})${Regex.escape(wordToFind)}(?!\\p{L})",
+                    option = RegexOption.IGNORE_CASE
+                )
+
+                val match = regex.find(textToSearch)
+                if (match != null) {
+                    val startIndex = match.range.first
+                    val endIndex = match.range.last + 1
+
+                    append(textToSearch.substring(0, startIndex))
+
+                    withStyle(
+                        style = SpanStyle(
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = getFontFamilyForText(match.value)
+                        )
+                    ) {
+                        append(match.value)
+                    }
+
+                    append(textToSearch.substring(endIndex))
+                } else {
+                    append(textToSearch)
+                }
+            }
+
+            SelectionContainer(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = annotatedText,
+                    style = style.copy(
+                        textDirection = TextDirection.ContentOrLtr
+                    ),
+                    inlineContent = mapOf("reference" to referenceView)
+                )
+            }
+
+            FlagButton(
+                enabled = enabled,
+                flagged = flagged,
+                onClick = onFlagged
+            )
+        }
+    }
 }

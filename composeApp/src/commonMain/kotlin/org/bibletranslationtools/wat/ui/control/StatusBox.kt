@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Icon
@@ -24,8 +23,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.bibletranslationtools.wat.domain.BatchError
-import org.bibletranslationtools.wat.ui.Status
-
 
 @Composable
 fun StatusBox(
@@ -34,12 +31,12 @@ fun StatusBox(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.medium,
         modifier = modifier
             .fillMaxWidth(0.35f)
             .fillMaxHeight(0.6f)
-            .offset(y = (-46).dp, x = (-10).dp)
-            .shadow(4.dp, RoundedCornerShape(8.dp))
+            .offset(y = (-48).dp, x = (-10).dp)
+            .shadow(4.dp, MaterialTheme.shapes.medium)
     ) {
         LazyColumn(
             modifier = Modifier.padding(8.dp)

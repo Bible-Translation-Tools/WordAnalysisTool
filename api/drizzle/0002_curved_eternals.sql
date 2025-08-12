@@ -1,0 +1,1 @@
+ALTER TABLE "words" ADD COLUMN "ref" varchar(20) DEFAULT '' NOT NULL;

@@ -1,9 +1,9 @@
 import { SQL_BATCH_LIMIT } from "./constants";
-import { BatchError, ModelResult } from "./types";
+import { BatchError, ModelResult, WordData } from "./types";
 import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, not, sql } from "drizzle-orm";
 
 export default class DbHelper {
   private db;
@@ -17,11 +17,12 @@ export default class DbHelper {
     return this.db;
   }
 
-  async insertWords(words: string[], batchId: string) {
+  async insertWords(words: WordData[], batchId: string) {
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
       const wordValues = batch.map((word) => ({
-        word: word,
+        word: word.word,
+        ref: word.ref,
         batchId: batchId,
       }));
 
@@ -36,7 +37,7 @@ export default class DbHelper {
     }
   }
 
-  async fetchWordIds(words: string[], batchId: string): Promise<number[]> {
+  async fetchWordIds(words: WordData[], batchId: string): Promise<number[]> {
     const wordIds = [];
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
@@ -49,7 +50,18 @@ export default class DbHelper {
           .where(
             and(
               eq(schema.wordsTable.batchId, batchId),
-              inArray(schema.wordsTable.word, batch)
+              inArray(
+                schema.wordsTable.word,
+                batch.map((w) => w.word)
+              ),
+              not(
+                exists(
+                  this.db
+                    .select({ id: schema.modelsTable.id })
+                    .from(schema.modelsTable)
+                    .where(eq(schema.modelsTable.wordId, schema.wordsTable.id))
+                )
+              )
             )
           );
 

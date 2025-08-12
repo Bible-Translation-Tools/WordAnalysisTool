@@ -32,7 +32,7 @@ kotlin {
     
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        moduleName = "composeApp"
+        outputModuleName = "composeApp"
         browser {
             val rootDirPath = project.rootDir.path
             val projectDirPath = project.projectDir.path
@@ -52,6 +52,7 @@ kotlin {
 //            freeCompilerArgs.add("-Xwasm-debugger-custom-formatters")
 //            freeCompilerArgs.add("-Xwasm-attach-js-exception")
 //            freeCompilerArgs.add("-Xwasm-use-new-exception-proposal")
+//            freeCompilerArgs.add("-Xwasm-generate-dwarf")
 //        }
         binaries.executable()
     }
@@ -65,7 +66,6 @@ kotlin {
             dependsOn(commonMain)
             dependencies {
                 implementation(libs.usfmtools)
-                implementation(libs.kotlin.document.store.leveldb)
             }
         }
         androidMain.dependencies {
@@ -90,6 +90,7 @@ kotlin {
                 implementation(compose.components.uiToolingPreview)
                 implementation(libs.androidx.lifecycle.viewmodel)
                 implementation(libs.androidx.lifecycle.runtime.compose)
+                implementation(libs.kotlinx.serialization.json)
 
                 implementation(libs.apollo.runtime)
 
@@ -107,11 +108,10 @@ kotlin {
                 implementation(libs.voyager.koin)
 
                 implementation(libs.compose.remember.setting)
-                implementation(libs.filekit.core)
-                implementation(libs.filekit.compose)
+                implementation(libs.filekit.dialogs.core)
+                implementation(libs.filekit.dialogs.compose)
 
                 implementation(libs.jwt.kt)
-                implementation(libs.kotlin.document.store.core)
                 implementation(libs.kotlinx.datetime)
             }
         }
@@ -122,7 +122,6 @@ kotlin {
         }
         wasmJsMain.dependencies {
             implementation(npm("usfmtools", "1.0.6"))
-            implementation(libs.kotlin.document.store.browser)
         }
 
         androidMain.dependsOn(javaMain)

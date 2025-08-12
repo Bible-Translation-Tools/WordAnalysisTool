@@ -9,6 +9,7 @@
     <string name="unknown_error_details">Произошла неизвестная ошибка: %1$s</string>
     <string name="ok">OK</string>
     <string name="downloading_usfm">Загрузка USFM...</string>
+    <string name="failed_download_usfm">Ошибка загрузки файла USFM.</string>
     <string name="parsing_usfm">Парсинг USFM...</string>
     <string name="fetching_heart_languages">Получение материнских языков...</string>
     <string name="fetching_resource_types">Получение типов ресурсов...</string>
@@ -28,9 +29,10 @@
     <string name="preparing_for_analysis">Поготовка к анализу...</string>
     <string name="models">Модели</string>
     <string name="did_not_respond">Нет ответа</string>
-    <string name="cancel_batch">Отменить получение результатов</string>
+    <string name="pause_batch">Приостановить получение результатов</string>
     <string name="delete_batch">Удалить результаты</string>
     <string name="save_report">Сохранить отчет (.csv)</string>
+    <string name="generating_report">Создание отчета...</string>
     <string name="report_saved">Отчет сохранен.</string>
     <string name="total_singletons">Всего обработано</string>
     <string name="likely_correct">Возможно правильно</string>
@@ -41,16 +43,16 @@
     <string name="login">Войти с помощью WACS</string>
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
+    <string name="sign_out">%1$s (Выйти)</string>
     <string name="token_invalid">Срок действия кода доступа истек. Пожалуйста, войдите снова.</string>
-    <string name="batch_not_cancelled">Не удалось отменить получение результатов. Попробуйте еще раз.</string>
-    <string name="batch_cancelled">Получение результатов успешно отменено.</string>
+    <string name="batch_not_paused">Не удалось приостановить получение результатов. Попробуйте еще раз.</string>
+    <string name="batch_paused">Получение результатов успешно приостановлено.</string>
     <string name="batch_not_deleted">Не удалось удалить результаты. Попробуйте еще раз.</string>
     <string name="batch_deleted">Результаты успешно удалены.</string>
     <string name="process_words">Получить результаты</string>
     <string name="sort_words">Сортировать слова</string>
     <string name="creating_batch">Создание запроса на результаты...</string>
     <string name="all_results_received">Все результаты получены.</string>
-    <string name="font">Шрифт</string>
     <string name="is_word_correct">Верно ли это слово?</string>
     <string name="is_word_name">Является ли это слово именем?</string>
     <string name="scripture_reference">Ссылка на Писание</string>
@@ -58,7 +60,7 @@
     <string name="incorrect">Неверно</string>
     <string name="yes">Да</string>
     <string name="no">Нет</string>
-    <string name="cancelling_batch">Отменяем получение результатов...</string>
+    <string name="pausing_batch">Приостанавливаем получение результатов...</string>
     <string name="deleting_batch">Удаление результатов...</string>
     <string name="updating_word">Обновление слова...</string>
     <string name="invalid_batch_id">Неверный идентификатор.</string>
@@ -75,4 +77,12 @@
     <string name="prompt_info">Запрос:</string>
     <string name="model_info">Модель:</string>
     <string name="response_info">Ответ:</string>
+    <string name="home">Домой</string>
+    <string name="flag_incorrect_words">Пожалуйста, отметьте каждое неправильно написанное слово.</string>
+    <string name="back">Назад</string>
+    <string name="save">Сохранить</string>
+    <string name="save_next">Сохранить и Далее</string>
+    <string name="unflagged_marked_correct_message">Неотмеченные слова были отмечены как правильные.</string>
+    <string name="loading">Загрузка... Пожалуйста подождите.</string>
+    <string name="admin">Админ</string>
 </resources>
