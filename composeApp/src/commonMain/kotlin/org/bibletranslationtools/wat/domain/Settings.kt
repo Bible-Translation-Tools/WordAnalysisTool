@@ -19,8 +19,6 @@ enum class Model(val value: String) {
     GPT_5("gpt-5"),
     GPT_5_MINI("gpt-5-mini"),
     GPT_5_NANO("gpt-5-nano"),
-    GPT_OSS_120B("gpt-oss-120b"),
-    GPT_OSS_20B("gpt-oss-20b"),
     GPT_4_1("gpt-4.1"),
     GPT_4_1_MINI("gpt-4.1-mini"),
     GPT_4_1_NANO("gpt-4.1-nano"),

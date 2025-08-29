@@ -11,8 +11,6 @@ export default class AiClient {
       "gpt-5",
       "gpt-5-mini",
       "gpt-5-nano",
-      "gpt-oss-120b",
-      "gpt-oss-20b",
       "gpt-4.1",
       "gpt-4.1-mini",
       "gpt-4.1-nano",
@@ -47,7 +45,8 @@ export default class AiClient {
 
   private systemPrompt: string = oneLine`You are a language expert who is checking spelling.
   You will be given a list of words and a language and you will respond with
-  whether the words exist in the language and whether they are proper names.
+  whether the words exist or not in the language or whether they are proper names.
+  If a proper name is misspelled consider it as not existing.
   You will respond with JSON, like this:
   [
     {
