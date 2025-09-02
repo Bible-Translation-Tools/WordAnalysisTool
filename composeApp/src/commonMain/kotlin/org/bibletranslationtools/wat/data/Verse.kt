@@ -16,3 +16,12 @@ data class Verse(
         return "$book:$chapter:$verse"
     }
 }
+
+fun String.toVerse(): Verse {
+    val parts = this.split(":")
+    return Verse(
+        book = parts[0],
+        chapter = parts[1].toInt(),
+        verse = parts[2],
+        text = "Verse text not found.")
+}

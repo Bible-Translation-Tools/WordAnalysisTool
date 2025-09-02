@@ -34,6 +34,7 @@ import {
   max,
   min,
 } from "drizzle-orm";
+import { unionAll } from "drizzle-orm/pg-core";
 
 const emptyProgress: BatchProgress = {
   correct: 0,
@@ -574,6 +575,9 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
 
 app.get("/api/review/:ietf_code/:resource_type", async (c) => {
   const dbHelper = c.get("db");
+  const db = dbHelper.getDb();
+
+  const HARDCODED_TOTAL_LIMIT = 370;
 
   try {
     const ietf_code = c.req.param("ietf_code");
@@ -598,9 +602,11 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       throw new HTTPException(404, { message: "batch not found" });
     }
 
-    const goodWordsSubQuery = dbHelper
-      .getDb()
-      .select({ wordId: modelsTable.wordId })
+    const categorizedGoodWordsSubQuery = db
+      .select({
+        wordId: modelsTable.wordId,
+        status: min(modelsTable.status).as("status"),
+      })
       .from(modelsTable)
       .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
       .where(eq(wordsTable.batchId, dbBatch.id))
@@ -611,11 +617,74 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
           inArray(min(modelsTable.status), [0, 1])
         )
       )
-      .as("good_words");
+      .as("categorized_good_words");
 
-    // Get the progress numbers
-    const countResults = await dbHelper
-      .getDb()
+    const categoryCounts = await db
+      .select({
+        status: categorizedGoodWordsSubQuery.status,
+        count: count().as("count"),
+      })
+      .from(categorizedGoodWordsSubQuery)
+      .groupBy(categorizedGoodWordsSubQuery.status);
+
+    const totalGoodWords = categoryCounts.reduce(
+      (sum, row) => sum + row.count,
+      0
+    );
+
+    let sampledGoodWordsSubQuery;
+
+    if (totalGoodWords <= HARDCODED_TOTAL_LIMIT) {
+      sampledGoodWordsSubQuery = db
+        .select({ wordId: categorizedGoodWordsSubQuery.wordId })
+        .from(categorizedGoodWordsSubQuery)
+        .as("good_words");
+    } else {
+      const limitsPerStatus = categoryCounts.map((category) => ({
+        status: category.status,
+        limit: Math.round(
+          (category.count / totalGoodWords) * HARDCODED_TOTAL_LIMIT
+        ),
+      }));
+
+      const summedLimits = limitsPerStatus.reduce(
+        (sum, cat) => sum + cat.limit,
+        0
+      );
+      if (
+        summedLimits !== HARDCODED_TOTAL_LIMIT &&
+        limitsPerStatus.length > 0
+      ) {
+        limitsPerStatus[0].limit += HARDCODED_TOTAL_LIMIT - summedLimits;
+      }
+
+      const queriesPerStatus = limitsPerStatus.map((cat) => {
+        return db
+          .select({ wordId: categorizedGoodWordsSubQuery.wordId })
+          .from(categorizedGoodWordsSubQuery)
+          .where(eq(categorizedGoodWordsSubQuery.status, cat.status))
+          .limit(cat.limit);
+      });
+
+      if (queriesPerStatus.length === 0) {
+        sampledGoodWordsSubQuery = db
+          .select({ wordId: modelsTable.wordId })
+          .from(modelsTable)
+          .where(sql`false`)
+          .as("good_words");
+      } else if (queriesPerStatus.length === 1) {
+        sampledGoodWordsSubQuery = queriesPerStatus[0].as("good_words");
+      } else {
+        const [firstQuery, secondQuery, ...restOfQueries] = queriesPerStatus;
+        sampledGoodWordsSubQuery = unionAll(
+          firstQuery,
+          secondQuery,
+          ...restOfQueries
+        ).as("good_words");
+      }
+    }
+
+    const countResults = await db
       .select({
         totalCount: count(),
         reviewedCount:
@@ -625,8 +694,8 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       })
       .from(wordsTable)
       .innerJoin(
-        goodWordsSubQuery,
-        eq(wordsTable.id, goodWordsSubQuery.wordId)
+        sampledGoodWordsSubQuery,
+        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId)
       );
 
     const total = countResults[0].totalCount;
@@ -650,11 +719,13 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     const offset = (targetPage - 1) * limit;
 
     // Fetch only the words for the requested page
-    const words = await dbHelper
-      .getDb()
+    const words = await db
       .select()
       .from(wordsTable)
-      .innerJoin(goodWordsSubQuery, eq(wordsTable.id, goodWordsSubQuery.wordId))
+      .innerJoin(
+        sampledGoodWordsSubQuery,
+        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId)
+      )
       .orderBy(asc(wordsTable.word))
       .limit(limit)
       .offset(offset);

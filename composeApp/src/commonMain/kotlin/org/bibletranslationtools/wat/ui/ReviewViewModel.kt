@@ -20,6 +20,7 @@ import org.bibletranslationtools.wat.data.MutableVerseRef
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.ReviewWord
 import org.bibletranslationtools.wat.data.VerseRef
+import org.bibletranslationtools.wat.data.toVerse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.JsonLenient
@@ -167,7 +168,7 @@ class ReviewViewModel(
                     val words = batch.details.output.map { word ->
                         ReviewWord(
                             word = word.word,
-                            ref = _state.value.verses[word.ref]!!,
+                            ref = state.value.verses[word.ref] ?: word.ref.toVerse(),
                             correct = word.correct
                         )
                     }
