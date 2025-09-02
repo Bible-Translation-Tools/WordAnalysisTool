@@ -52,6 +52,7 @@ import org.bibletranslationtools.wat.domain.ModelStatus
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
 import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
 import org.bibletranslationtools.wat.ui.control.MultiSelectList
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
@@ -161,7 +162,7 @@ class SettingsScreen(private val user: User) : Screen {
                                 CustomTextButton(
                                     onClick = {
                                         accessToken = null
-                                        navigator.popUntilRoot()
+                                        UrlManager.replaceAll(LoginScreen())
                                     },
                                     icon = Icons.Default.Person,
                                     text = stringResource(

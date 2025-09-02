@@ -11,6 +11,7 @@ fun main() {
     val path = window.location.pathname
 
     initKoin()
+
     document.body?.let {
         ComposeViewport(it) {
             App(path)

@@ -43,6 +43,7 @@ import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.ExtraAction
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
@@ -70,7 +71,6 @@ class HomeScreen(private val user: User) : Screen {
         val navigator = LocalNavigator.currentOrThrow
 
         val state by viewModel.state.collectAsStateWithLifecycle()
-        val event by viewModel.event.collectAsStateWithLifecycle(HomeEvent.Idle)
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
@@ -147,7 +147,7 @@ class HomeScreen(private val user: User) : Screen {
                                         .height(50.dp)
                                         .clip(MaterialTheme.shapes.medium)
                                         .clickable {
-                                            navigator.push(
+                                            UrlManager.push(
                                                 ReviewScreen(
                                                     ietfCode = batch.language.ietfCode,
                                                     resourceType = batch.resourceType,
@@ -188,7 +188,7 @@ class HomeScreen(private val user: User) : Screen {
                     resourceTypes = state.resourceTypes,
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
-                        navigator.push(
+                        UrlManager.push(
                             ReviewScreen(
                                 ietfCode = language.ietfCode,
                                 resourceType = resourceType,

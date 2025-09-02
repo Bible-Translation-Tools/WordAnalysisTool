@@ -52,6 +52,7 @@ import org.bibletranslationtools.wat.domain.BatchError
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.BatchInfo
 import org.bibletranslationtools.wat.ui.control.BatchProgress
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
@@ -247,7 +248,7 @@ class AnalyzeScreen(
                                 CustomTextButton(
                                     onClick = {
                                         accessToken = null
-                                        navigator.popUntilRoot()
+                                        UrlManager.replaceAll(LoginScreen())
                                     },
                                     icon = Icons.Default.Person,
                                     text = stringResource(

@@ -20,6 +20,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Token
+import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
@@ -65,7 +66,7 @@ class LoginScreen(private val initialPath: String? = null) : Screen {
                 viewModel.onEvent(LoginEvent.OnBeforeNavigate)
 
                 val (ietfCode, resourceType) = initialPath?.let { path ->
-                    val parts = path.split("_")
+                    val parts = path.replace("/", "").split("_")
                     if (parts.size == 2) {
                         parts[0] to parts[1]
                     } else {
@@ -74,7 +75,7 @@ class LoginScreen(private val initialPath: String? = null) : Screen {
                 } ?: (null to null)
 
                 if (ietfCode != null && resourceType != null) {
-                    navigator.replaceAll(
+                    UrlManager.replaceAll(
                         listOf(
                             HomeScreen(user),
                             ReviewScreen(ietfCode, resourceType, user)

@@ -49,6 +49,7 @@ import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.CustomSnackBar
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
 import org.bibletranslationtools.wat.ui.control.PaginationControls
@@ -69,8 +70,8 @@ import wordanalysistool.composeapp.generated.resources.sign_out
 import wordanalysistool.composeapp.generated.resources.unflagged_marked_correct_message
 
 class ReviewScreen(
-    private val ietfCode: String,
-    private val resourceType: String,
+    val ietfCode: String,
+    val resourceType: String,
     private val user: User,
     private val batchId: String? = null
 ) : Screen {
@@ -176,7 +177,7 @@ class ReviewScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 CustomTextButton(
-                                    onClick = navigator::pop,
+                                    onClick = UrlManager::pop,
                                     icon = Icons.Default.Home,
                                     text = stringResource(Res.string.home)
                                 )
@@ -204,7 +205,7 @@ class ReviewScreen(
                                 CustomTextButton(
                                     onClick = {
                                         accessToken = null
-                                        navigator.popUntilRoot()
+                                        UrlManager.replaceAll(LoginScreen())
                                     },
                                     icon = Icons.Default.Person,
                                     text = stringResource(
@@ -223,7 +224,10 @@ class ReviewScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (state.words.isNotEmpty()) {
-                            Column {
+                            Column(
+                                modifier = Modifier.fillMaxSize()
+                                    .padding(horizontal = 32.dp)
+                            ) {
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 Row(
