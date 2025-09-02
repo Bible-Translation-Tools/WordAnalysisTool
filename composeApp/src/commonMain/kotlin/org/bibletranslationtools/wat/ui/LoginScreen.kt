@@ -26,7 +26,7 @@ import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.login
 import wordanalysistool.composeapp.generated.resources.login_progress
 
-class LoginScreen : Screen {
+class LoginScreen(private val initialPath: String? = null) : Screen {
 
     @Composable
     override fun Content() {
@@ -60,10 +60,29 @@ class LoginScreen : Screen {
         }
 
         LaunchedEffect(state.user) {
-            state.user?.let {
-                accessToken = it.token.accessToken
+            state.user?.let { user ->
+                accessToken = user.token.accessToken
                 viewModel.onEvent(LoginEvent.OnBeforeNavigate)
-                navigator.push(HomeScreen(it))
+
+                val (ietfCode, resourceType) = initialPath?.let { path ->
+                    val parts = path.split("_")
+                    if (parts.size == 2) {
+                        parts[0] to parts[1]
+                    } else {
+                        null
+                    }
+                } ?: (null to null)
+
+                if (ietfCode != null && resourceType != null) {
+                    navigator.replaceAll(
+                        listOf(
+                            HomeScreen(user),
+                            ReviewScreen(ietfCode, resourceType, user)
+                        )
+                    )
+                } else {
+                    navigator.replaceAll(HomeScreen(user))
+                }
             }
         }
 

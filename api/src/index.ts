@@ -5,7 +5,7 @@ import type { JwtVariables } from "hono/jwt";
 import { jwt, sign } from "hono/jwt";
 import { v4 as uuid4 } from "uuid";
 import AiClient from "./ai-client";
-import { isAdmin, isChatError, splitBatchJson } from "./utils";
+import { isAdmin, isChatError } from "./utils";
 import {
   Batch,
   BatchDetails,
@@ -53,6 +53,7 @@ const app = new Hono<{
   Bindings: CloudflareBindings;
   Variables: AppVariables;
 }>();
+
 app.use("*", cors());
 
 app.use("*", async (c, next) => {
@@ -66,10 +67,6 @@ app.use("/api/*", async (c, next) => {
     secret: c.env.JWT_SECRET_KEY,
   });
   return jwtMiddleware(c, next);
-});
-
-app.get("/", async (c) => {
-  return c.env.ASSETS.fetch(c.req.url);
 });
 
 app.get("/auth/tokens/:state", async (c) => {
@@ -405,6 +402,14 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
         const correct =
           word.correct === null ? "" : word.correct ? "Yes" : "No";
 
+        let anomaly = "";
+        if (
+          (consensus === "Likely Incorrect" && correct === "Yes") ||
+          (consensus === "Likely Correct" && correct === "No")
+        ) {
+          anomaly = "⚠️";
+        }
+
         const row = [
           word.word,
           book || "",
@@ -413,6 +418,7 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
           ...modelResults,
           consensus,
           correct,
+          anomaly,
         ].join(",");
 
         await s.write(`${row}\n`);
@@ -575,7 +581,7 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     const payload = c.get("jwtPayload");
 
     const page = parseInt(c.req.query("page") || "1", 10);
-    const limit = parseInt(c.req.query("limit") || "5", 10);
+    const limit = parseInt(c.req.query("limit") || "4", 10);
 
     const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
       where: and(
@@ -870,6 +876,18 @@ app.post("/api/words", async (c) => {
       message: `${error.code}: error updating word: ${error.message || error}`,
     });
   }
+});
+
+app.get("*", async (c) => {
+  const response = await c.env.ASSETS.fetch(c.req.raw);
+  if (response.status === 404) {
+    const indexRequest = new Request(new URL("/index.html", c.req.url), {
+      method: "GET",
+      headers: c.req.raw.headers,
+    });
+    return c.env.ASSETS.fetch(indexRequest);
+  }
+  return response;
 });
 
 export default {

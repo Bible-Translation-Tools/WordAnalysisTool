@@ -2,8 +2,13 @@ package org.bibletranslationtools.wat.ui.control
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -14,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.back
+import wordanalysistool.composeapp.generated.resources.page_info
 import wordanalysistool.composeapp.generated.resources.save
 import wordanalysistool.composeapp.generated.resources.save_next
 
@@ -28,7 +34,7 @@ fun PaginationControls(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedButton(
@@ -42,44 +48,24 @@ fun PaginationControls(
             border = BorderStroke(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outline
-            )
+            ),
+            contentPadding = PaddingValues(end = 8.dp)
         ) {
+            Icon(
+                imageVector = Icons.Default.ChevronLeft,
+                contentDescription = "back"
+            )
             Text(stringResource(Res.string.back))
         }
 
-        val pagesToShow = 5
-        val startPage = (currentPage - pagesToShow / 2)
-            .coerceIn(1, (totalPages - pagesToShow + 1).coerceAtLeast(1))
-        val endPage = (startPage + pagesToShow - 1)
-            .coerceAtMost(totalPages)
-
-        if (startPage > 1) {
-            PageButton(
-                page = 1,
-                enabled = enabled,
-                active = false,
-                onClick = { onPageSelected(1) }
-            )
-            if (startPage > 2) Text("...")
-        }
-
-        for (i in startPage..endPage) {
-            val isCurrent = i == currentPage
-            PageButton(
-                page = i,
-                enabled = enabled,
-                active = isCurrent,
-                onClick = { onPageSelected(i) }
-            )
-        }
-
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) Text("...")
-            PageButton(
-                page = totalPages,
-                enabled = enabled,
-                active = false,
-                onClick = { onPageSelected(totalPages) }
+        if (totalPages > 0) {
+            Text(
+                text = stringResource(
+                    Res.string.page_info,
+                    currentPage,
+                    totalPages
+                ),
+                style = MaterialTheme.typography.bodyMedium
             )
         }
 
@@ -88,18 +74,19 @@ fun PaginationControls(
             shape = MaterialTheme.shapes.small,
             enabled = enabled,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
-            )
+            contentPadding = PaddingValues(start = 8.dp)
         ) {
             Text(
                 text = if (currentPage < totalPages) {
                     stringResource(Res.string.save_next)
                 } else stringResource(Res.string.save)
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "save & next"
             )
         }
     }

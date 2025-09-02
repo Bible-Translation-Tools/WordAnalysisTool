@@ -36,13 +36,20 @@ val sharedModule = module {
         HomeViewModel(
             user = user,
             bielGraphQlApi = get(),
-            downloadUsfm = get(),
-            usfmBookSource = get(),
             watApi = get()
         )
     }
-    factory { (language: LanguageInfo, resourceType: String, verses: VerseRef, user: User, batchId: String?) ->
-        ReviewViewModel(language, resourceType, verses, user, batchId, get())
+    factory { (ietfCode: String, resourceType: String, user: User, batchId: String?) ->
+        ReviewViewModel(
+            ietfCode = ietfCode,
+            resourceType = resourceType,
+            user = user,
+            batchId = batchId,
+            watApi = get(),
+            bielGraphQlApi = get(),
+            downloadUsfm = get(),
+            usfmBookSource = get()
+        )
     }
     factory { (language: LanguageInfo, resourceType: String, verses: VerseRef, user: User) ->
         AnalyzeViewModel(

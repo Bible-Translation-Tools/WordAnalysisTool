@@ -82,7 +82,10 @@
     <string name="back">Back</string>
     <string name="save">Save</string>
     <string name="save_next">Save &amp; Next</string>
+    <string name="page_info">Page %1$d/%2$d</string>
     <string name="unflagged_marked_correct_message">Unflagged words have been marked as correctly spelled.</string>
     <string name="loading">Loading... Please wait.</string>
     <string name="admin">Admin</string>
+    <string name="getting_language">Receiving language info</string>
+    <string name="getting_batch">Receiving batch info</string>
 </resources>

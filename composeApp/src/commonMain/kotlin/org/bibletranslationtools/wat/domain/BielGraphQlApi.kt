@@ -4,6 +4,7 @@ import com.apollographql.apollo.ApolloClient
 import org.bibletranslationtools.wat.GetBooksForTranslationQuery
 import org.bibletranslationtools.wat.GetGatewayLanguagesQuery
 import org.bibletranslationtools.wat.GetHeartLanguagesQuery
+import org.bibletranslationtools.wat.GetLanguageInfoQuery
 import org.bibletranslationtools.wat.GetUsfmForHeartLanguageQuery
 import org.bibletranslationtools.wat.data.ContentInfo
 import org.bibletranslationtools.wat.data.Direction
@@ -96,5 +97,19 @@ class BielGraphQlApi {
         }
 
         return usfmContent
+    }
+
+    suspend fun getLanguageInfo(ietfCode: String): LanguageInfo? {
+        val response = apolloClient.query(GetLanguageInfoQuery(ietfCode)).execute()
+        return response.data?.let { data ->
+            data.language.firstOrNull()?.let {
+                LanguageInfo(
+                    ietfCode = it.ietf_code,
+                    name = it.national_name,
+                    angName = it.english_name,
+                    direction = Direction.of(it.direction)
+                )
+            }
+        }
     }
 }

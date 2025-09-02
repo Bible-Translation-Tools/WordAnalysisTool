@@ -10,7 +10,7 @@
 	"dependencies": {
 		"common-tags": "^1.8.2",
 		"drizzle-orm": "0.43.1",
-		"hono": "^4.7.4",
+		"hono": "^4.9.5",
 		"js-jsonl": "^1.1.1",
 		"openai": "^4.89.0",
 		"sqlstring": "^2.3.3",

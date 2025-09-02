@@ -16,7 +16,7 @@ import org.bibletranslationtools.wat.ui.theme.LightColorScheme
 import org.bibletranslationtools.wat.ui.theme.MainAppTheme
 
 @Composable
-fun App() {
+fun App(initialPath: String? = null) {
     val theme by rememberStringSetting(Settings.THEME.name, Theme.SYSTEM.name)
     val colorScheme = when {
         theme == Theme.LIGHT.name -> LightColorScheme
@@ -29,7 +29,7 @@ fun App() {
     applyLocale(locale.lowercase())
 
     MainAppTheme(colorScheme) {
-        Navigator(LoginScreen()) { navigator ->
+        Navigator(LoginScreen(initialPath)) { navigator ->
             SlideTransition(navigator)
         }
     }

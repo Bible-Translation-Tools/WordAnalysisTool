@@ -47,8 +47,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
-import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.ui.control.CustomSnackBar
@@ -56,6 +54,7 @@ import org.bibletranslationtools.wat.ui.control.CustomTextButton
 import org.bibletranslationtools.wat.ui.control.PaginationControls
 import org.bibletranslationtools.wat.ui.control.SingletonRow
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
+import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -70,9 +69,8 @@ import wordanalysistool.composeapp.generated.resources.sign_out
 import wordanalysistool.composeapp.generated.resources.unflagged_marked_correct_message
 
 class ReviewScreen(
-    private val language: LanguageInfo,
+    private val ietfCode: String,
     private val resourceType: String,
-    private val verses: VerseRef,
     private val user: User,
     private val batchId: String? = null
 ) : Screen {
@@ -80,7 +78,7 @@ class ReviewScreen(
     @Composable
     override fun Content() {
         val viewModel = koinScreenModel<ReviewViewModel> {
-            parametersOf(language, resourceType, verses, user, batchId)
+            parametersOf(ietfCode, resourceType, user, batchId)
         }
 
         val navigator = LocalNavigator.currentOrThrow
@@ -96,7 +94,7 @@ class ReviewScreen(
 
         LaunchedEffect(event) {
             when (event) {
-                is AnalyzeEvent.Logout -> {
+                is ReviewEvent.Logout -> {
                     accessToken = null
                     navigator.popUntilRoot()
                 }
@@ -131,12 +129,14 @@ class ReviewScreen(
             }
         ) { paddingValues ->
             Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier.fillMaxSize()
                     .padding(paddingValues)
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxWidth(0.7f)
+                        .fillMaxHeight()
                         .padding(16.dp)
                 ) {
                     Box(
@@ -152,12 +152,12 @@ class ReviewScreen(
                             modifier = Modifier.padding(16.dp)
                         ) {
                             Text(
-                                text = language.name,
+                                text = state.language?.name ?: "",
                                 style = LocalTextStyle.current.copy(
                                     textDirection = TextDirection.ContentOrLtr,
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.W500,
-                                    fontFamily = getFontFamilyForText(language.name)
+                                    fontFamily = getFontFamilyForText(state.language?.name ?: "")
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -191,9 +191,9 @@ class ReviewScreen(
                                     CustomTextButton(
                                         onClick = {
                                             navigator.push(AnalyzeScreen(
-                                                language = language,
+                                                language = state.language!!,
                                                 resourceType = resourceType,
-                                                verses = verses,
+                                                verses = state.verses,
                                                 user = user
                                             ))
                                         },
@@ -222,48 +222,53 @@ class ReviewScreen(
                             .fillMaxHeight(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(16.dp))
+                        if (state.words.isNotEmpty()) {
+                            Column {
+                                Spacer(modifier = Modifier.height(16.dp))
 
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                LinearProgressIndicator(
-                                    progress = { state.completeProgress },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "${(state.completeProgress*100).toInt()}%",
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(32.dp))
-
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                items(items = state.words, key = { it.word }) { singleton ->
-                                    SingletonRow(
-                                        singleton = singleton,
-                                        enabled = !state.isLoading,
-                                        onFlagged = { viewModel.onFlagClicked(singleton.word) }
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    LinearProgressIndicator(
+                                        progress = { state.completeProgress },
+                                        modifier = Modifier.weight(1f),
+                                        gapSize = 0.dp
+                                    )
+                                    Text(
+                                        text = "${(state.completeProgress*100).toInt()}%",
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.height(32.dp))
+
+                                LazyColumn(
+                                    verticalArrangement = Arrangement.spacedBy(64.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    items(items = state.words, key = { it.word }) { singleton ->
+                                        SingletonRow(
+                                            singleton = singleton,
+                                            enabled = !state.isLoading,
+                                            onFlagged = {
+                                                viewModel.onFlagClicked(singleton.word)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                PaginationControls(
+                                    currentPage = state.currentPage,
+                                    totalPages = state.totalPages,
+                                    enabled = !state.isLoading,
+                                    onPageSelected = { viewModel.onPageSelected(it) },
+                                    onSaveAndNext = { viewModel.onSaveAndNext() },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            PaginationControls(
-                                currentPage = state.currentPage,
-                                totalPages = state.totalPages,
-                                enabled = !state.isLoading,
-                                onPageSelected = { viewModel.onPageSelected(it) },
-                                onSaveAndNext = { viewModel.onSaveAndNext() },
-                                modifier = Modifier.fillMaxWidth()
-                            )
                         }
 
                         if (state.isLoading) {
@@ -301,6 +306,10 @@ class ReviewScreen(
                     message = it.message,
                     onDismiss = it.onClosed
                 )
+            }
+
+            state.progress?.let {
+                ProgressDialog(it)
             }
         }
     }

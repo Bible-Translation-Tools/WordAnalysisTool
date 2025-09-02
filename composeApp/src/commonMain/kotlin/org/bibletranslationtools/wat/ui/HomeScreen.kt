@@ -83,27 +83,6 @@ class HomeScreen(private val user: User) : Screen {
             }
         }
 
-        LaunchedEffect(event) {
-            when (event) {
-                is HomeEvent.VersesLoaded -> {
-                    val language = (event as HomeEvent.VersesLoaded).language
-                    val resourceType = (event as HomeEvent.VersesLoaded).resourceType
-                    val batchId = (event as HomeEvent.VersesLoaded).batchId
-                    navigator.push(
-                        ReviewScreen(
-                            language = language,
-                            resourceType = resourceType,
-                            verses = state.verses,
-                            user = user,
-                            batchId = batchId
-                        )
-                    )
-                    viewModel.onEvent(HomeEvent.OnBeforeNavigate)
-                }
-                else -> Unit
-            }
-        }
-
         Scaffold(
             topBar = {
                 TopNavigationBar(
@@ -168,10 +147,11 @@ class HomeScreen(private val user: User) : Screen {
                                         .height(50.dp)
                                         .clip(MaterialTheme.shapes.medium)
                                         .clickable {
-                                            viewModel.onEvent(
-                                                HomeEvent.FetchUsfm(
-                                                    language = batch.language,
+                                            navigator.push(
+                                                ReviewScreen(
+                                                    ietfCode = batch.language.ietfCode,
                                                     resourceType = batch.resourceType,
+                                                    user = user,
                                                     batchId = batch.id
                                                 )
                                             )
@@ -208,10 +188,11 @@ class HomeScreen(private val user: User) : Screen {
                     resourceTypes = state.resourceTypes,
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
-                        viewModel.onEvent(
-                            HomeEvent.FetchUsfm(
-                                language,
-                                resourceType
+                        navigator.push(
+                            ReviewScreen(
+                                ietfCode = language.ietfCode,
+                                resourceType = resourceType,
+                                user = user
                             )
                         )
                     },
