@@ -155,7 +155,7 @@ class SettingsScreen(private val user: User) : Screen {
                                 modifier = Modifier.weight(1f)
                             ) {
                                 CustomTextButton(
-                                    onClick = { navigator.popUntilRoot() },
+                                    onClick = { UrlManager.replaceAll(HomeScreen(user)) },
                                     icon = Icons.Default.Home,
                                     text = stringResource(Res.string.home)
                                 )

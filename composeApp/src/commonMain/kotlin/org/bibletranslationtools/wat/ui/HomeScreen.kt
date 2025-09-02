@@ -93,7 +93,7 @@ class HomeScreen(private val user: User) : Screen {
                         icon = Icons.AutoMirrored.Filled.Logout,
                         onClick = {
                             accessToken = null
-                            navigator.pop()
+                            UrlManager.replaceAll(LoginScreen())
                         }
                     )
                 )
