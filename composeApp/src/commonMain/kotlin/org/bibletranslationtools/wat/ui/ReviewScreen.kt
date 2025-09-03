@@ -1,5 +1,10 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -24,15 +29,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,15 +46,13 @@ import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
-import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.navigation.UrlManager
-import org.bibletranslationtools.wat.ui.control.CustomSnackBar
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
+import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.PaginationControls
 import org.bibletranslationtools.wat.ui.control.SingletonRow
-import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
 import org.jetbrains.compose.resources.painterResource
@@ -67,7 +65,6 @@ import wordanalysistool.composeapp.generated.resources.home
 import wordanalysistool.composeapp.generated.resources.loading
 import wordanalysistool.composeapp.generated.resources.settings
 import wordanalysistool.composeapp.generated.resources.sign_out
-import wordanalysistool.composeapp.generated.resources.unflagged_marked_correct_message
 
 class ReviewScreen(
     val ietfCode: String,
@@ -89,45 +86,18 @@ class ReviewScreen(
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
-        val snackBarHostState = remember { SnackbarHostState() }
-        val scope = rememberCoroutineScope()
-        val savedMassage = stringResource(Res.string.unflagged_marked_correct_message)
-
         LaunchedEffect(event) {
             when (event) {
                 is ReviewEvent.Logout -> {
                     accessToken = null
                     navigator.popUntilRoot()
                 }
-                is ReviewEvent.Saved -> {
-                    scope.launch {
-                        snackBarHostState.showSnackbar(
-                            message = savedMassage,
-                            duration = SnackbarDuration.Short
-                        )
-                    }
-                }
                 else -> Unit
             }
         }
 
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface,
-            snackbarHost = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.BottomEnd
-                ) {
-                    SnackbarHost(
-                        hostState = snackBarHostState,
-                        snackbar = { data ->
-                            CustomSnackBar(snackBarHostState, data)
-                        }
-                    )
-                }
-            }
+            containerColor = MaterialTheme.colorScheme.surface
         ) { paddingValues ->
             Box(
                 contentAlignment = Alignment.Center,
@@ -268,8 +238,7 @@ class ReviewScreen(
                                     currentPage = state.currentPage,
                                     totalPages = state.totalPages,
                                     enabled = !state.isLoading,
-                                    onPageSelected = { viewModel.onPageSelected(it) },
-                                    onSaveAndNext = { viewModel.onSaveAndNext() },
+                                    onSave = viewModel::onSave,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -303,13 +272,23 @@ class ReviewScreen(
                         }
                     }
                 }
-            }
 
-            state.alert?.let {
-                AlertDialog(
-                    message = it.message,
-                    onDismiss = it.onClosed
-                )
+                AnimatedVisibility(
+                    visible = state.toast != null,
+                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 64.dp)
+                ) {
+                    state.toast?.let { data ->
+                        MessageToast(
+                            type = data.type,
+                            message = data.message,
+                            onDismiss = data.onClose
+                        )
+                    }
+                }
             }
 
             state.progress?.let {

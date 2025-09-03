@@ -1,5 +1,10 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,10 +60,10 @@ import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.BatchInfo
 import org.bibletranslationtools.wat.ui.control.BatchProgress
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
+import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.Status
 import org.bibletranslationtools.wat.ui.control.StatusBar
 import org.bibletranslationtools.wat.ui.control.StatusBox
-import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.BatchErrorDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
@@ -140,7 +145,7 @@ class AnalyzeScreen(
         }
 
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surface
         ) { paddingValues ->
             Box(
                 modifier = Modifier.fillMaxSize()
@@ -300,13 +305,23 @@ class AnalyzeScreen(
                         modifier = Modifier.align(Alignment.BottomEnd)
                     )
                 }
-            }
 
-            state.alert?.let {
-                AlertDialog(
-                    message = it.message,
-                    onDismiss = it.onClosed
-                )
+                AnimatedVisibility(
+                    visible = state.toast != null,
+                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 64.dp)
+                ) {
+                    state.toast?.let { data ->
+                        MessageToast(
+                            type = data.type,
+                            message = data.message,
+                            onDismiss = data.onClose
+                        )
+                    }
+                }
             }
 
             batchError?.let {

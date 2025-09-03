@@ -20,13 +20,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.Consensus
 import org.bibletranslationtools.wat.data.ConsensusResult
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.ModelStatus
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.SingletonWord
+import org.bibletranslationtools.wat.data.ToastInfo
+import org.bibletranslationtools.wat.data.ToastType
 import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.Batch
@@ -62,6 +63,7 @@ import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.pausing_batch
 import wordanalysistool.composeapp.generated.resources.report_saved
 import wordanalysistool.composeapp.generated.resources.token_invalid
+import wordanalysistool.composeapp.generated.resources.unknown_error
 import wordanalysistool.composeapp.generated.resources.wrong_model_selected
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -74,7 +76,7 @@ data class AnalyzeState(
     val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
     val models: List<String> = emptyList(),
-    val alert: Alert? = null,
+    val toast: ToastInfo? = null,
     val progress: Progress? = null,
     val status: Status? = null,
     val language: LanguageInfo? = null
@@ -231,13 +233,17 @@ class AnalyzeViewModel(
                 }.onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
-                            updateAlert(
-                                Alert(getString(Res.string.token_invalid)) {
-                                    screenModelScope.launch {
-                                        _event.send(AnalyzeEvent.Logout)
-                                        updateAlert(null)
+                            updateToast(
+                                ToastInfo(
+                                    type = ToastType.Error,
+                                    message = getString(Res.string.token_invalid),
+                                    onClose = {
+                                        screenModelScope.launch {
+                                            _event.send(AnalyzeEvent.Logout)
+                                            updateToast(null)
+                                        }
                                     }
-                                }
+                                )
                             )
                         }
                         else -> {
@@ -263,22 +269,26 @@ class AnalyzeViewModel(
     private fun createBatch() {
         screenModelScope.launch {
             if (_state.value.models.isEmpty()) {
-                updateAlert(
-                    Alert(getString(Res.string.no_model_selected)) {
-                        updateAlert(null)
-                    }
+                updateToast(
+                    ToastInfo(
+                        type = ToastType.Error,
+                        message = getString(Res.string.no_model_selected),
+                        onClose = { updateToast(null) }
+                    )
                 )
                 return@launch
             }
 
             if (_state.value.models.size != MODELS_SIZE) {
-                updateAlert(
-                    Alert(getString(
-                        Res.string.wrong_model_selected,
-                        MODELS_SIZE
-                    )) {
-                        updateAlert(null)
-                    }
+                updateToast(
+                    ToastInfo(
+                        type = ToastType.Error,
+                        message = getString(
+                            Res.string.wrong_model_selected,
+                            MODELS_SIZE
+                        ),
+                        onClose = { updateToast(null) }
+                    )
                 )
                 return@launch
             }
@@ -292,10 +302,12 @@ class AnalyzeViewModel(
                 .filter { it.result == null }
 
             if (singletons.isEmpty()) {
-                updateAlert(
-                    Alert(getString(Res.string.all_results_received)) {
-                        updateAlert(null)
-                    }
+                updateToast(
+                    ToastInfo(
+                        type = ToastType.Info,
+                        message = getString(Res.string.all_results_received),
+                        onClose = { updateToast(null) }
+                    )
                 )
                 updateProgress(null)
                 return@launch
@@ -325,22 +337,28 @@ class AnalyzeViewModel(
             }.onError {
                 when (it.type) {
                     ErrorType.Unauthorized -> {
-                        updateAlert(
-                            Alert(getString(Res.string.token_invalid)) {
-                                screenModelScope.launch {
-                                    _event.send(AnalyzeEvent.Logout)
-                                    updateAlert(null)
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Error,
+                                message = getString(Res.string.token_invalid),
+                                onClose = {
+                                    screenModelScope.launch {
+                                        _event.send(AnalyzeEvent.Logout)
+                                        updateToast(null)
+                                    }
                                 }
-                            }
+                            )
                         )
                     }
 
                     else -> {
                         updateStatus(it.description)
-                        updateAlert(
-                            Alert(it.description ?: "Error code: ${it.code}") {
-                                updateAlert(null)
-                            }
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Error,
+                                message = it.description ?: "Error code: ${it.code}",
+                                onClose = { updateToast(null) }
+                            )
                         )
                     }
                 }
@@ -353,10 +371,12 @@ class AnalyzeViewModel(
     private fun pauseBatch() {
         screenModelScope.launch {
             if (_state.value.batch == null) {
-                updateAlert(
-                    Alert(getString(Res.string.invalid_batch_id)) {
-                        updateAlert(null)
-                    }
+                updateToast(
+                    ToastInfo(
+                        type = ToastType.Error,
+                        message = getString(Res.string.invalid_batch_id),
+                        onClose = { updateToast(null) }
+                    )
                 )
                 return@launch
             }
@@ -374,28 +394,34 @@ class AnalyzeViewModel(
                 .onSuccess { cancelled ->
                     if (cancelled) {
                         updateStatus("Batch paused")
-                        updateAlert(
-                            Alert(getString(Res.string.batch_paused)) {
-                                updateAlert(null)
-                            }
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Success,
+                                message = getString(Res.string.batch_paused),
+                                onClose = { updateToast(null) }
+                            )
                         )
                         fetchJob?.cancel()
                         updateBatchProgress(-1f)
                     } else {
                         updateStatus("Could not pause batch.")
-                        updateAlert(
-                            Alert(getString(Res.string.batch_not_paused)) {
-                                updateAlert(null)
-                            }
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Error,
+                                message = getString(Res.string.batch_not_paused),
+                                onClose = { updateToast(null) }
+                            )
                         )
                     }
                 }
                 .onError {
                     updateStatus(it.description)
-                    updateAlert(
-                        Alert(it.description ?: "") {
-                            updateAlert(null)
-                        }
+                    updateToast(
+                        ToastInfo(
+                            type = ToastType.Error,
+                            message = it.description ?: getString(Res.string.unknown_error),
+                            onClose = { updateToast(null) }
+                        )
                     )
                 }
 
@@ -406,10 +432,12 @@ class AnalyzeViewModel(
     private fun deleteBatch() {
         screenModelScope.launch {
             if (_state.value.batch == null) {
-                updateAlert(
-                    Alert(getString(Res.string.invalid_batch_id)) {
-                        updateAlert(null)
-                    }
+                updateToast(
+                    ToastInfo(
+                        type = ToastType.Error,
+                        message = getString(Res.string.invalid_batch_id),
+                        onClose = { updateToast(null) }
+                    )
                 )
                 return@launch
             }
@@ -433,28 +461,34 @@ class AnalyzeViewModel(
                                 it.copy(result = null, correct = null)
                             }
                         )
-                        updateAlert(
-                            Alert(getString(Res.string.batch_deleted)) {
-                                updateAlert(null)
-                            }
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Success,
+                                message = getString(Res.string.batch_deleted),
+                                onClose = { updateToast(null) }
+                            )
                         )
                         fetchJob?.cancel()
                         updateBatchProgress(-1f)
                     } else {
                         updateStatus("Could not delete batch results.")
-                        updateAlert(
-                            Alert(getString(Res.string.batch_not_deleted)) {
-                                updateAlert(null)
-                            }
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Error,
+                                message = getString(Res.string.batch_not_deleted),
+                                onClose = { updateToast(null) }
+                            )
                         )
                     }
                 }
                 .onError {
                     updateStatus(it.description)
-                    updateAlert(
-                        Alert(it.description ?: "") {
-                            updateAlert(null)
-                        }
+                    updateToast(
+                        ToastInfo(
+                            type = ToastType.Error,
+                            message = it.description ?: getString(Res.string.unknown_error),
+                            onClose = { updateToast(null) }
+                        )
                     )
                 }
 
@@ -503,9 +537,11 @@ class AnalyzeViewModel(
             _state.update {
                 it.copy(
                     progress = null,
-                    alert = Alert(getString(Res.string.report_saved)) {
-                        updateAlert(null)
-                    }
+                    toast = ToastInfo(
+                        type = ToastType.Success,
+                        message = getString(Res.string.report_saved),
+                        onClose = { updateToast(null) }
+                    )
                 )
             }
         }
@@ -535,9 +571,9 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateAlert(alert: Alert?) {
+    private fun updateToast(toast: ToastInfo?) {
         _state.update {
-            it.copy(alert = alert)
+            it.copy(toast = toast)
         }
     }
 

@@ -33,7 +33,7 @@
     <string name="delete_batch">Delete Results</string>
     <string name="save_report">Save Report (.csv)</string>
     <string name="generating_report">Generating report...</string>
-    <string name="report_saved">Report saved.</string>
+    <string name="report_saved">You have successfully saved report.</string>
     <string name="total_singletons">Words Processed</string>
     <string name="likely_correct">Likely Correct</string>
     <string name="likely_incorrect">Likely Incorrect</string>
@@ -88,4 +88,7 @@
     <string name="admin">Admin</string>
     <string name="getting_language">Receiving language info</string>
     <string name="getting_batch">Receiving batch info</string>
+    <string name="info_toast">Info</string>
+    <string name="success_toast">Success</string>
+    <string name="error_toast">Error</string>
 </resources>

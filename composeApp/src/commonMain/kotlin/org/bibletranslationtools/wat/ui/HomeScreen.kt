@@ -1,5 +1,10 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,16 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.ExtraAction
+import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.TopNavigationBar
-import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
@@ -68,8 +71,6 @@ class HomeScreen(private val user: User) : Screen {
         val viewModel = koinScreenModel<HomeViewModel> {
             parametersOf(user)
         }
-        val navigator = LocalNavigator.currentOrThrow
-
         val state by viewModel.state.collectAsStateWithLifecycle()
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
@@ -180,6 +181,23 @@ class HomeScreen(private val user: User) : Screen {
                         }
                     }
                 }
+
+                AnimatedVisibility(
+                    visible = state.toast != null,
+                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 64.dp)
+                ) {
+                    state.toast?.let { data ->
+                        MessageToast(
+                            type = data.type,
+                            message = data.message,
+                            onDismiss = data.onClose
+                        )
+                    }
+                }
             }
 
             if (showLanguagesDialog) {
@@ -197,13 +215,6 @@ class HomeScreen(private val user: User) : Screen {
                         )
                     },
                     onDismiss = { showLanguagesDialog = false }
-                )
-            }
-
-            state.alert?.let {
-                AlertDialog(
-                    message = it.message,
-                    onDismiss = it.onClosed
                 )
             }
 

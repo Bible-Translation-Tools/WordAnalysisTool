@@ -73,6 +73,9 @@ fun SingletonRow(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                 ),
+                color = if (flagged) {
+                    MaterialTheme.colorScheme.error
+                } else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth()
             )
         }

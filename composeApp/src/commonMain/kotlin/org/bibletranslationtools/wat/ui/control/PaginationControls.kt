@@ -23,13 +23,17 @@ import wordanalysistool.composeapp.generated.resources.page_info
 import wordanalysistool.composeapp.generated.resources.save
 import wordanalysistool.composeapp.generated.resources.save_next
 
+enum class SaveDirection {
+    NEXT,
+    PREV
+}
+
 @Composable
 fun PaginationControls(
     currentPage: Int,
     totalPages: Int,
     enabled: Boolean = true,
-    onPageSelected: (Int) -> Unit,
-    onSaveAndNext: () -> Unit,
+    onSave: (SaveDirection) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -38,7 +42,7 @@ fun PaginationControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedButton(
-            onClick = { onPageSelected(currentPage - 1) },
+            onClick = { onSave(SaveDirection.PREV) },
             enabled = enabled && currentPage > 1,
             shape = MaterialTheme.shapes.small,
             colors = ButtonDefaults.buttonColors(
@@ -70,7 +74,7 @@ fun PaginationControls(
         }
 
         OutlinedButton(
-            onClick = onSaveAndNext,
+            onClick = { onSave(SaveDirection.NEXT) },
             shape = MaterialTheme.shapes.small,
             enabled = enabled,
             colors = ButtonDefaults.buttonColors(

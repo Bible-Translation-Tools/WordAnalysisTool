@@ -1,7 +1,13 @@
 package org.bibletranslationtools.wat.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -12,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
@@ -21,7 +28,7 @@ import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.navigation.UrlManager
-import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
+import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.login
@@ -103,13 +110,23 @@ class LoginScreen(private val initialPath: String? = null) : Screen {
                         Text(stringResource(Res.string.login))
                     }
                 }
-            }
 
-            state.alert?.let {
-                AlertDialog(
-                    message = it.message,
-                    onDismiss = it.onClosed
-                )
+                AnimatedVisibility(
+                    visible = state.toast != null,
+                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 64.dp)
+                ) {
+                    state.toast?.let { data ->
+                        MessageToast(
+                            type = data.type,
+                            message = data.message,
+                            onDismiss = data.onClose
+                        )
+                    }
+                }
             }
         }
     }

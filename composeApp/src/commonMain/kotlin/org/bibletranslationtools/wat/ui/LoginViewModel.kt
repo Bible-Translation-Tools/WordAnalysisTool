@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.bibletranslationtools.wat.data.Alert
+import org.bibletranslationtools.wat.data.ToastInfo
+import org.bibletranslationtools.wat.data.ToastType
 import org.bibletranslationtools.wat.domain.Token
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatApi
@@ -29,7 +30,7 @@ import wordanalysistool.composeapp.generated.resources.unknown_error
 
 data class LoginState(
     val user: User? = null,
-    val alert: Alert? = null,
+    val toast: ToastInfo? = null,
     val progress: Boolean = false
 )
 
@@ -66,7 +67,7 @@ class LoginViewModel(
             is LoginEvent.FetchToken -> fetchToken()
             is LoginEvent.UpdateUser -> tokenToUser(event.token)
             is LoginEvent.OnBeforeNavigate -> onBeforeNavigate()
-            is LoginEvent.ClearAlert -> updateAlert(null)
+            is LoginEvent.ClearAlert -> updateToast(null)
             else -> resetChannel()
         }
     }
@@ -78,10 +79,12 @@ class LoginViewModel(
                     _event.send(LoginEvent.OnAuthOpen(it))
                 }
                 .onError {
-                    updateAlert(
-                        Alert(it.description ?: getString(Res.string.unknown_error)) {
-                            updateAlert(null)
-                        }
+                    updateToast(
+                        ToastInfo(
+                            type = ToastType.Error,
+                            message = it.description ?: getString(Res.string.unknown_error),
+                            onClose = { updateToast(null) }
+                        )
                     )
                 }
         }
@@ -115,11 +118,13 @@ class LoginViewModel(
                 .onSuccess {
                     try {
                         updateUser(User.fromToken(token))
-                    } catch (e: Exception) {
-                        updateAlert(
-                            Alert(getString(Res.string.token_invalid)) {
-                                updateAlert(null)
-                            }
+                    } catch (_: Exception) {
+                        updateToast(
+                            ToastInfo(
+                                type = ToastType.Error,
+                                message = getString(Res.string.token_invalid),
+                                onClose = { updateToast(null) }
+                            )
                         )
                         _event.send(LoginEvent.TokenInvalid)
                     }
@@ -127,17 +132,21 @@ class LoginViewModel(
                 .onError {
                     when (it.type) {
                         ErrorType.Unauthorized -> {
-                            updateAlert(
-                                Alert(getString(Res.string.token_invalid)) {
-                                    updateAlert(null)
-                                }
+                            updateToast(
+                                ToastInfo(
+                                    type = ToastType.Error,
+                                    message = getString(Res.string.token_invalid),
+                                    onClose = { updateToast(null) }
+                                )
                             )
                             _event.send(LoginEvent.TokenInvalid)
                         }
-                        else -> updateAlert(
-                            Alert(it.description ?: getString(Res.string.unknown_error)) {
-                                updateAlert(null)
-                            }
+                        else -> updateToast(
+                            ToastInfo(
+                                type = ToastType.Error,
+                                message = it.description ?: getString(Res.string.unknown_error),
+                                onClose = { updateToast(null) }
+                            )
                         )
                     }
                 }
@@ -152,9 +161,9 @@ class LoginViewModel(
         }
     }
 
-    private fun updateAlert(alert: Alert?) {
+    private fun updateToast(toast: ToastInfo?) {
         _state.update {
-            it.copy(alert = alert)
+            it.copy(toast = toast)
         }
     }
 
@@ -173,7 +182,7 @@ class LoginViewModel(
     private fun onBeforeNavigate() {
         fetchJob?.cancel()
         updateUser(null)
-        updateAlert(null)
+        updateToast(null)
         updateProgress(false)
     }
 }

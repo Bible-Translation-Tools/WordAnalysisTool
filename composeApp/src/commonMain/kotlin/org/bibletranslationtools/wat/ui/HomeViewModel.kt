@@ -8,15 +8,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.bibletranslationtools.wat.data.Alert
 import org.bibletranslationtools.wat.data.Direction
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.Progress
+import org.bibletranslationtools.wat.data.ToastInfo
+import org.bibletranslationtools.wat.data.ToastType
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatApi
@@ -37,7 +37,7 @@ data class BatchItem(
 )
 
 data class HomeState(
-    val alert: Alert? = null,
+    val toast: ToastInfo? = null,
     val progress: Progress? = null,
     val heartLanguages: List<LanguageInfo> = emptyList(),
     val resourceTypes: List<String> = emptyList(),
@@ -65,7 +65,6 @@ class HomeViewModel(
         )
 
     private val _event: Channel<HomeEvent> = Channel()
-    val event = _event.receiveAsFlow()
 
     fun onEvent(event: HomeEvent) {
         when (event) {
@@ -128,10 +127,12 @@ class HomeViewModel(
                     updateBatches(batchItems)
                 }
                 .onError {
-                    updateAlert(
-                        Alert(it.description ?: getString(Res.string.unknown_error)) {
-                            updateAlert(null)
-                        }
+                    updateToast(
+                        ToastInfo(
+                            type = ToastType.Error,
+                            message = it.description ?: getString(Res.string.unknown_error),
+                            onClose = { updateToast(null) }
+                        )
                     )
                 }
         }
@@ -162,9 +163,9 @@ class HomeViewModel(
         }
     }
 
-    private fun updateAlert(alert: Alert?) {
+    private fun updateToast(toast: ToastInfo?) {
         _state.update {
-            it.copy(alert = alert)
+            it.copy(toast = toast)
         }
     }
 

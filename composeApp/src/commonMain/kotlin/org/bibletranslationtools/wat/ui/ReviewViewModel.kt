@@ -13,12 +13,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.bibletranslationtools.wat.data.Alert
+import org.bibletranslationtools.wat.data.ToastInfo
 import org.bibletranslationtools.wat.data.ContentInfo
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.MutableVerseRef
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.ReviewWord
+import org.bibletranslationtools.wat.data.ToastType
 import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.data.toVerse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
@@ -33,12 +34,14 @@ import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
 import org.bibletranslationtools.wat.platform.createFileCache
+import org.bibletranslationtools.wat.ui.control.SaveDirection
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.downloading_usfm
 import wordanalysistool.composeapp.generated.resources.failed_download_usfm
 import wordanalysistool.composeapp.generated.resources.getting_batch
 import wordanalysistool.composeapp.generated.resources.getting_language
+import wordanalysistool.composeapp.generated.resources.unflagged_marked_correct_message
 import kotlin.math.ceil
 
 private const val WORDS_PAGE_SIZE = 4
@@ -49,7 +52,7 @@ data class ReviewState(
     val currentPage: Int = 1,
     val totalPages: Int = 0,
     val completeProgress: Float = 0f,
-    val alert: Alert? = null,
+    val toast: ToastInfo? = null,
     val batchId: String? = null,
     val progress: Progress? = null,
     val verses: VerseRef = emptyMap(),
@@ -59,7 +62,6 @@ data class ReviewState(
 sealed class ReviewEvent {
     data object Idle : ReviewEvent()
     data object Logout : ReviewEvent()
-    data object Saved : ReviewEvent()
 }
 
 class ReviewViewModel(
@@ -135,7 +137,6 @@ class ReviewViewModel(
         _state.update {
             it.copy(
                 isLoading = true,
-                alert = null,
                 progress = null
             )
         }
@@ -191,12 +192,14 @@ class ReviewViewModel(
             }
 
             if (errorMessage != null) {
-                _state.update {
-                    it.copy(
+                _state.update { state ->
+                    state.copy(
                         isLoading = false,
-                        alert = Alert(errorMessage) {
-                            _state.update { state -> state.copy(alert = null) }
-                        }
+                        toast = ToastInfo(
+                            type = ToastType.Error,
+                            message = errorMessage,
+                            onClose = { _state.update { it.copy(toast = null) } }
+                        )
                     )
                 }
             }
@@ -234,40 +237,45 @@ class ReviewViewModel(
                 ),
                 accessToken = user.token.accessToken
             ).onSuccess {
-                _state.update { it.copy(isLoading = false) }
-                _event.send(ReviewEvent.Saved)
+                _state.update { state ->
+                    state.copy(
+                        isLoading = false,
+                        toast = ToastInfo(
+                            type = ToastType.Info,
+                            message = getString(Res.string.unflagged_marked_correct_message),
+                            onClose = { _state.update { it.copy(toast = null) } }
+                        )
+                    )
+                }
                 andThen()
             }.onError { error ->
-                _state.update {
-                    it.copy(
+                _state.update { state ->
+                    state.copy(
                         isLoading = false,
-                        alert = Alert(error.description ?: "An error occurred") {
-                            _state.update { state -> state.copy(alert = null) }
-                        }
+                        toast = ToastInfo(
+                            type = ToastType.Error,
+                            message = error.description ?: "An error occurred",
+                            onClose = { _state.update { it.copy(toast = null) } }
+                        )
                     )
                 }
             }
         }
     }
 
-    fun onPageSelected(page: Int) {
-        screenModelScope.launch {
-            val currentState = _state.value
-            if (page > 0 && page <= currentState.totalPages && page != currentState.currentPage) {
-                loadPage(page)
-            }
-        }
-    }
-
-    fun onSaveAndNext() {
+    fun onSave(direction: SaveDirection) {
         screenModelScope.launch {
             val currentPage = _state.value.currentPage
             val totalPages = _state.value.totalPages
             saveCurrentPage {
-                if (currentPage < totalPages) {
-                    loadPage(currentPage + 1)
-                } else {
-                    loadPage(currentPage)
+                when {
+                    direction == SaveDirection.NEXT && currentPage < totalPages -> {
+                        loadPage(currentPage + 1)
+                    }
+                    direction == SaveDirection.PREV && currentPage > 1 -> {
+                        loadPage(currentPage - 1)
+                    }
+                    else -> loadPage(currentPage)
                 }
             }
             resetChannel()
@@ -352,14 +360,16 @@ class ReviewViewModel(
                 allVerses to error
             }
 
-            _state.update {
-                it.copy(
+            _state.update { state ->
+                state.copy(
                     verses = verses,
                     progress = null,
-                    alert = error?.let {
-                        Alert(error) {
-                            _state.update { state -> state.copy(alert = null) }
-                        }
+                    toast = error?.let {
+                        ToastInfo(
+                            type = ToastType.Error,
+                            message = error,
+                            onClose = { _state.update { it.copy(toast = null) } }
+                        )
                     }
                 )
             }
@@ -424,7 +434,7 @@ class ReviewViewModel(
         \s5
         \c 1
         \p
-        \v 1 Jude, a servant of Jesus Christ and brother of Jamess, to those who are called, beloved in God the Father, and kept for Jesus Christ:
+        \v 1 Jude, a servant of Jesus Christ and brozer of Jamess, to those who are called, beloved in God the Father, and kept for Jesus Christ:
         \p
         \v 2 May mercy and peace and love be multiplied to you.
 
@@ -435,36 +445,36 @@ class ReviewViewModel(
 
         \s5
         \p
-        \v 5 Now I wish to remind you—although once you fully knew it—that the Lord saved a people out of the land of Egypt, but that afterward he destroyed those who did not believe.
+        \v 5 Now I wish to remind you—althouh once you fully knew it—that the Lord saved a people out of the land of Egypt, but that afteward he destroyed those who did not believe.
         \v 6 Also, angels who did not keep to their own position of authority, but who left their proper dwelling place—God has kept them in everlasting chains, in utter darkness, for the judgment on the great day.
 
         \s5
-        \v 7 So also Sodom and Gomorrah and the cities around them gave themselves over to sexual immorality and perverse sexual acts. They serve as an example of those who suffer the punishment of eternal fire.
-        \v 8 Yet in the same way, these dreamers also defile their bodies. They reject authority and they slander the glorious ones.
+        \v 7 So aslo Sodom and Gomorrah and the cities around them gave themselves over to sexual immorality and perverse sexual actz. They serve as an example of those who suffer the punishment of eternal fire.
+        \v 8 Yet in the same way, these dreamers also defile their bodiies. They reject authority and they slander the glorious ones.
 
         \s5
-        \v 9 But even Michael the archangel, when he was arguing with the devil and disputing with him about the body of Moses, did not dare to bring a slanderous judgment against him, but he said, "May the Lord rebuke you!"
-        \v 10 But these people insult whatever they do not understand; and what they do understand naturally, like unreasoning animals, these are the very things that destroy them.
+        \v 9 But even Michael the arkangel, when he was arguin with the devil and disputing with him about the body of Moses, did not dare to bring a slanderous judgment against him, but he said, "May the Lord rebuke you!"
+        \v 10 But these people insult whatever they do not understand; and what they do understand naturally, like unreasoning anymals, these are the very things that destroy them.
         \v 11 Woe to them! For they have walked in the way of Cain and have plunged into Balam's error for profit. They have perished in Korash's rebellion.
 
         \s5
         \v 12 These people are dangerous reefs at your love feasts, feasting with you fearlessly—shepherds who only feed themselves. They are clouds without rain, carried along by winds; autumn trees without fruit—twice dead, uprooted.
-        \v 13 They are violent waves in the sea, foaming up their shame; wandering stars, for whom the gloom of complete darkness has been reserved forever.
+        \v 13 They are violent waves in the sea, foaming up their shame; wandering stars, for whom the gloom of complete darkness has bean reserved forever.
 
         \s5
         \v 14 Enoch, the seventh from Adam, prephesied about them, saying, "Look! The Lord is coming with thousands and thousands of his holy ones.
-        \v 15 He is coming to execute judgment on everyone. He is coming to convict all the ungodly of all the works they have done in an ungodly way, and of all the bitter words that ungodly sinners have spoken against him."
+        \v 15 He is coming to execute judgment on everyone. He is coming to convict all the ungodly of all the works they have done in an ungodly way, and of all the biter words that ungodly sinners have spoken against him."
         \v 16 These are grumblers, complainers, following their evil desires. Their mouths speak loud boasts, flattering others for profit.
 
         \s5
         \p
-        \v 17 But you, beloved, remember hte words that were spoken in the past by the apostles of our Lord Jesus Christ.
+        \v 17 But you, beloved, remember hte words that were spoken in the past by the aposles of our Lord Jesus Christ.
         \v 18 They said to yuo, "In the last time there will be mockers who will follow their own ungodly desires."
         \v 19 It is these who cause divisions; they are worldly, and they do not have the Spirit.
 
         \s5
-        \v 20 But you, beloved, build yourselves up in your most holy faith, and pray in the Holy Spirit.
-        \v 21 Keep yourselves in God's love, and wait for the mercy of our Lord Jesus Christ that brings you eternal life.
+        \v 20 But you, beloved, beeld yourselves up in your most holy faith, and pray in the Holy Spirit.
+        \v 21 Keep yourselves in God's love, and wait for the mercy of our Lord Jesus Christ that brins you eternal life.
 
         \s5
         \v 22 Be merciful to those who doubt.
@@ -472,7 +482,7 @@ class ReviewViewModel(
 
         \s5
         \p
-        \v 24 Now to the one who is able to keep you from stumbling and to cause you to stand before his glorious presence without blemish and with great joy,
+        \v 24 Now to the one who is able to keep you from stumbling and to cause you to stand before his glorious presence without bleamish and with great joy,
         \v 25 to the only God our Savior through Jesus Christ our Lord, be glory, majesty, dominion, and authority, before all time, now, and forever. Amen.
         """.trimIndent()
         return usfmBookSource.parse(usfm).associateBy { it.toString() }

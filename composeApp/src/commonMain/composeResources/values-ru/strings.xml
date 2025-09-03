@@ -33,7 +33,7 @@
     <string name="delete_batch">Удалить результаты</string>
     <string name="save_report">Сохранить отчет (.csv)</string>
     <string name="generating_report">Создание отчета...</string>
-    <string name="report_saved">Отчет сохранен.</string>
+    <string name="report_saved">Вы успешно сохранили отчет.</string>
     <string name="total_singletons">Всего обработано</string>
     <string name="likely_correct">Возможно правильно</string>
     <string name="likely_incorrect">Возможно ошибка</string>
@@ -88,4 +88,7 @@
     <string name="admin">Админ</string>
     <string name="getting_language">Получение информации о языке</string>
     <string name="getting_batch">Получение информации о проекте</string>
+    <string name="info_toast">Инфо</string>
+    <string name="success_toast">Успех</string>
+    <string name="error_toast">Ошибка</string>
 </resources>
