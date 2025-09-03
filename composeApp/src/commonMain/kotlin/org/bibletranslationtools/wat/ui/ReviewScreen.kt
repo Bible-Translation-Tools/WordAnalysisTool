@@ -192,7 +192,7 @@ class ReviewScreen(
                                     CustomTextButton(
                                         onClick = {
                                             navigator.push(AnalyzeScreen(
-                                                language = state.language!!,
+                                                ietfCode = ietfCode,
                                                 resourceType = resourceType,
                                                 verses = state.verses,
                                                 user = user

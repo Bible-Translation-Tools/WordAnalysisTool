@@ -25,6 +25,7 @@ import wordanalysistool.composeapp.generated.resources.total_singletons
 @Composable
 fun BatchInfo(
     info: BatchProgress?,
+    totalSingletons: Int,
     modifier: Modifier = Modifier
 ) {
     val reviewedProgress = info?.let {
@@ -43,7 +44,8 @@ fun BatchInfo(
         ) {
             LinearProgressIndicator(
                 progress = { reviewedProgress },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                gapSize = 0.dp
             )
             Text(
                 text = "${(reviewedProgress * 100).toInt()}%",
@@ -92,7 +94,7 @@ fun BatchInfo(
                 text = stringResource(Res.string.total_singletons),
                 fontSize = 16.sp
             )
-            Text(text = info?.let { "${it.completed}/${it.total}" } ?: "0/0")
+            Text(text = info?.let { "${it.completed}/${it.total}" } ?: "0/$totalSingletons")
         }
     }
 }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -31,6 +32,7 @@ import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
+import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.User
@@ -74,7 +76,8 @@ data class AnalyzeState(
     val models: List<String> = emptyList(),
     val alert: Alert? = null,
     val progress: Progress? = null,
-    val status: Status? = null
+    val status: Status? = null,
+    val language: LanguageInfo? = null
 )
 
 sealed class AnalyzeEvent {
@@ -89,15 +92,17 @@ sealed class AnalyzeEvent {
 }
 
 class AnalyzeViewModel(
-    private val language: LanguageInfo,
+    private val ietfCode: String,
     private val resourceType: String,
     private val verses: VerseRef,
     private val user: User,
-    private val watApi: WatApi
+    private val watApi: WatApi,
+    private val bielGraphQlApi: BielGraphQlApi
 ) : ScreenModel {
 
     private var _state = MutableStateFlow(AnalyzeState())
     val state: StateFlow<AnalyzeState> = _state
+        .onStart { loadLanguage(ietfCode) }
         .stateIn(
             scope = screenModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -123,6 +128,14 @@ class AnalyzeViewModel(
             is AnalyzeEvent.DeleteBatch -> deleteBatch()
             is AnalyzeEvent.SaveReport -> saveReport()
             else -> resetChannel()
+        }
+    }
+
+    private fun loadLanguage(ietfCode: String) {
+        screenModelScope.launch {
+            _state.update {
+                it.copy(language = bielGraphQlApi.getLanguageInfo(ietfCode))
+            }
         }
     }
 
@@ -192,7 +205,7 @@ class AnalyzeViewModel(
                 updateStatus("Fetching batch status...")
 
                 watApi.getBatchStats(
-                    language.ietfCode,
+                    ietfCode,
                     resourceType,
                     user.token.accessToken
                 ).onSuccess { batch ->
@@ -291,7 +304,7 @@ class AnalyzeViewModel(
             updateStatus("Sending batch request...")
 
             val request = BatchRequest(
-                language = language.angName,
+                language = state.value.language?.angName ?: "unknown",
                 words = singletons.map {
                     WordData(
                         it.word,
@@ -302,7 +315,7 @@ class AnalyzeViewModel(
             )
 
             watApi.createBatch(
-                language.ietfCode,
+                ietfCode,
                 resourceType,
                 request,
                 user.token.accessToken
@@ -473,7 +486,7 @@ class AnalyzeViewModel(
 
             withContext(Dispatchers.Default) {
                 watApi.getBatchReport(
-                    language.ietfCode,
+                    ietfCode,
                     resourceType,
                     user.token.accessToken
                 ).onSuccess {

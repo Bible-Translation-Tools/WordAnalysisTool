@@ -1,6 +1,5 @@
 package org.bibletranslationtools.wat.di
 
-import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
@@ -51,13 +50,14 @@ val sharedModule = module {
             usfmBookSource = get()
         )
     }
-    factory { (language: LanguageInfo, resourceType: String, verses: VerseRef, user: User) ->
+    factory { (ietfCode: String, resourceType: String, verses: VerseRef, user: User) ->
         AnalyzeViewModel(
-            language = language,
+            ietfCode = ietfCode,
             resourceType = resourceType,
             verses = verses,
             user = user,
-            watApi = get()
+            watApi = get(),
+            bielGraphQlApi = get()
         )
     }
 }

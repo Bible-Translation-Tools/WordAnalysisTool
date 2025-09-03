@@ -40,7 +40,8 @@ fun BatchProgress(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.onSurface
+                        trackColor = MaterialTheme.colorScheme.onSurface,
+                        gapSize = 0.dp
                     )
                 }
                 progress == 0f -> {

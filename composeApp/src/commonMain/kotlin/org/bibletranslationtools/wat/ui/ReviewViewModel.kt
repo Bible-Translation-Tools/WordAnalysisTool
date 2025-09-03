@@ -77,14 +77,15 @@ class ReviewViewModel(
     val state: StateFlow<ReviewState> = _state
         .onStart {
             screenModelScope.launch {
+                loadLanguage(ietfCode)
+
                 batchId?.let { id ->
                     _state.update { it.copy(batchId = id) }
-                    fetchUsfm(ietfCode, resourceType)
                 } ?: run {
-                    fetchBatch {
-                        fetchUsfm(ietfCode, resourceType)
-                    }
+                    fetchBatch()
                 }
+
+                fetchUsfm(ietfCode, resourceType)
             }
         }
         .stateIn(
@@ -98,7 +99,7 @@ class ReviewViewModel(
 
     val cache = createFileCache()
 
-    private suspend fun fetchBatch(andThen: suspend () -> Unit) {
+    private suspend fun fetchBatch() {
         _state.update {
             it.copy(
                 progress = Progress(
@@ -124,14 +125,10 @@ class ReviewViewModel(
             _state.update {
                 it.copy(
                     isLoading = false,
-                    progress = null,
-                    alert = Alert(errorMessage) {
-                        _state.update { state -> state.copy(alert = null) }
-                    }
+                    progress = null
                 )
             }
-
-        } else andThen()
+        }
     }
 
     private suspend fun loadPage(page: Int) {
@@ -310,7 +307,7 @@ class ReviewViewModel(
 
             val totalBooks = books.size
 
-            val (language, verses, error) = withContext(Dispatchers.Default) {
+            val (verses, error) = withContext(Dispatchers.Default) {
                 _state.update {
                     it.copy(progress = Progress(
                         -1f,
@@ -318,9 +315,7 @@ class ReviewViewModel(
                     ))
                 }
 
-                val language = bielGraphQlApi.getLanguageInfo(ietfCode)
                 var error: String? = null
-
                 val allVerses: MutableVerseRef = mutableMapOf()
                 books.forEachIndexed { index, book ->
                     book.url?.let { url ->
@@ -354,12 +349,11 @@ class ReviewViewModel(
                     }
                 }
 
-                Triple(language, allVerses, error)
+                allVerses to error
             }
 
             _state.update {
                 it.copy(
-                    language = language,
                     verses = verses,
                     progress = null,
                     alert = error?.let {
@@ -371,6 +365,14 @@ class ReviewViewModel(
             }
 
             loadPage(0)
+        }
+    }
+
+    private fun loadLanguage(ietfCode: String) {
+        screenModelScope.launch {
+            _state.update {
+                it.copy(language = bielGraphQlApi.getLanguageInfo(ietfCode))
+            }
         }
     }
 
