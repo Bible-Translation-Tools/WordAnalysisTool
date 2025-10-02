@@ -223,6 +223,7 @@ tasks.register("copyWebClient", Copy::class) {
 
 tasks.register("buildWebDistribution") {
     dependsOn("clean")
+    dependsOn(":kotlinWasmUpgradeYarnLock")
     dependsOn("generateBuildConfig")
     dependsOn("wasmJsBrowserDistribution")
     dependsOn("copyWebClient")
