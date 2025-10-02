@@ -78,7 +78,7 @@
     <string name="model_info">Model:</string>
     <string name="response_info">Response:</string>
     <string name="home">Home</string>
-    <string name="flag_incorrect_words">Please flag each incorrectly spelled word.</string>
+    <string name="flag_incorrect_words">Please identify bolded words that are misspelled by selecting its corresponding flag.</string>
     <string name="back">Back</string>
     <string name="save">Save</string>
     <string name="save_next">Save &amp; Next</string>
@@ -91,4 +91,6 @@
     <string name="info_toast">Info</string>
     <string name="success_toast">Success</string>
     <string name="error_toast">Error</string>
+    <string name="view_more">View more</string>
+    <string name="view_less">View less</string>
 </resources>

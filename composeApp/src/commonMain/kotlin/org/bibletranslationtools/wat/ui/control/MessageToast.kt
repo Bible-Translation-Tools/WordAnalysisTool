@@ -37,7 +37,7 @@ fun MessageToast(
     type: ToastType,
     message: String,
     onDismiss: () -> Unit,
-    autoDismissTimeout: Long = 5000
+    autoDismissTimeout: Long = 8000
 ) {
     val scope = rememberCoroutineScope()
 
@@ -85,18 +85,21 @@ fun MessageToast(
                 Text(
                     text = stringResource(type.title),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = message,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
             IconButton(onClick = onDismiss) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "dismiss"
+                    contentDescription = "dismiss",
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
         }

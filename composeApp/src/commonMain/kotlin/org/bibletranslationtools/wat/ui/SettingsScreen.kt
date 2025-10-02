@@ -2,16 +2,16 @@ package org.bibletranslationtools.wat.ui
 
 import ComboBox
 import Option
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -19,8 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -101,6 +104,8 @@ class SettingsScreen(private val user: User) : Screen {
             )
         }.toMutableStateList()
         val models = remember { modelsState }
+
+        var isModelsExpanded by remember { mutableStateOf(false) }
 
         var apostropheIsSeparator by rememberBooleanSetting(
             Settings.APOSTROPHE_IS_SEPARATOR.name,
@@ -184,7 +189,7 @@ class SettingsScreen(private val user: User) : Screen {
                             verticalArrangement = Arrangement.spacedBy(20.dp),
                             modifier = Modifier
                                 .padding(top = 8.dp)
-                                .width(500.dp)
+                                .width(800.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
                             Row(
@@ -192,11 +197,7 @@ class SettingsScreen(private val user: User) : Screen {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = stringResource(Res.string.color_scheme),
-                                    modifier = Modifier.weight(0.5f)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Text(text = stringResource(Res.string.color_scheme))
                                 ComboBox(
                                     value = themeEnum.value,
                                     options = Theme.entries.map(::Option),
@@ -208,7 +209,7 @@ class SettingsScreen(private val user: User) : Screen {
                                             else -> systemThemeStr
                                         }
                                     },
-                                    modifier = Modifier.weight(0.5f)
+                                    modifier = Modifier.width(300.dp)
                                 )
                             }
 
@@ -217,11 +218,7 @@ class SettingsScreen(private val user: User) : Screen {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = stringResource(Res.string.system_language),
-                                    modifier = Modifier.weight(0.5f)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Text(text = stringResource(Res.string.system_language))
                                 ComboBox(
                                     value = localeEnum.value,
                                     options = Locales.entries.map(::Option),
@@ -232,42 +229,58 @@ class SettingsScreen(private val user: User) : Screen {
                                             else -> Locales.EN.value
                                         }
                                     },
-                                    modifier = Modifier.weight(0.5f)
+                                    modifier = Modifier.width(300.dp)
                                 )
                             }
 
                             if (user.admin) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = stringResource(Res.string.models),
-                                        modifier = Modifier.weight(0.5f)
-                                    )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    MultiSelectList(
-                                        items = models,
-                                        selected = models.filter { it.active.value },
-                                        valueConverter = { it.model },
-                                        onSelect = { model ->
-                                            val activeModels = models.filter { it.active.value }
-                                            val status = !model.active.value
+                                    Row(
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(end = 12.dp)
+                                            .clickable(
+                                                interactionSource = null,
+                                                indication = null,
+                                                onClick = { isModelsExpanded = !isModelsExpanded }
+                                            )
+                                    ) {
+                                        Text(text = stringResource(Res.string.models))
+                                        Icon(
+                                            imageVector = if (isModelsExpanded) {
+                                                Icons.Default.KeyboardArrowUp
+                                            } else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null
+                                        )
+                                    }
 
-                                            if (activeModels.size == MODELS_SIZE && status) {
-                                                coroutineScope.launch {
-                                                    alert = getString(
-                                                        Res.string.select_models_limit,
-                                                        MODELS_SIZE
-                                                    )
+                                    AnimatedVisibility(visible = isModelsExpanded) {
+                                        MultiSelectList(
+                                            items = models,
+                                            selected = models.filter { it.active.value },
+                                            valueConverter = { it.model },
+                                            onSelect = { model ->
+                                                val activeModels = models.filter { it.active.value }
+                                                val status = !model.active.value
+
+                                                if (activeModels.size == MODELS_SIZE && status) {
+                                                    coroutineScope.launch {
+                                                        alert = getString(
+                                                            Res.string.select_models_limit,
+                                                            MODELS_SIZE
+                                                        )
+                                                    }
+                                                } else {
+                                                    model.active.value = status
                                                 }
-                                            } else {
-                                                model.active.value = status
-                                            }
-                                        },
-                                        modifier = Modifier.weight(0.5f)
-                                    )
+                                            },
+                                            modifier = Modifier.padding(start = 16.dp)
+                                        )
+                                    }
                                 }
 
                                 Row(
@@ -276,15 +289,14 @@ class SettingsScreen(private val user: User) : Screen {
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
-                                        text = stringResource(Res.string.use_apostrophe_regex),
-                                        modifier = Modifier.weight(0.5f)
+                                        text = stringResource(
+                                            Res.string.use_apostrophe_regex
+                                        )
                                     )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Row(modifier = Modifier.weight(0.5f)) {
+                                    Row(modifier = Modifier) {
                                         Checkbox(
                                             checked = apostropheIsSeparator,
-                                            onCheckedChange = { apostropheIsSeparator = it },
-                                            modifier = Modifier.offset(x = (-8).dp)
+                                            onCheckedChange = { apostropheIsSeparator = it }
                                         )
                                     }
                                 }

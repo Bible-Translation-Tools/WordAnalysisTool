@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -217,14 +217,14 @@ class AnalyzeScreen(
                                     onClick = {
                                         viewModel.onEvent(AnalyzeEvent.DeleteBatch)
                                     },
-                                    icon = Icons.Default.Delete,
+                                    icon = Icons.Outlined.Delete,
                                     text = stringResource(Res.string.delete_batch)
                                 )
                                 CustomTextButton(
                                     onClick = {
                                         viewModel.onEvent(AnalyzeEvent.SaveReport)
                                     },
-                                    icon = Icons.Default.Save,
+                                    icon = Icons.Outlined.Save,
                                     text = stringResource(Res.string.save_report)
                                 )
                             }

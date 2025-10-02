@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.bibletranslationtools.wat.domain.BatchProgress
@@ -94,7 +95,10 @@ fun BatchInfo(
                 text = stringResource(Res.string.total_singletons),
                 fontSize = 16.sp
             )
-            Text(text = info?.let { "${it.completed}/${it.total}" } ?: "0/$totalSingletons")
+            Text(
+                text = info?.let { "${it.completed}/${it.total}" } ?: "0/$totalSingletons",
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

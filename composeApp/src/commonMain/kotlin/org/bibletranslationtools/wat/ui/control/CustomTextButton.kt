@@ -33,14 +33,14 @@ fun CustomTextButton(
             .height(28.dp)
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 0.dp)
         ) {
             Icon(
                 painter = icon,
                 contentDescription = text,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(18.dp)
             )
             Text(text = text)
         }

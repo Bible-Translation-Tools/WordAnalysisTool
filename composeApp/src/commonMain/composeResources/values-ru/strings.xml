@@ -78,7 +78,7 @@
     <string name="model_info">Модель:</string>
     <string name="response_info">Ответ:</string>
     <string name="home">Домой</string>
-    <string name="flag_incorrect_words">Пожалуйста, отметьте каждое неправильно написанное слово.</string>
+    <string name="flag_incorrect_words">Пожалуйста, определите выделенные жирным шрифтом слова с ошибками, выбрав соответствующий им флаг.</string>
     <string name="back">Назад</string>
     <string name="save">Сохранить</string>
     <string name="save_next">Сохранить и Далее</string>
@@ -91,4 +91,6 @@
     <string name="info_toast">Инфо</string>
     <string name="success_toast">Успех</string>
     <string name="error_toast">Ошибка</string>
+    <string name="view_more">Показать больше</string>
+    <string name="view_less">Показать меньше</string>
 </resources>

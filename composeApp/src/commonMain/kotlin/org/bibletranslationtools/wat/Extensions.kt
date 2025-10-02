@@ -1,6 +1,7 @@
 package org.bibletranslationtools.wat
 
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.number
 import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.io.writeString
@@ -21,8 +22,8 @@ fun String.formatWith(values: Map<String, String>): String {
 
 fun LocalDateTime.format(): String {
     val year = year.toString().padStart(4, '0')
-    val month = monthNumber.toString().padStart(2, '0')
-    val day = dayOfMonth.toString().padStart(2, '0')
+    val month = month.number.toString().padStart(2, '0')
+    val day = day.toString().padStart(2, '0')
     val hour = hour.toString().padStart(2, '0')
     val minute = minute.toString().padStart(2, '0')
     val second = second.toString().padStart(2, '0')
