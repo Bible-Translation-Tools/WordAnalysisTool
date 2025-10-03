@@ -45,6 +45,8 @@ import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.view_less
 import wordanalysistool.composeapp.generated.resources.view_more
+import kotlin.math.max
+import kotlin.math.min
 
 @Composable
 fun SingletonRow(
@@ -57,7 +59,7 @@ fun SingletonRow(
             "${singleton.ref.chapter}:${singleton.ref.verse}"
     val style = TextStyle.Default.copy(
         lineHeight = 28.sp,
-        fontSize = 16.sp
+        fontSize = 19.sp
     )
     val refHorizontalPadding = 8.dp
     val refVerticalPadding = 2.dp
@@ -76,6 +78,72 @@ fun SingletonRow(
     val flagged = singleton.correct == false
     var isExpanded by remember { mutableStateOf(false) }
 
+    val errorColor = MaterialTheme.colorScheme.error
+    val normalColor = MaterialTheme.colorScheme.onBackground
+
+    val referenceTag = "reference"
+    val fullAnnotatedText = remember(singleton, flagged) {
+        buildAnnotatedString {
+            appendInlineContent(referenceTag, reference)
+
+            val textToSearch = singleton.ref.text
+            val wordToFind = singleton.word
+
+            val regex = Regex(
+                pattern = "(?<!\\p{L})${Regex.escape(wordToFind)}(?!\\p{L})",
+                option = RegexOption.IGNORE_CASE
+            )
+
+            val match = regex.find(textToSearch)
+            if (match != null) {
+                val startIndex = match.range.first
+                val endIndex = match.range.last + 1
+
+                append(textToSearch.substring(0, startIndex))
+
+                withStyle(
+                    style = SpanStyle(
+                        color = if (flagged) errorColor else normalColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                ) {
+                    append(match.value)
+                }
+
+                append(textToSearch.substring(endIndex))
+            } else {
+                append(textToSearch)
+            }
+        }
+    }
+
+    val snippetAnnotatedText = remember(singleton, flagged) {
+        buildAnnotatedString {
+            appendInlineContent(referenceTag, singleton.ref.book)
+
+            val textToSearch = singleton.ref.text
+            val wordToFind = singleton.word
+
+            val snippet = createSnippetString(textToSearch, wordToFind)
+            val matchIndexInSnippet = snippet.indexOf(wordToFind, ignoreCase = true)
+
+            if (matchIndexInSnippet != -1) {
+                append(snippet.substring(0, matchIndexInSnippet))
+                withStyle(
+                    style = SpanStyle(
+                        color = if (flagged) errorColor else normalColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                ) {
+                    append(snippet.substring(matchIndexInSnippet, matchIndexInSnippet + wordToFind.length))
+                }
+                append(snippet.substring(matchIndexInSnippet + wordToFind.length))
+            } else {
+                append(snippet)
+            }
+        }
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.animateContentSize()
@@ -91,7 +159,7 @@ fun SingletonRow(
                     style = LocalTextStyle.current.copy(
                         textDirection = TextDirection.ContentOrLtr,
                         fontFamily = getFontFamilyForText(singleton.word),
-                        fontSize = 20.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                     ),
                     color = if (flagged) {
@@ -107,7 +175,6 @@ fun SingletonRow(
             )
         }
         Row(modifier = Modifier.fillMaxWidth()) {
-            val referenceTag = "reference"
             val referenceView = InlineTextContent(
                 placeholder = Placeholder(
                     width = placeholderWidth,
@@ -128,45 +195,10 @@ fun SingletonRow(
                 ) {
                     Text(
                         text = reference,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                }
-            }
-
-            val annotatedText = buildAnnotatedString {
-                appendInlineContent(referenceTag, reference)
-
-                val textToSearch = singleton.ref.text
-                val wordToFind = singleton.word
-
-                val regex = Regex(
-                    pattern = "(?<!\\p{L})${Regex.escape(wordToFind)}(?!\\p{L})",
-                    option = RegexOption.IGNORE_CASE
-                )
-
-                val match = regex.find(textToSearch)
-                if (match != null) {
-                    val startIndex = match.range.first
-                    val endIndex = match.range.last + 1
-
-                    append(textToSearch.substring(0, startIndex))
-
-                    withStyle(
-                        style = SpanStyle(
-                            color = if (flagged) {
-                                MaterialTheme.colorScheme.error
-                            } else MaterialTheme.colorScheme.onBackground,
-                            fontWeight = FontWeight.Bold
-                        )
-                    ) {
-                        append(match.value)
-                    }
-
-                    append(textToSearch.substring(endIndex))
-                } else {
-                    append(textToSearch)
                 }
             }
 
@@ -174,11 +206,13 @@ fun SingletonRow(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = annotatedText,
+                    text = if (isExpanded) fullAnnotatedText else snippetAnnotatedText,
                     style = style.copy(
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        fontSize = 19.sp,
+                        lineHeight = 38.sp,
                         textDirection = TextDirection.ContentOrLtr,
-                        fontFamily = getFontFamilyForText(annotatedText.text)
+                        fontFamily = getFontFamilyForText(snippetAnnotatedText.text)
                     ),
                     overflow = TextOverflow.Ellipsis,
                     inlineContent = mapOf("reference" to referenceView),
@@ -213,5 +247,30 @@ fun SingletonRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+private fun createSnippetString(
+    fullText: String,
+    wordToFind: String,
+    contextLength: Int = 40
+): String {
+    val wordIndex = fullText.indexOf(wordToFind, ignoreCase = true)
+
+    if (wordIndex == -1) {
+        return fullText.take(contextLength * 2).let {
+            if (it.length < fullText.length) "$it..." else it
+        }
+    }
+
+    val snippetStart = max(0, wordIndex - contextLength)
+    val snippetEnd = min(fullText.length, wordIndex + wordToFind.length + contextLength)
+
+    val snippetText = fullText.substring(snippetStart, snippetEnd)
+
+    return buildString {
+        if (snippetStart > 0) append("... ")
+        append(snippetText)
+        if (snippetEnd < fullText.length) append(" ...")
     }
 }
