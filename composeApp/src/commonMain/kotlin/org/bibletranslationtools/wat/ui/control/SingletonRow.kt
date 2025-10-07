@@ -255,16 +255,24 @@ private fun createSnippetString(
     wordToFind: String,
     contextLength: Int = 40
 ): String {
-    val wordIndex = fullText.indexOf(wordToFind, ignoreCase = true)
+    val regex = Regex(
+        pattern = "(?<!\\p{L})${Regex.escape(wordToFind)}(?!\\p{L})",
+        option = RegexOption.IGNORE_CASE
+    )
 
-    if (wordIndex == -1) {
+    val match = regex.find(fullText)
+
+    if (match == null) {
         return fullText.take(contextLength * 2).let {
             if (it.length < fullText.length) "$it..." else it
         }
     }
 
+    val wordIndex = match.range.first
+    val matchedWordLength = match.value.length
+
     val snippetStart = max(0, wordIndex - contextLength)
-    val snippetEnd = min(fullText.length, wordIndex + wordToFind.length + contextLength)
+    val snippetEnd = min(fullText.length, wordIndex + matchedWordLength + contextLength)
 
     val snippetText = fullText.substring(snippetStart, snippetEnd)
 
