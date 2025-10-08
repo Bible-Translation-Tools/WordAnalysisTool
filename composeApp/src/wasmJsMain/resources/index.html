@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WordAnalysisTool</title>
+    <script src="https://browser.sentry-cdn.com/10.18.0/bundle.replay.min.js" crossorigin="anonymous"></script>
+    <script src="https://browser.sentry-cdn.com/10.18.0/replay-canvas.min.js" crossorigin="anonymous"></script>
+    <script>
+        Sentry.onLoad(function() {
+            Sentry.init({
+                dsn: "https://bbf87277b6219ca8ba476742f0353a32@o423560.ingest.us.sentry.io/4510152973877248",
+                replaysSessionSampleRate: 1.0,
+                replaysOnErrorSampleRate: 1.0,
+                integrations: [
+                    Sentry.replayIntegration(),
+                    Sentry.replayCanvasIntegration()
+                ]
+            });
+        });
+    </script>
     <link type="text/css" rel="stylesheet" href="styles.css">
     <script type="application/javascript" src="composeApp.js"></script>
 </head>
