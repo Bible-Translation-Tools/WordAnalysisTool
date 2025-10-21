@@ -112,6 +112,9 @@ kotlin {
 
                 implementation(libs.jwt.kt)
                 implementation(libs.kotlinx.datetime)
+                implementation(libs.sketch.compose)
+                implementation(libs.sketch.compose.gif)
+                implementation(libs.sketch.compose.resources)
             }
         }
         desktopMain.dependencies {

@@ -83,7 +83,7 @@
     <string name="save">Сохранить</string>
     <string name="save_next">Сохранить и Далее</string>
     <string name="page_info">Страница %1$d/%2$d</string>
-    <string name="unflagged_marked_correct_message">Неотмеченные слова были отмечены как правильные.</string>
+    <string name="unflagged_marked_correct_message">Все изменения сохранены. Неотмеченные слова были отмечены как правильные.</string>
     <string name="loading">Загрузка... Пожалуйста подождите.</string>
     <string name="admin">Админ</string>
     <string name="getting_language">Получение информации о языке</string>

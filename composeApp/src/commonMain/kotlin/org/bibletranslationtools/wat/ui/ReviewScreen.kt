@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
@@ -36,6 +38,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.github.panpf.sketch.AsyncImage
+import com.github.panpf.sketch.LocalPlatformContext
+import com.github.panpf.sketch.fetch.newComposeResourceUri
+import com.github.panpf.sketch.request.ImageRequest
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
@@ -137,6 +145,28 @@ class ReviewScreen(
                             )
 
                             Spacer(modifier = Modifier.height(16.dp))
+
+                            Card(
+                                elevation = CardDefaults.cardElevation(4.dp),
+                                shape = MaterialTheme.shapes.small,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFFFCFCFC)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                AsyncImage(
+                                    request = ImageRequest(
+                                        LocalPlatformContext.current,
+                                        newComposeResourceUri(
+                                            Res.getUri("files/flag_tutor.gif")
+                                        )
+                                    ),
+                                    contentDescription = "flag",
+                                    contentScale = ContentScale.FillWidth,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 16.dp)
+                                )
+                            }
 
                             Column(
                                 horizontalAlignment = Alignment.Start,
