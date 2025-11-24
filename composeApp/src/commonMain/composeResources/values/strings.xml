@@ -93,4 +93,7 @@
     <string name="error_toast">Error</string>
     <string name="view_more">View more</string>
     <string name="view_less">View less</string>
+    <string name="reset_review_progress">Reset Review Progress</string>
+    <string name="resetting_review_progress">Resetting review progress...</string>
+    <string name="reset_review_progress_success">Review progress successfully reset.</string>
 </resources>

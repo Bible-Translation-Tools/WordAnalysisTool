@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -76,6 +78,7 @@ import wordanalysistool.composeapp.generated.resources.delete_batch
 import wordanalysistool.composeapp.generated.resources.home
 import wordanalysistool.composeapp.generated.resources.pause_batch
 import wordanalysistool.composeapp.generated.resources.process_words
+import wordanalysistool.composeapp.generated.resources.reset_review_progress
 import wordanalysistool.composeapp.generated.resources.save_report
 import wordanalysistool.composeapp.generated.resources.settings
 import wordanalysistool.composeapp.generated.resources.sign_out
@@ -220,6 +223,23 @@ class AnalyzeScreen(
                                     icon = Icons.Outlined.Delete,
                                     text = stringResource(Res.string.delete_batch)
                                 )
+
+                                HorizontalDivider()
+
+                                state.batch?.let { batch ->
+                                    CustomTextButton(
+                                        onClick = {
+                                            viewModel.onEvent(
+                                                AnalyzeEvent.ResetReview(batch.id)
+                                            )
+                                        },
+                                        icon = Icons.Default.History,
+                                        text = stringResource(
+                                            Res.string.reset_review_progress
+                                        )
+                                    )
+                                }
+
                                 CustomTextButton(
                                     onClick = {
                                         viewModel.onEvent(AnalyzeEvent.SaveReport)

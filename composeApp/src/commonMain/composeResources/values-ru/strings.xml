@@ -93,4 +93,7 @@
     <string name="error_toast">Ошибка</string>
     <string name="view_more">Показать больше</string>
     <string name="view_less">Показать меньше</string>
+    <string name="reset_review_progress">Сбросить прогресс проверки</string>
+    <string name="resetting_review_progress">Производится сброс прогресса проверки</string>
+    <string name="reset_review_progress_success">Сброс прогресса проверки успешно произведен.</string>
 </resources>

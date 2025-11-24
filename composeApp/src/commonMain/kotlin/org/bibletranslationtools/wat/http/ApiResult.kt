@@ -6,6 +6,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
@@ -88,6 +89,22 @@ suspend fun delete(
 ): NetworkResponse {
     return runNetworkRequest {
         httpClient.delete(url) {
+            headers {
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+            }
+        }
+    }
+}
+
+suspend fun put(
+    httpClient: HttpClient,
+    url: String,
+    headers: Map<String, String> = emptyMap()
+): NetworkResponse {
+    return runNetworkRequest {
+        httpClient.put(url) {
             headers {
                 headers.forEach { (key, value) ->
                     header(key, value)

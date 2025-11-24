@@ -62,6 +62,8 @@ import wordanalysistool.composeapp.generated.resources.invalid_batch_id
 import wordanalysistool.composeapp.generated.resources.no_model_selected
 import wordanalysistool.composeapp.generated.resources.pausing_batch
 import wordanalysistool.composeapp.generated.resources.report_saved
+import wordanalysistool.composeapp.generated.resources.reset_review_progress_success
+import wordanalysistool.composeapp.generated.resources.resetting_review_progress
 import wordanalysistool.composeapp.generated.resources.token_invalid
 import wordanalysistool.composeapp.generated.resources.unknown_error
 import wordanalysistool.composeapp.generated.resources.wrong_model_selected
@@ -88,6 +90,7 @@ sealed class AnalyzeEvent {
     data object PauseBatch: AnalyzeEvent()
     data object DeleteBatch : AnalyzeEvent()
     data object SaveReport : AnalyzeEvent()
+    data class ResetReview(val batchId: String) : AnalyzeEvent()
     data object Logout : AnalyzeEvent()
     data class UpdateModels(val value: List<String>) : AnalyzeEvent()
     data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
@@ -129,6 +132,7 @@ class AnalyzeViewModel(
             is AnalyzeEvent.PauseBatch -> pauseBatch()
             is AnalyzeEvent.DeleteBatch -> deleteBatch()
             is AnalyzeEvent.SaveReport -> saveReport()
+            is AnalyzeEvent.ResetReview -> resetReview(event.batchId)
             else -> resetChannel()
         }
     }
@@ -540,6 +544,44 @@ class AnalyzeViewModel(
                     toast = ToastInfo(
                         type = ToastType.Success,
                         message = getString(Res.string.report_saved),
+                        onClose = { updateToast(null) }
+                    )
+                )
+            }
+        }
+    }
+
+    private fun resetReview(batchId: String) {
+        screenModelScope.launch {
+            _state.update {
+                it.copy(
+                    progress = Progress(
+                        -1f,
+                        getString(Res.string.resetting_review_progress)
+                    )
+                )
+            }
+
+            val result = withContext(Dispatchers.Default) {
+                var message = ""
+                watApi.resetReviewProgress(
+                    batchId,
+                    user.token.accessToken
+                ).onSuccess {
+                    fetchBatch(loop = false)
+                    message = getString(Res.string.reset_review_progress_success)
+                }.onError {
+                    message = it.description ?: "Unknown error"
+                }
+                message
+            }
+
+            _state.update {
+                it.copy(
+                    progress = null,
+                    toast = ToastInfo(
+                        type = ToastType.Success,
+                        message = result,
                         onClose = { updateToast(null) }
                     )
                 )

@@ -20,6 +20,7 @@ import org.bibletranslationtools.wat.http.delete
 import org.bibletranslationtools.wat.http.get
 import org.bibletranslationtools.wat.http.post
 import org.bibletranslationtools.wat.http.postFile
+import org.bibletranslationtools.wat.http.put
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.unknown_error
@@ -206,6 +207,10 @@ interface WatApi {
     suspend fun getBatchesInProgress(
         accessToken: String
     ): ApiResult<List<Batch>, NetworkError>
+    suspend fun resetReviewProgress(
+        batchId: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError>
 }
 
 class WatApiImpl(
@@ -529,6 +534,41 @@ class WatApiImpl(
         val response = get(
             httpClient = httpClient,
             url = "$BASE_URL/api/batch/recent",
+            headers = mapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json"
+            )
+        )
+        return when {
+            response.data != null -> {
+                ApiResult.Success(
+                    response.data.body()
+                )
+            }
+
+            response.error != null -> {
+                ApiResult.Error(response.error)
+            }
+
+            else -> ApiResult.Error(
+                NetworkError(
+                    ErrorType.Unknown,
+                    -1,
+                    getString(Res.string.unknown_error)
+                )
+            )
+        }
+    }
+
+    override suspend fun resetReviewProgress(
+        batchId: String,
+        accessToken: String
+    ): ApiResult<Boolean, NetworkError> {
+        println(accessToken)
+        println(batchId)
+        val response = put(
+            httpClient = httpClient,
+            url = "$BASE_URL/api/review/reset/$batchId",
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"

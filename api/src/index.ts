@@ -768,6 +768,48 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
   }
 });
 
+app.put("/api/review/reset/:batch_id", async (c) => {
+  const dbHelper = c.get("db");
+
+  try {
+    const batch_id = c.req.param("batch_id");
+    const payload = c.get("jwtPayload");
+
+    console.log(batch_id);
+
+    const user = await dbHelper.getDb().query.usersTable.findFirst({
+      where: eq(usersTable.email, payload.email),
+    });
+
+    if (!user) {
+      throw new HTTPException(404, {
+        message: "user not found",
+      });
+    }
+
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
+    }
+
+    const reset = await dbHelper
+      .getDb()
+      .update(wordsTable)
+      .set({
+        correct: null,
+      })
+      .where(eq(wordsTable.batchId, batch_id))
+      .returning();
+
+    return c.json(reset.length > 0);
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `${error.code}: error resetting review: ${
+        error.message || error
+      }`,
+    });
+  }
+});
+
 app.delete("/api/batch/pause/:batch_id", async (c) => {
   const dbHelper = c.get("db");
 
