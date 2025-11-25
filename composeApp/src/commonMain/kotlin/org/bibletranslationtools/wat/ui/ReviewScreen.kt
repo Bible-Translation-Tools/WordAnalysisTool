@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,17 +21,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,8 +41,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
@@ -49,10 +53,6 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import com.github.panpf.sketch.AsyncImage
-import com.github.panpf.sketch.LocalPlatformContext
-import com.github.panpf.sketch.fetch.newComposeResourceUri
-import com.github.panpf.sketch.request.ImageRequest
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
@@ -68,6 +68,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.admin
+import wordanalysistool.composeapp.generated.resources.app_name
+import wordanalysistool.composeapp.generated.resources.flag
 import wordanalysistool.composeapp.generated.resources.flag_incorrect_words
 import wordanalysistool.composeapp.generated.resources.home
 import wordanalysistool.composeapp.generated.resources.loading
@@ -131,42 +133,22 @@ class ReviewScreen(
                             modifier = Modifier.padding(16.dp)
                         ) {
                             Text(
+                                text = stringResource(Res.string.app_name),
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.W500,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
                                 text = state.language?.name ?: "",
                                 style = LocalTextStyle.current.copy(
                                     textDirection = TextDirection.ContentOrLtr,
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.W500,
-                                    fontFamily = getFontFamilyForText(state.language?.name ?: "")
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.W600,
+                                    fontFamily = getFontFamilyForText(state.language?.name ?: ""),
+                                    color = MaterialTheme.colorScheme.onSurface
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text(
-                                text = stringResource(Res.string.flag_incorrect_words),
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Card(
-                                elevation = CardDefaults.cardElevation(4.dp),
-                                shape = MaterialTheme.shapes.small,
-                                colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFFFCFCFC)
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                AsyncImage(
-                                    request = ImageRequest(
-                                        LocalPlatformContext.current,
-                                        newComposeResourceUri(
-                                            Res.getUri("files/flag_tutor.gif")
-                                        )
-                                    ),
-                                    contentDescription = "flag",
-                                    contentScale = ContentScale.FillWidth,
-                                    modifier = Modifier.fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 16.dp)
-                                )
-                            }
 
                             Column(
                                 horizontalAlignment = Alignment.Start,
@@ -243,6 +225,86 @@ class ReviewScreen(
                                     Text(
                                         text = "${(state.completeProgress*100).toInt()}%",
                                     )
+                                }
+
+                                Spacer(modifier = Modifier.height(32.dp))
+
+                                val placeholder = "[flag]"
+                                val inlineContentId = "flagIconId"
+                                val rawText = stringResource(
+                                    Res.string.flag_incorrect_words,
+                                    placeholder
+                                )
+                                val text = buildAnnotatedString {
+                                    val index = rawText.indexOf(placeholder)
+                                    if (index != -1) {
+                                        append(rawText.take(index))
+                                        appendInlineContent(inlineContentId, placeholder)
+                                        append(rawText.substring(
+                                            index + placeholder.length,
+                                            rawText.length
+                                        ))
+                                    } else {
+                                        append(rawText)
+                                    }
+                                }
+                                val inlineContentMap = mapOf(
+                                    inlineContentId to InlineTextContent(
+                                        Placeholder(
+                                            width = 52.sp,
+                                            height = 32.sp,
+                                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                                        )
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize()
+                                                .border(
+                                                    border = BorderStroke(
+                                                        1.dp,
+                                                        MaterialTheme.colorScheme.outline
+                                                    ),
+                                                    shape = MaterialTheme.shapes.large,
+                                                )
+                                                .background(
+                                                    color = MaterialTheme.colorScheme.surface,
+                                                    shape = MaterialTheme.shapes.large
+                                                )
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.fillMaxSize()
+                                                    .padding(4.dp)
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(Res.drawable.flag),
+                                                    contentDescription = "flag",
+                                                    tint = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+
+                                Surface(
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    border = BorderStroke(
+                                        width = 2.dp,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = text,
+                                            inlineContent = inlineContentMap,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.W400,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(32.dp))

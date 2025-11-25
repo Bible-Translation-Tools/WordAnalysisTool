@@ -78,7 +78,7 @@
     <string name="model_info">Модель:</string>
     <string name="response_info">Ответ:</string>
     <string name="home">Домой</string>
-    <string name="flag_incorrect_words">Пожалуйста, определите выделенные жирным шрифтом слова с ошибками, выбрав соответствующий им флаг.</string>
+    <string name="flag_incorrect_words">Please identify bolded words from the list below that are misspelled by selecting their corresponding flags (%1$s)</string>
     <string name="back">Назад</string>
     <string name="save">Сохранить</string>
     <string name="save_next">Сохранить и Далее</string>

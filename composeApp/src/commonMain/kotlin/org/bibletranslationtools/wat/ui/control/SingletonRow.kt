@@ -99,7 +99,7 @@ fun SingletonRow(
                 val startIndex = match.range.first
                 val endIndex = match.range.last + 1
 
-                append(textToSearch.substring(0, startIndex))
+                append(textToSearch.take(startIndex))
 
                 withStyle(
                     style = SpanStyle(
@@ -128,7 +128,7 @@ fun SingletonRow(
             val matchIndexInSnippet = snippet.indexOf(wordToFind, ignoreCase = true)
 
             if (matchIndexInSnippet != -1) {
-                append(snippet.substring(0, matchIndexInSnippet))
+                append(snippet.take(matchIndexInSnippet))
                 withStyle(
                     style = SpanStyle(
                         color = if (flagged) errorColor else normalColor,
