@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,14 +25,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -69,10 +74,14 @@ import org.koin.core.parameter.parametersOf
 import wordanalysistool.composeapp.generated.resources.Res
 import wordanalysistool.composeapp.generated.resources.admin
 import wordanalysistool.composeapp.generated.resources.app_name
+import wordanalysistool.composeapp.generated.resources.back
+import wordanalysistool.composeapp.generated.resources.complete_success
+import wordanalysistool.composeapp.generated.resources.complete_success_description
 import wordanalysistool.composeapp.generated.resources.flag
 import wordanalysistool.composeapp.generated.resources.flag_incorrect_words
 import wordanalysistool.composeapp.generated.resources.home
 import wordanalysistool.composeapp.generated.resources.loading
+import wordanalysistool.composeapp.generated.resources.return_home
 import wordanalysistool.composeapp.generated.resources.settings
 import wordanalysistool.composeapp.generated.resources.sign_out
 
@@ -227,112 +236,187 @@ class ReviewScreen(
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(32.dp))
-
-                                val placeholder = "[flag]"
-                                val inlineContentId = "flagIconId"
-                                val rawText = stringResource(
-                                    Res.string.flag_incorrect_words,
-                                    placeholder
-                                )
-                                val text = buildAnnotatedString {
-                                    val index = rawText.indexOf(placeholder)
-                                    if (index != -1) {
-                                        append(rawText.take(index))
-                                        appendInlineContent(inlineContentId, placeholder)
-                                        append(rawText.substring(
-                                            index + placeholder.length,
-                                            rawText.length
-                                        ))
-                                    } else {
-                                        append(rawText)
+                                if (state.completeProgress < 1.0) {
+                                    val placeholder = "[flag]"
+                                    val inlineContentId = "flagIconId"
+                                    val rawText = stringResource(
+                                        Res.string.flag_incorrect_words,
+                                        placeholder
+                                    )
+                                    val text = buildAnnotatedString {
+                                        val index = rawText.indexOf(placeholder)
+                                        if (index != -1) {
+                                            append(rawText.take(index))
+                                            appendInlineContent(inlineContentId, placeholder)
+                                            append(rawText.substring(
+                                                index + placeholder.length,
+                                                rawText.length
+                                            ))
+                                        } else {
+                                            append(rawText)
+                                        }
                                     }
-                                }
-                                val inlineContentMap = mapOf(
-                                    inlineContentId to InlineTextContent(
-                                        Placeholder(
-                                            width = 52.sp,
-                                            height = 32.sp,
-                                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                                    val inlineContentMap = mapOf(
+                                        inlineContentId to InlineTextContent(
+                                            Placeholder(
+                                                width = 52.sp,
+                                                height = 32.sp,
+                                                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                                            )
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize()
+                                                    .border(
+                                                        border = BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.outline
+                                                        ),
+                                                        shape = MaterialTheme.shapes.large,
+                                                    )
+                                                    .background(
+                                                        color = MaterialTheme.colorScheme.surface,
+                                                        shape = MaterialTheme.shapes.large
+                                                    )
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.fillMaxSize()
+                                                        .padding(4.dp)
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(Res.drawable.flag),
+                                                        contentDescription = "flag",
+                                                        tint = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    )
+
+                                    Spacer(modifier = Modifier.height(32.dp))
+
+                                    Surface(
+                                        shape = MaterialTheme.shapes.medium,
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        border = BorderStroke(
+                                            width = 2.dp,
+                                            color = MaterialTheme.colorScheme.secondary
                                         )
                                     ) {
                                         Box(
-                                            modifier = Modifier.fillMaxSize()
-                                                .border(
-                                                    border = BorderStroke(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.outline
-                                                    ),
-                                                    shape = MaterialTheme.shapes.large,
-                                                )
-                                                .background(
-                                                    color = MaterialTheme.colorScheme.surface,
-                                                    shape = MaterialTheme.shapes.large
-                                                )
+                                            modifier = Modifier.padding(16.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Box(
-                                                contentAlignment = Alignment.Center,
-                                                modifier = Modifier.fillMaxSize()
-                                                    .padding(4.dp)
+                                            Text(
+                                                text = text,
+                                                inlineContent = inlineContentMap,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.W400,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(32.dp))
+
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(64.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        items(items = state.words, key = { it.word }) { singleton ->
+                                            SingletonRow(
+                                                singleton = singleton,
+                                                enabled = !state.isLoading,
+                                                onFlagged = {
+                                                    viewModel.onFlagClicked(singleton.word)
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    PaginationControls(
+                                        currentPage = state.currentPage,
+                                        totalPages = state.totalPages,
+                                        enabled = !state.isLoading,
+                                        onSave = viewModel::onSave,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Spacer(modifier = Modifier.height(1.dp))
+
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "competed",
+                                                tint = MaterialTheme.colorScheme.tertiary,
+                                                modifier = Modifier.size(60.dp)
+                                            )
+                                            Text(
+                                                text = stringResource(Res.string.complete_success),
+                                                fontSize = 36.sp,
+                                                fontWeight = FontWeight.W500
+                                            )
+                                            Text(
+                                                text = stringResource(Res.string.complete_success_description),
+                                                fontSize = 16.sp
+                                            )
+                                        }
+
+                                        Row(
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = {  },
+                                                enabled = false,
+                                                shape = MaterialTheme.shapes.small,
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.surface,
+                                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                                ),
+                                                border = BorderStroke(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                ),
+                                                contentPadding = PaddingValues(end = 8.dp)
                                             ) {
                                                 Icon(
-                                                    painter = painterResource(Res.drawable.flag),
-                                                    contentDescription = "flag",
-                                                    tint = MaterialTheme.colorScheme.onSurface
+                                                    imageVector = Icons.Default.ChevronLeft,
+                                                    contentDescription = "back"
+                                                )
+                                                Text(stringResource(Res.string.back))
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = UrlManager::pop,
+                                                shape = MaterialTheme.shapes.small,
+                                                enabled = true,
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.primary,
+                                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                                ),
+                                                contentPadding = PaddingValues(horizontal = 8.dp)
+                                            ) {
+                                                Text(
+                                                    text = stringResource(Res.string.return_home)
                                                 )
                                             }
                                         }
                                     }
-                                )
-
-                                Surface(
-                                    shape = MaterialTheme.shapes.medium,
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    border = BorderStroke(
-                                        width = 2.dp,
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
-                                ) {
-                                    Box(
-                                        modifier = Modifier.padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = text,
-                                            inlineContent = inlineContentMap,
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.W400,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
                                 }
-
-                                Spacer(modifier = Modifier.height(32.dp))
-
-                                LazyColumn(
-                                    verticalArrangement = Arrangement.spacedBy(64.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    items(items = state.words, key = { it.word }) { singleton ->
-                                        SingletonRow(
-                                            singleton = singleton,
-                                            enabled = !state.isLoading,
-                                            onFlagged = {
-                                                viewModel.onFlagClicked(singleton.word)
-                                            }
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                PaginationControls(
-                                    currentPage = state.currentPage,
-                                    totalPages = state.totalPages,
-                                    enabled = !state.isLoading,
-                                    onSave = viewModel::onSave,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
                             }
                         }
 

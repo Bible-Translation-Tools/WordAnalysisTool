@@ -96,4 +96,7 @@
     <string name="reset_review_progress">Сбросить прогресс проверки</string>
     <string name="resetting_review_progress">Производится сброс прогресса проверки</string>
     <string name="reset_review_progress_success">Сброс прогресса проверки успешно произведен.</string>
+    <string name="complete_success">Успешно завершено!</string>
+    <string name="complete_success_description">Вы успешно завершили проверку неправильных слов.</string>
+    <string name="return_home">Вернуться домой</string>
 </resources>

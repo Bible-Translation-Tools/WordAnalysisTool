@@ -96,4 +96,7 @@
     <string name="reset_review_progress">Reset Review Progress</string>
     <string name="resetting_review_progress">Resetting review progress...</string>
     <string name="reset_review_progress_success">Review progress successfully reset.</string>
+    <string name="complete_success">Successfully Completed!</string>
+    <string name="complete_success_description">You have successfully completed checking for misspelled words.</string>
+    <string name="return_home">Return Home</string>
 </resources>

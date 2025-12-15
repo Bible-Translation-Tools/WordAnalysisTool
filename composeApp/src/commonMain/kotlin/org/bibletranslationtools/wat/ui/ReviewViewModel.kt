@@ -157,7 +157,7 @@ class ReviewViewModel(
                     val currentPage = if (page > 0) {
                         page
                     } else {
-                        if (completed >= total && total > 0) {
+                        if (total in 1..completed) {
                             ceil(total.toFloat() / WORDS_PAGE_SIZE).toInt()
                         } else {
                             (completed / WORDS_PAGE_SIZE) + 1
