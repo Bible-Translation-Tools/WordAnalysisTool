@@ -51,7 +51,7 @@ enum class WordStatus(val value: Int) {
 @Serializable
 data class WordRequest(
     val word: String,
-    val correct: Boolean?
+    val correct: Boolean
 )
 
 @Serializable

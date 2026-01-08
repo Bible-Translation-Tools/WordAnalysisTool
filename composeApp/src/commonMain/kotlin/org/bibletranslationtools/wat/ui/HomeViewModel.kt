@@ -75,7 +75,12 @@ class HomeViewModel(
 
     private fun fetchHeartLanguages() {
         screenModelScope.launch {
-            updateProgress(Progress(0f, getString(Res.string.fetching_heart_languages)))
+            updateProgress(
+                Progress(
+                    value = 0f,
+                    message = getString(Res.string.fetching_heart_languages)
+                )
+            )
             // TODO Remove debug code
             val en = LanguageInfo("en", "English", "English", Direction.LTR)
             val ru = LanguageInfo("ru", "Русский", "Russian", Direction.LTR)
@@ -90,7 +95,7 @@ class HomeViewModel(
         screenModelScope.launch {
             updateProgress(Progress(0f, getString(Res.string.fetching_resource_types)))
             // TODO Remove debug code
-            val resourceTypes = if (ietfCode in listOf("en","ru")) {
+            val resourceTypes = if (ietfCode in listOf("en","ru","pap-AW-papiamento")) {
                 listOf("ulb")
             } else {
                 bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()

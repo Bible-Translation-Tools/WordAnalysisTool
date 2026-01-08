@@ -13,12 +13,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.bibletranslationtools.wat.data.ToastInfo
 import org.bibletranslationtools.wat.data.ContentInfo
 import org.bibletranslationtools.wat.data.LanguageInfo
 import org.bibletranslationtools.wat.data.MutableVerseRef
 import org.bibletranslationtools.wat.data.Progress
 import org.bibletranslationtools.wat.data.ReviewWord
+import org.bibletranslationtools.wat.data.ToastInfo
 import org.bibletranslationtools.wat.data.ToastType
 import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.data.toVerse
@@ -219,20 +219,12 @@ class ReviewViewModel(
     private suspend fun saveCurrentPage(andThen: suspend () -> Unit) {
         _state.update { it.copy(isLoading = true) }
 
-        val wordsToUpdate = _state.value.words.map { word ->
-            if (word.correct == null) {
-                word.copy(correct = true)
-            } else {
-                word
-            }
-        }
-
         withContext(Dispatchers.Default) {
             watApi.updateWordsCorrect(
                 request = WordsRequest(
                     batchId = _state.value.batchId!!,
-                    words = wordsToUpdate.map {
-                        WordRequest(it.word, it.correct)
+                    words = _state.value.words.map {
+                        WordRequest(it.word, it.correct ?: true)
                     }
                 ),
                 accessToken = user.token.accessToken
@@ -294,19 +286,26 @@ class ReviewViewModel(
             }
 
             // TODO Remove debug code
-            val books = when(ietfCode) {
-                "en" -> listOf(ContentInfo(
-                    "",
-                    "Jude",
-                    "jud",
-                    null
-                ))
-                "ru" ->listOf(ContentInfo(
-                    "",
-                    "Послание Иуды",
-                    "jud",
-                    null
-                ))
+            val books = when (ietfCode) {
+                "en" -> listOf(
+                    ContentInfo(
+                        "",
+                        "Jude",
+                        "jud",
+                        null
+                    )
+                )
+
+                "ru" -> listOf(
+                    ContentInfo(
+                        "",
+                        "Послание Иуды",
+                        "jud",
+                        null
+                    )
+                )
+
+                "pap-AW-papiamento" -> getPapiamentoBooks()
                 else -> bielGraphQlApi.getBooksForTranslation(
                     ietfCode,
                     resourceType
@@ -317,33 +316,33 @@ class ReviewViewModel(
 
             val (verses, error) = withContext(Dispatchers.Default) {
                 _state.update {
-                    it.copy(progress = Progress(
-                        -1f,
-                        getString(Res.string.getting_language)
-                    ))
+                    it.copy(
+                        progress = Progress(
+                            -1f,
+                            getString(Res.string.getting_language)
+                        )
+                    )
                 }
 
                 var error: String? = null
                 val allVerses: MutableVerseRef = mutableMapOf()
                 books.forEachIndexed { index, book ->
                     book.url?.let { url ->
-                        val currentProgress = (index+1)/totalBooks.toFloat()
+                        val currentProgress = (index + 1) / totalBooks.toFloat()
 
                         // TODO Remove debug code
-                        if (ietfCode !in listOf("en","ru")) {
-                            val verses = getBookVerses(url)
-                            if (verses != null) {
-                                allVerses.putAll(verses)
-                            } else {
-                                error = getString(Res.string.failed_download_usfm)
-                                allVerses.clear()
+                        when (ietfCode) {
+                            !in listOf("en", "ru") -> {
+                                val verses = getBookVerses(url)
+                                if (verses != null) {
+                                    allVerses.putAll(verses)
+                                } else {
+                                    error = getString(Res.string.failed_download_usfm)
+                                    allVerses.clear()
+                                }
                             }
-                        } else {
-                            if (ietfCode == "en") {
-                                allVerses.putAll(getEnglishFakeVerses())
-                            } else {
-                                allVerses.putAll(getRussianFakeVerses())
-                            }
+                            "en" -> allVerses.putAll(getEnglishFakeVerses())
+                            "ru" -> allVerses.putAll(getRussianFakeVerses())
                         }
 
                         _state.update {
@@ -404,14 +403,24 @@ class ReviewViewModel(
     private suspend fun fetchAndCache(url: String): VerseRef? {
         return try {
             var verses: VerseRef? = null
-            downloadUsfm(url).onSuccess { data ->
-                verses = usfmBookSource.parse(data.decodeToString())
+            var bytes: ByteArray? = null
+
+            // TODO Remove debug code
+            if (url.startsWith("http")) {
+                downloadUsfm(url).onSuccess { data ->
+                    bytes = data
+                }.onError { error ->
+                    println("Failed to fetch verses: ${error.description}")
+                }
+            } else {
+                bytes = Res.readBytes(url)
+            }
+
+            bytes?.let { arr ->
+                verses = usfmBookSource.parse(arr.decodeToString())
                     .associateBy { it.toString() }
                 val json = JsonLenient.encodeToString(verses)
                 cache.put(url, json.encodeToByteArray())
-            }.onError { error ->
-                println("Failed to fetch verses: ${error.description}")
-                null
             }
             verses
         } catch (e: Exception) {
@@ -421,6 +430,179 @@ class ReviewViewModel(
     }
 
     // TODO Remove debug code
+    private fun getPapiamentoBooks(): List<ContentInfo> {
+        return listOf(
+            ContentInfo(
+                "files/papiamento/01-GEN.usfm",
+                "Genesis",
+                "gen",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/41-MAT.usfm",
+                "Matthew",
+                "mat",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/42-MRK.usfm",
+                "Mark",
+                "mrk",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/43-LUK.usfm",
+                "Luke",
+                "luk",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/44-JHN.usfm",
+                "John",
+                "jhn",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/45-ACT.usfm",
+                "Acts",
+                "act",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/46-ROM.usfm",
+                "Romans",
+                "rom",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/47-1CO.usfm",
+                "1 Corinthians",
+                "1co",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/48-2CO.usfm",
+                "2 Corinthians",
+                "2co",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/49-GAL.usfm",
+                "Galatians",
+                "gal",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/50-EPH.usfm",
+                "Ephesians",
+                "eph",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/51-PHP.usfm",
+                "Philippians",
+                "php",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/52-COL.usfm",
+                "Colossians",
+                "col",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/53-1TH.usfm",
+                "1 Thessalonians",
+                "1th",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/54-2TH.usfm",
+                "2 Thessalonians",
+                "2th",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/55-1TI.usfm",
+                "1 Timothy",
+                "1ti",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/56-2TI.usfm",
+                "2 Timothy",
+                "2ti",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/57-TIT.usfm",
+                "Titus",
+                "tit",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/58-PHM.usfm",
+                "Philemon",
+                "phm",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/59-HEB.usfm",
+                "Hebrews",
+                "heb",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/60-JAS.usfm",
+                "James",
+                "jas",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/61-1PE.usfm",
+                "1 Peter",
+                "1pe",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/62-2PE.usfm",
+                "2 Peter",
+                "2pe",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/63-1JN.usfm",
+                "1 John",
+                "1jn",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/64-2JN.usfm",
+                "2 John",
+                "2jn",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/65-3JN.usfm",
+                "3 John",
+                "3jn",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/66-JUD.usfm",
+                "Jude",
+                "jud",
+                null
+            ),
+            ContentInfo(
+                "files/papiamento/67-REV.usfm",
+                "Revelation",
+                "rev",
+                null
+            )
+        )
+    }
+
     private suspend fun getEnglishFakeVerses(): VerseRef {
         val usfm = """
         \id JUD Unlocked Literal Bible

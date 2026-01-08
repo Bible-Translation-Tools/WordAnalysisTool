@@ -17,11 +17,18 @@ import {
   BatchError,
   WordsParams,
   WordData,
+  ChatResponse,
 } from "./types";
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
 import { stream } from "hono/streaming";
-import { batchesTable, modelsTable, usersTable, wordsTable } from "./db/schema";
+import {
+  batchesTable,
+  modelsTable,
+  usersTable,
+  wordReviewsTable,
+  wordsTable,
+} from "./db/schema";
 import {
   and,
   eq,
@@ -367,7 +374,9 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
         models: {
           orderBy: [asc(modelsTable.model)],
         },
+        reviews: true,
       },
+      orderBy: [asc(wordsTable.word)],
     });
 
     const statusMap: { [key: number]: string } = {
@@ -390,7 +399,7 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
     return stream(c, async (s) => {
       // Header
       await s.write(
-        "word,book,chapter,verse,model1,model2,model3,consensus,correct\n"
+        "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict\n"
       );
 
       // Body
@@ -399,14 +408,22 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
         const modelResults = word.models.map(
           (m) => `"${m.model}\n${statusMap[m.status]}"`
         );
-        const consensus = getConsensus(word.models.map((m) => m.status));
-        const correct =
-          word.correct === null ? "" : word.correct ? "Yes" : "No";
 
+        const totalReviews = word.reviews.length;
+
+        if (totalReviews === 0) continue;
+
+        const correctReviews = word.reviews.filter((r) => r.correct).length;
+        const reviewsStr = `${correctReviews}/${totalReviews}`;
+        let verdict = "";
+        if (totalReviews > 0) {
+          verdict = correctReviews / totalReviews >= 0.5 ? "Yes" : "No";
+        }
+        const consensus = getConsensus(word.models.map((m) => m.status));
         let anomaly = "";
         if (
-          (consensus === "Likely Incorrect" && correct === "Yes") ||
-          (consensus === "Likely Correct" && correct === "No")
+          (consensus === "Likely Incorrect" && verdict === "Yes") ||
+          (consensus === "Likely Correct" && verdict === "No")
         ) {
           anomaly = "⚠️";
         }
@@ -418,7 +435,8 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
           verse || "",
           ...modelResults,
           consensus,
-          correct,
+          reviewsStr,
+          verdict,
           anomaly,
         ].join(",");
 
@@ -482,7 +500,7 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
       .groupBy(modelsTable.wordId)
       .as("consensus_subquery");
 
-    const stats = await dbHelper
+    const [stats] = await dbHelper
       .getDb()
       .select({
         correct: count(sql`CASE WHEN consensus = 'Correct' THEN 1 END`),
@@ -493,13 +511,33 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
         ),
         total: count(wordsTable.id),
         completed: count(sql`CASE WHEN is_processed THEN 1 END`),
-        reviewed: count(wordsTable.correct),
       })
       .from(wordsTable)
       .leftJoin(consensusSubquery, eq(wordsTable.id, consensusSubquery.wordId))
       .where(eq(wordsTable.batchId, dbBatch.id));
 
-    const statsInfo = stats[0];
+    const userReviewCounts = await dbHelper
+      .getDb()
+      .select({
+        userId: wordReviewsTable.userId,
+        count: count(),
+      })
+      .from(wordReviewsTable)
+      .innerJoin(wordsTable, eq(wordReviewsTable.wordId, wordsTable.id))
+      .where(eq(wordsTable.batchId, dbBatch.id))
+      .groupBy(wordReviewsTable.userId);
+
+    const totalReviews = userReviewCounts.reduce(
+      (sum, row) => sum + row.count,
+      0
+    );
+    const averageReviews =
+      userReviewCounts.length > 0 ? totalReviews / userReviewCounts.length : 0;
+
+    const statsInfo = {
+      ...stats,
+      reviewed: Math.round(averageReviews),
+    };
 
     const progress: BatchProgress = {
       correct: statsInfo.correct,
@@ -583,6 +621,14 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     const ietf_code = c.req.param("ietf_code");
     const resource_type = c.req.param("resource_type");
     const payload = c.get("jwtPayload");
+
+    const user = await dbHelper.getDb().query.usersTable.findFirst({
+      where: eq(usersTable.email, payload.email),
+    });
+
+    if (!user) {
+      throw new HTTPException(404, { message: "user not found" });
+    }
 
     const page = parseInt(c.req.query("page") || "1", 10);
     const limit = parseInt(c.req.query("limit") || "4", 10);
@@ -686,16 +732,20 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
 
     const countResults = await db
       .select({
-        totalCount: count(),
-        reviewedCount:
-          sql<number>`count(CASE WHEN ${wordsTable.correct} IS NOT NULL THEN 1 END)`.as(
-            "reviewedCount"
-          ),
+        totalCount: count(wordsTable.id),
+        reviewedCount: count(wordReviewsTable.pk),
       })
       .from(wordsTable)
       .innerJoin(
         sampledGoodWordsSubQuery,
         eq(wordsTable.id, sampledGoodWordsSubQuery.wordId)
+      )
+      .leftJoin(
+        wordReviewsTable,
+        and(
+          eq(wordsTable.id, wordReviewsTable.wordId),
+          eq(wordReviewsTable.userId, user.id)
+        )
       );
 
     const total = countResults[0].totalCount;
@@ -719,23 +769,33 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     const offset = (targetPage - 1) * limit;
 
     // Fetch only the words for the requested page
-    const words = await db
-      .select()
+    const wordsData = await db
+      .select({
+        word: wordsTable,
+        review: wordReviewsTable,
+      })
       .from(wordsTable)
       .innerJoin(
         sampledGoodWordsSubQuery,
         eq(wordsTable.id, sampledGoodWordsSubQuery.wordId)
+      )
+      .leftJoin(
+        wordReviewsTable,
+        and(
+          eq(wordsTable.id, wordReviewsTable.wordId),
+          eq(wordReviewsTable.userId, user.id)
+        )
       )
       .orderBy(asc(wordsTable.word))
       .limit(limit)
       .offset(offset);
 
     // Map the database results to the desired response format
-    const output = words.map((word: any) => {
+    const output = wordsData.map((row) => {
       const wordResponse: WordResponse = {
-        word: word.words.word,
-        ref: word.words.ref,
-        correct: word.words.correct,
+        word: row.word.word,
+        ref: row.word.ref,
+        correct: row.review ? row.review.correct : null,
         results: [],
       };
       return wordResponse;
@@ -772,10 +832,8 @@ app.put("/api/review/reset/:batch_id", async (c) => {
   const dbHelper = c.get("db");
 
   try {
-    const batch_id = c.req.param("batch_id");
+    const batchId = c.req.param("batch_id");
     const payload = c.get("jwtPayload");
-
-    console.log(batch_id);
 
     const user = await dbHelper.getDb().query.usersTable.findFirst({
       where: eq(usersTable.email, payload.email),
@@ -793,12 +851,17 @@ app.put("/api/review/reset/:batch_id", async (c) => {
 
     const reset = await dbHelper
       .getDb()
-      .update(wordsTable)
-      .set({
-        correct: null,
-      })
-      .where(eq(wordsTable.batchId, batch_id))
-      .returning();
+      .delete(wordReviewsTable)
+      .where(
+        inArray(
+          wordReviewsTable.wordId,
+          dbHelper
+            .getDb()
+            .select({ id: wordsTable.id })
+            .from(wordsTable)
+            .where(eq(wordsTable.batchId, batchId))
+        )
+      );
 
     return c.json(reset.length > 0);
   } catch (error: any) {
@@ -962,26 +1025,40 @@ app.post("/api/words", async (c) => {
       throw new HTTPException(404, { message: "user not found" });
     }
 
-    const whenClauses = request.words.map((w) => {
-      return sql`WHEN ${wordsTable.word} = ${w.word} THEN ${w.correct}`;
-    });
-
     const wordStrings = request.words.map((w) => w.word);
-
-    const caseSql = sql`CASE ${sql.join(whenClauses, sql` `)} END`;
-
-    await dbHelper
+    const foundWords = await dbHelper
       .getDb()
-      .update(wordsTable)
-      .set({
-        correct: caseSql,
+      .select({
+        id: wordsTable.id,
+        word: wordsTable.word,
       })
+      .from(wordsTable)
       .where(
         and(
           eq(wordsTable.batchId, request.batchId),
           inArray(wordsTable.word, wordStrings)
         )
       );
+
+    const wordMap = new Map(foundWords.map((row) => [row.word, row.id]));
+    const reviewsToUpsert = request.words
+      .filter((w) => wordMap.has(w.word))
+      .map((w) => ({
+        wordId: wordMap.get(w.word)!,
+        userId: user.id,
+        correct: w.correct,
+      }));
+
+    if (reviewsToUpsert.length > 0) {
+      await dbHelper
+        .getDb()
+        .insert(wordReviewsTable)
+        .values(reviewsToUpsert)
+        .onConflictDoUpdate({
+          target: [wordReviewsTable.wordId, wordReviewsTable.userId],
+          set: { correct: sql`excluded.correct` },
+        });
+    }
 
     return c.json(true);
   } catch (error: any) {
@@ -1094,15 +1171,22 @@ export default {
                 };
                 modelsResults.push(modelResult);
               } else {
-                const results = await client.chat(model.model, prompt);
-                if (!isChatError(results)) {
+                const chatResponse = await client.chat(model.model, prompt);
+                if (!isChatError(chatResponse)) {
+                  // Sometimes the AI might change the words, so we re-map them here from the original array
+                  const results: ChatResponse[] = chatResponse.map(
+                    (item, index) => ({
+                      ...item,
+                      word: words[index]?.word ?? item.word,
+                    })
+                  );
                   const modelResult: ModelResult = {
                     model: model.model,
                     results: results,
                   };
                   modelsResults.push(modelResult);
                 } else {
-                  errorDetails = results;
+                  errorDetails = chatResponse;
                 }
               }
             } catch (error: any) {

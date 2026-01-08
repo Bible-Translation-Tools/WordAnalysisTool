@@ -5,7 +5,7 @@ export type WordsParams = {
 
 export type WordRequest = {
   word: string;
-  correct: boolean | null;
+  correct: boolean;
 };
 
 export type BatchRequest = {

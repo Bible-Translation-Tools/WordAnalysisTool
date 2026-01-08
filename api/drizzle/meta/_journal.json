@@ -22,6 +22,13 @@
       "when": 1754744314082,
       "tag": "0002_curved_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1767798101496,
+      "tag": "0003_lame_rachel_grey",
+      "breakpoints": true
     }
   ]
 }

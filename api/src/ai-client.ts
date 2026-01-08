@@ -19,6 +19,7 @@ export default class AiClient {
       "gpt-4-turbo",
     ],
     anthropic: [
+      "claude-haiku-4-5-20251001",
       "claude-opus-4-1-20250805",
       "claude-opus-4-20250514",
       "claude-sonnet-4-20250514",
@@ -47,7 +48,7 @@ export default class AiClient {
   You will be given a list of words and a language and you will respond with
   whether the words exist or not in the language or whether they are proper names.
   If a proper name is misspelled consider it as not existing.
-  You will respond with JSON, like this:
+  You will respond with only JSON, like this:
   [
     {
       "word": "TestWord1",

@@ -25,6 +25,7 @@ enum class Model(val value: String) {
     GPT_4_O("gpt-4o"),
     GPT_4_O_MINI("gpt-4o-mini"),
     GPT_4_TURBO("gpt-4-turbo"),
+    CLAUDE_4_5_HAIKU("claude-haiku-4-5-20251001"),
     CLAUDE_4_1_OPUS("claude-opus-4-1-20250805"),
     CLAUDE_4_0_OPUS("claude-opus-4-20250514"),
     CLAUDE_4_0_SONNET("claude-sonnet-4-20250514"),
