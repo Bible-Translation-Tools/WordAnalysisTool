@@ -78,6 +78,7 @@ export enum BatchStatus {
 export type ModelResult = {
   model: string;
   results: ChatResponse[];
+  retries: number;
 };
 
 export type SplitBatchJson = {

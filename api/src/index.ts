@@ -53,6 +53,8 @@ const emptyProgress: BatchProgress = {
   total: 0,
 };
 
+type WordEntity = typeof wordsTable.$inferSelect;
+
 interface AppVariables extends JwtVariables {
   db: DbHelper;
 }
@@ -86,7 +88,7 @@ app.get("/auth/tokens/:state", async (c) => {
   const user = await dbHelper.getDb().query.usersTable.findFirst({
     where: and(
       eq(usersTable.state, state),
-      gt(usersTable.updatedAt, thirtyMinutesAgo)
+      gt(usersTable.updatedAt, thirtyMinutesAgo),
     ),
   });
 
@@ -138,7 +140,7 @@ app.get("/auth/callback", async (c) => {
         client_secret: c.env.WACS_SECRET,
         code: params.code,
         scope: encodeURIComponent(
-          "openid email profile read:user write:repository"
+          "openid email profile read:user write:repository",
         ),
         grant_type: "authorization_code",
         redirect_uri: c.env.WACS_CALLBACK,
@@ -277,7 +279,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       (await dbHelper.getDb().query.batchesTable.findFirst({
         where: and(
           eq(batchesTable.ietfCode, ietf_code),
-          eq(batchesTable.resourceType, resource_type)
+          eq(batchesTable.resourceType, resource_type),
         ),
         columns: {
           id: true,
@@ -359,7 +361,7 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
     const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
       where: and(
         eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type)
+        eq(batchesTable.resourceType, resource_type),
       ),
       columns: { id: true },
     });
@@ -399,14 +401,14 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
     return stream(c, async (s) => {
       // Header
       await s.write(
-        "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict\n"
+        "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict\n",
       );
 
       // Body
       for (const word of words) {
         const [book, chapter, verse] = word.ref.split(":");
         const modelResults = word.models.map(
-          (m) => `"${m.model}\n${statusMap[m.status]}"`
+          (m) => `"${m.model}\n${statusMap[m.status]}"`,
         );
 
         const totalReviews = word.reviews.length;
@@ -462,7 +464,7 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
     const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
       where: and(
         eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type)
+        eq(batchesTable.resourceType, resource_type),
       ),
       columns: {
         id: true,
@@ -507,7 +509,7 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
         incorrect: count(sql`CASE WHEN consensus = 'Incorrect' THEN 1 END`),
         name: count(sql`CASE WHEN consensus = 'Name' THEN 1 END`),
         reviewNeeded: count(
-          sql`CASE WHEN consensus = 'Review Needed' THEN 1 END`
+          sql`CASE WHEN consensus = 'Review Needed' THEN 1 END`,
         ),
         total: count(wordsTable.id),
         completed: count(sql`CASE WHEN is_processed THEN 1 END`),
@@ -529,7 +531,7 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
 
     const totalReviews = userReviewCounts.reduce(
       (sum, row) => sum + row.count,
-      0
+      0,
     );
     const averageReviews =
       userReviewCounts.length > 0 ? totalReviews / userReviewCounts.length : 0;
@@ -636,7 +638,7 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
       where: and(
         eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type)
+        eq(batchesTable.resourceType, resource_type),
       ),
       columns: { id: true },
       with: {
@@ -660,8 +662,8 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       .having(
         and(
           eq(min(modelsTable.status), max(modelsTable.status)),
-          inArray(min(modelsTable.status), [0, 1])
-        )
+          inArray(min(modelsTable.status), [0, 1]),
+        ),
       )
       .as("categorized_good_words");
 
@@ -675,7 +677,7 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
 
     const totalGoodWords = categoryCounts.reduce(
       (sum, row) => sum + row.count,
-      0
+      0,
     );
 
     let sampledGoodWordsSubQuery;
@@ -689,13 +691,13 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       const limitsPerStatus = categoryCounts.map((category) => ({
         status: category.status,
         limit: Math.round(
-          (category.count / totalGoodWords) * HARDCODED_TOTAL_LIMIT
+          (category.count / totalGoodWords) * HARDCODED_TOTAL_LIMIT,
         ),
       }));
 
       const summedLimits = limitsPerStatus.reduce(
         (sum, cat) => sum + cat.limit,
-        0
+        0,
       );
       if (
         summedLimits !== HARDCODED_TOTAL_LIMIT &&
@@ -725,7 +727,7 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
         sampledGoodWordsSubQuery = unionAll(
           firstQuery,
           secondQuery,
-          ...restOfQueries
+          ...restOfQueries,
         ).as("good_words");
       }
     }
@@ -738,14 +740,14 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       .from(wordsTable)
       .innerJoin(
         sampledGoodWordsSubQuery,
-        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId)
+        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId),
       )
       .leftJoin(
         wordReviewsTable,
         and(
           eq(wordsTable.id, wordReviewsTable.wordId),
-          eq(wordReviewsTable.userId, user.id)
-        )
+          eq(wordReviewsTable.userId, user.id),
+        ),
       );
 
     const total = countResults[0].totalCount;
@@ -777,14 +779,14 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       .from(wordsTable)
       .innerJoin(
         sampledGoodWordsSubQuery,
-        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId)
+        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId),
       )
       .leftJoin(
         wordReviewsTable,
         and(
           eq(wordsTable.id, wordReviewsTable.wordId),
-          eq(wordReviewsTable.userId, user.id)
-        )
+          eq(wordReviewsTable.userId, user.id),
+        ),
       )
       .orderBy(asc(wordsTable.word))
       .limit(limit)
@@ -859,8 +861,8 @@ app.put("/api/review/reset/:batch_id", async (c) => {
             .getDb()
             .select({ id: wordsTable.id })
             .from(wordsTable)
-            .where(eq(wordsTable.batchId, batchId))
-        )
+            .where(eq(wordsTable.batchId, batchId)),
+        ),
       );
 
     return c.json(reset.length > 0);
@@ -1036,8 +1038,8 @@ app.post("/api/words", async (c) => {
       .where(
         and(
           eq(wordsTable.batchId, request.batchId),
-          inArray(wordsTable.word, wordStrings)
-        )
+          inArray(wordsTable.word, wordStrings),
+        ),
       );
 
     const wordMap = new Map(foundWords.map((row) => [row.word, row.id]));
@@ -1085,8 +1087,104 @@ export default {
   async scheduled(
     controller: ScheduledController,
     env: CloudflareBindings,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ) {
+    const validateAndMapResults = (
+      words: WordEntity[],
+      chatResponse: ChatResponse[],
+      retries: number,
+    ): ChatResponse[] => {
+      const usedIndices = new Set<number>();
+      let hasLoggedContext = false;
+
+      // Helper to remove accents and lower case: "Bånana" -> "banana"
+      const normalize = (str: string) =>
+        str
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+
+      // Helper: Lazy Logger for the "Big Picture"
+      const logContextOnce = () => {
+        if (hasLoggedContext) return;
+        hasLoggedContext = true;
+
+        const refListStr = words.map((w) => w.word).join(", ");
+        const chatListStr = chatResponse.map((w) => w.word).join(", ");
+
+        console.warn(
+          `\n🔍 MISMATCH DETECTED - DEBUG CONTEXT\n` +
+            `--------------------------------------------------\n` +
+            `Sizes: Ref (${words.length}) vs Chat (${chatResponse.length})\n` +
+            `Ref List:  [${refListStr}]\n` +
+            `Chat List: [${chatListStr}]\n` +
+            `--------------------------------------------------`,
+        );
+      };
+
+      return words.map((refItem) => {
+        const targetStrict = refItem.word;
+        const targetLoose = normalize(refItem.word);
+
+        // Try to find the exact word anywhere in the list
+        let matchIndex = -1;
+        let matchType: "strict" | "loose" | "missing" = "missing";
+
+        matchIndex = chatResponse.findIndex(
+          (chatItem, index) =>
+            chatItem.word === targetStrict && !usedIndices.has(index),
+        );
+
+        if (matchIndex !== -1) {
+          matchType = "strict";
+        }
+
+        // If strict failed, try matching normalized strings (accents, case)
+        if (matchIndex === -1) {
+          matchIndex = chatResponse.findIndex(
+            (chatItem, index) =>
+              normalize(chatItem.word) === targetLoose &&
+              !usedIndices.has(index),
+          );
+          if (matchIndex !== -1) matchType = "loose";
+        }
+
+        if (matchIndex !== -1) {
+          usedIndices.add(matchIndex); // Claim this index so it's not used again
+          const foundItem = chatResponse[matchIndex];
+
+          // LOGGING: Only log if it wasn't a perfect strict match
+          if (matchType !== "strict") {
+            logContextOnce(); // Print the lists first if we haven't yet
+
+            const msg = `⚠️ Loose Match for "${refItem.word}" -> Found "${foundItem.word}"`;
+            console.warn(msg);
+          }
+
+          return {
+            ...refItem,
+            status: foundItem.status,
+          };
+        }
+
+        // If completely MISSING
+        logContextOnce(); // Print context
+        console.error(`❌ Missing Word: "${refItem.word}"`);
+
+        if (retries >= 3) {
+          console.error(
+            `❌ Giving up on word "${refItem.word}" after ${retries} retries. Marking as failed.`,
+          );
+        }
+
+        return {
+          ...refItem,
+          status: retries < 3 ? -1 : 0,
+        };
+      });
+    };
+
     try {
       const client = new AiClient(env);
       const dbHelper = new DbHelper(env);
@@ -1111,10 +1209,10 @@ export default {
                   .where(
                     and(
                       eq(modelsTable.wordId, words.id),
-                      eq(modelsTable.status, -1)
-                    )
-                  )
-              )
+                      eq(modelsTable.status, -1),
+                    ),
+                  ),
+              ),
             ),
           with: {
             models: true,
@@ -1126,6 +1224,7 @@ export default {
           interface TmpModel {
             model: string;
             words: { word: string; status: number }[];
+            retries: number;
           }
 
           const models = words.reduce((acc: TmpModel[], wordObj) => {
@@ -1145,6 +1244,7 @@ export default {
                       status: modelObj.status,
                     },
                   ],
+                  retries: modelObj.retries,
                 });
               }
             });
@@ -1152,9 +1252,7 @@ export default {
           }, []);
 
           const modelsResults: ModelResult[] = [];
-          let prompt = `Language: ${batch.language}. Words: ${words
-            .map((w) => w.word)
-            .join(", ")}`;
+          let wordsPrompt = words.map((w) => w.word).join(", ");
 
           for (const model of models) {
             try {
@@ -1168,21 +1266,28 @@ export default {
                 const modelResult: ModelResult = {
                   model: model.model,
                   results: results,
+                  retries: model.retries + 1,
                 };
                 modelsResults.push(modelResult);
               } else {
-                const chatResponse = await client.chat(model.model, prompt);
+                const chatResponse = await client.chat(
+                  model.model,
+                  batch.language,
+                  wordsPrompt,
+                );
+
                 if (!isChatError(chatResponse)) {
                   // Sometimes the AI might change the words, so we re-map them here from the original array
-                  const results: ChatResponse[] = chatResponse.map(
-                    (item, index) => ({
-                      ...item,
-                      word: words[index]?.word ?? item.word,
-                    })
+                  const results = validateAndMapResults(
+                    words,
+                    chatResponse,
+                    model.retries,
                   );
+
                   const modelResult: ModelResult = {
                     model: model.model,
                     results: results,
+                    retries: model.retries + 1,
                   };
                   modelsResults.push(modelResult);
                 } else {
@@ -1191,7 +1296,7 @@ export default {
               }
             } catch (error: any) {
               errorDetails = {
-                prompt,
+                prompt: wordsPrompt,
                 message: error.message || error,
                 model: model.model,
                 response: null,
@@ -1199,15 +1304,16 @@ export default {
             }
           }
 
-          const updateError = await dbHelper.updateModelResults(
-            words.map((w) => w.word),
-            batchId,
-            modelsResults
-          );
+          if (modelsResults.length > 0) {
+            const updateError = await dbHelper.updateModelResults(
+              batchId,
+              modelsResults,
+            );
 
-          if (updateError) {
-            updateError.prompt = prompt;
-            errorDetails = updateError;
+            if (updateError) {
+              updateError.prompt = wordsPrompt;
+              errorDetails = updateError;
+            }
           }
         }
 
@@ -1242,7 +1348,7 @@ export default {
           .where(eq(batchesTable.id, batchId));
       }
     } catch (error) {
-      console.error(error);
+      console.error("cron error:", error);
     }
   },
 };

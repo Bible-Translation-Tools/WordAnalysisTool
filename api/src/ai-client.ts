@@ -1,32 +1,29 @@
 import OpenAI from "openai";
 import { oneLine } from "common-tags";
 import { BatchError, ChatResponse } from "./types";
+import { zodResponseFormat } from "openai/helpers/zod";
+import { z } from "zod";
+
+const AiResponse = z.object({
+  word: z.string(),
+  status: z.number(),
+});
+
+const AiResponseArray = z.object({
+  responses: z.array(AiResponse),
+});
 
 export default class AiClient {
   private env: CloudflareBindings;
   private baseUrl: string;
 
   private models = {
-    openai: [
-      "gpt-5",
-      "gpt-5-mini",
-      "gpt-5-nano",
-      "gpt-4.1",
-      "gpt-4.1-mini",
-      "gpt-4.1-nano",
-      "gpt-4o",
-      "gpt-4o-mini",
-      "gpt-4-turbo",
-    ],
+    openai: ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
     anthropic: [
-      "claude-haiku-4-5-20251001",
-      "claude-opus-4-1-20250805",
-      "claude-opus-4-20250514",
-      "claude-sonnet-4-20250514",
-      "claude-3-7-sonnet-latest",
-      "claude-3-5-sonnet-latest",
-      "claude-3-5-haiku-latest",
-      "claude-3-opus-latest",
+      "claude-haiku-4-5",
+      "claude-opus-4-5",
+      "claude-opus-4-1",
+      "claude-sonnet-4-5",
     ],
     // qwen: [
     //   "qwen2.5-7b-instruct",
@@ -36,32 +33,21 @@ export default class AiClient {
     //   "qwen-turbo",
     // ],
     mistral: [
-      "mistral-medium-2505",
-      "ministral-3b-latest",
+      "mistral-small-latest",
+      "mistral-medium-latest",
       "mistral-large-latest",
-      "pixtral-large-latest",
       "ministral-8b-latest",
+      "ministral-14b-latest",
     ],
   };
 
-  private systemPrompt: string = oneLine`You are a language expert who is checking spelling.
-  You will be given a list of words and a language and you will respond with
-  whether the words exist or not in the language or whether they are proper names.
-  If a proper name is misspelled consider it as not existing.
-  You will respond with only JSON, like this:
-  [
-    {
-      "word": "TestWord1",
-      "status": 0
-    },
-    {
-      "word": "TestWord2",
-      "status": 1
-    }
-  ].
-  Where status: 0 - doesn't exist, 1 - exists, 2 - proper name.
-  Give no other commentary.
-  Here are the language and words to test.`;
+  private systemPrompt: string = oneLine`You are a Senior {language} Linguist specializing in orthography and corpus linguistics.
+  You will be given a list of words in this language and you will check each word against related dictionary, 
+  taking into account declensions and endings. 
+  Respond with a status for each word: 1 = exists, 0 = doesn't exist, 2 = proper name. 
+  Don treat capitalized words as proper names unless confirmed by dictionary.
+  Do not correct misspellings. Do not duplicate words in your response. 
+  Treat capitalized and lowercase versions of the same word as distinct entries.`;
 
   constructor(env: CloudflareBindings) {
     this.env = env;
@@ -70,7 +56,8 @@ export default class AiClient {
 
   async chat(
     model: string,
-    prompt: string
+    language: string,
+    prompt: string,
   ): Promise<ChatResponse[] | BatchError> {
     const client = this.getClient(model);
 
@@ -78,35 +65,47 @@ export default class AiClient {
       return Promise.reject("model is invalid");
     }
 
-    const response = await client.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: "system",
-          content: this.systemPrompt,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    });
+    let response = null;
 
     try {
-      let result = response.choices[0].message.content || "[]";
-      const json = this.extractJson(result);
+      response = await client.chat.completions.parse({
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content: this.systemPrompt.replace("{language}", language),
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        response_format: zodResponseFormat(AiResponseArray, "responses"),
+      });
 
-      if (json == null) {
-        throw new Error("invalid json response");
+      let result = response.choices[0].message;
+
+      if (result.refusal) {
+        throw new Error(result.refusal);
       }
 
-      return JSON.parse(json);
+      if (result.parsed === null) {
+        throw new Error("Could not parse AI response");
+      }
+
+      return result.parsed.responses.map((response) => {
+        const status: ChatResponse = {
+          word: response.word,
+          status: response.status,
+        };
+        return status;
+      });
     } catch (error) {
       return {
         prompt,
         message: error instanceof Error ? error.message : String(error),
         model,
-        response: response.choices[0].message.content,
+        response: response?.choices[0].message.content || null,
       };
     }
   }

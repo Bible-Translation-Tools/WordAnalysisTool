@@ -24,7 +24,7 @@ export const usersTable = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("idx_unique_user").on(table.email)]
+  (table) => [uniqueIndex("idx_unique_user").on(table.email)],
 );
 
 export const batchesTable = pgTable(
@@ -46,7 +46,7 @@ export const batchesTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_batch").on(table.ietfCode, table.resourceType),
     index("idx_batch_user_id").on(table.userId),
-  ]
+  ],
 );
 
 export const wordsTable = pgTable(
@@ -63,7 +63,7 @@ export const wordsTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_word").on(table.word, table.batchId),
     index("idx_word_batch_id").on(table.batchId),
-  ]
+  ],
 );
 
 export const modelsTable = pgTable(
@@ -72,6 +72,7 @@ export const modelsTable = pgTable(
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     model: varchar("model", { length: 255 }).notNull(),
     status: integer("status").notNull(),
+    retries: integer("retries").default(0).notNull(),
     wordId: integer("word_id")
       .notNull()
       .references(() => wordsTable.id, { onDelete: "cascade" }),
@@ -80,7 +81,7 @@ export const modelsTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_model").on(table.model, table.wordId),
     index("idx_model_word_id").on(table.wordId),
-  ]
+  ],
 );
 
 export const wordReviewsTable = pgTable(
@@ -97,7 +98,7 @@ export const wordReviewsTable = pgTable(
   },
   (table) => [
     uniqueIndex("idx_unique_word_review").on(table.wordId, table.userId),
-  ]
+  ],
 );
 
 export const userRelations = relations(usersTable, ({ many }) => ({
