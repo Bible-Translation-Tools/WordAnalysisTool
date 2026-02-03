@@ -306,6 +306,7 @@ class ReviewViewModel(
                 )
 
                 "pap-AW-papiamento" -> getPapiamentoBooks()
+                "bah" -> getBahamianBooks()
                 else -> bielGraphQlApi.getBooksForTranslation(
                     ietfCode,
                     resourceType
@@ -598,6 +599,23 @@ class ReviewViewModel(
                 "files/papiamento/67-REV.usfm",
                 "Revelation",
                 "rev",
+                null
+            )
+        )
+    }
+
+    private fun getBahamianBooks(): List<ContentInfo> {
+        return listOf(
+            ContentInfo(
+                "files/bah/42-MRK.usfm",
+                "Mark",
+                "mrk",
+                null
+            ),
+            ContentInfo(
+                "files/bah/55-1TI.usfm",
+                "1 Timothy",
+                "1ti",
                 null
             )
         )

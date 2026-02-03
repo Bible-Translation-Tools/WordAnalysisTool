@@ -95,7 +95,7 @@ class HomeViewModel(
         screenModelScope.launch {
             updateProgress(Progress(0f, getString(Res.string.fetching_resource_types)))
             // TODO Remove debug code
-            val resourceTypes = if (ietfCode in listOf("en","ru","pap-AW-papiamento")) {
+            val resourceTypes = if (ietfCode in listOf("en","ru","pap-AW-papiamento","bah")) {
                 listOf("ulb")
             } else {
                 bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
