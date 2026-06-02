@@ -18,20 +18,11 @@ export default class AiClient {
   private baseUrl: string;
 
   private models = {
-    openai: ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
+    openai: ["gpt-5.4-mini", "gpt-5.4-nano"],
     anthropic: [
       "claude-haiku-4-5",
-      "claude-opus-4-5",
-      "claude-opus-4-1",
-      "claude-sonnet-4-5",
+      "claude-sonnet-4-6",
     ],
-    // qwen: [
-    //   "qwen2.5-7b-instruct",
-    //   "qwen2.5-14b-instruct",
-    //   "qwen-max",
-    //   "qwen-plus",
-    //   "qwen-turbo",
-    // ],
     mistral: [
       "mistral-small-latest",
       "mistral-medium-latest",
@@ -127,12 +118,6 @@ export default class AiClient {
         baseURL: `${this.baseUrl}/mistral`,
       });
     }
-    // } else if (this.models.qwen.includes(model)) {
-    //   return new OpenAI({
-    //     apiKey: this.env.QWEN_API_KEY,
-    //     baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
-    //   });
-    // }
     else {
       return null;
     }

@@ -401,7 +401,7 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
     return stream(c, async (s) => {
       // Header
       await s.write(
-        "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict\n",
+        "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict,anomaly\n",
       );
 
       // Body
