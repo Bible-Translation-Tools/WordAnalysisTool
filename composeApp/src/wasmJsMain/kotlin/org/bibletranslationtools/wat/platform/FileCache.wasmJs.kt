@@ -9,17 +9,19 @@ import org.w3c.fetch.Response
 import org.w3c.workers.Cache
 import kotlin.ByteArray
 
+@OptIn(ExperimentalWasmJsInterop::class)
 actual class FileCache(private val cacheName: String = "wat-cache") {
+
     private suspend fun openCache(): Cache =
         window.caches.open(cacheName).await()
 
     actual suspend fun get(url: String): ByteArray? {
         val cache = openCache()
-        val matched = cache.match(url).await<JsAny?>()
+        val matched = cache.match(url).await()
 
         return matched?.let {
             val response = it.unsafeCast<Response>()
-            val arrayBuffer = response.arrayBuffer().await<ArrayBuffer>()
+            val arrayBuffer = response.arrayBuffer().await()
 
             val jsInt8Array = Int8Array(arrayBuffer)
             ByteArray(jsInt8Array.length) { index ->
@@ -32,7 +34,7 @@ actual class FileCache(private val cacheName: String = "wat-cache") {
         val cache = openCache()
         val jsUint8Array = data.toJsArray()
         val response = Response(jsUint8Array)
-        cache.put(url, response).await<Unit>()
+        cache.put(url, response).await()
     }
 }
 
