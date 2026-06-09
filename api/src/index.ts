@@ -75,6 +75,7 @@ app.use("*", async (c, next) => {
 app.use("/api/*", async (c, next) => {
   const jwtMiddleware = jwt({
     secret: c.env.JWT_SECRET_KEY,
+    alg: "HS256",
   });
   return jwtMiddleware(c, next);
 });
@@ -109,7 +110,7 @@ app.get("/auth/tokens/:state", async (c) => {
     username: user.username,
     email: user.email,
     admin: isAdmin(user.username, c.env),
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // expires in 7 days
   };
 
   return c.json({
