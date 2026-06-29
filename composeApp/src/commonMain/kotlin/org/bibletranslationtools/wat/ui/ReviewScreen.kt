@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
@@ -105,6 +106,8 @@ class ReviewScreen(
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
+        val listState = rememberLazyListState()
+
         LaunchedEffect(event) {
             when (event) {
                 is ReviewEvent.Logout -> {
@@ -113,6 +116,10 @@ class ReviewScreen(
                 }
                 else -> Unit
             }
+        }
+
+        LaunchedEffect(state.currentPage) {
+            listState.scrollToItem(0)
         }
 
         Scaffold(
@@ -321,6 +328,7 @@ class ReviewScreen(
 
                                     LazyColumn(
                                         verticalArrangement = Arrangement.spacedBy(64.dp),
+                                        state = listState,
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         items(items = state.words, key = { it.word }) { singleton ->
