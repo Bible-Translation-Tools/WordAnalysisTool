@@ -4,6 +4,8 @@ import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, eq, exists, inArray, isNull, lte, not, sql } from "drizzle-orm";
+import { LanguageInfo } from "./biel";
+import { Verse } from "./usfm";
 
 export default class DbHelper {
   private db;
@@ -47,6 +49,93 @@ export default class DbHelper {
       }
     }
     return count;
+  }
+
+  /**
+   * Ensure a languages row exists for this ietf code. If already present
+   * (e.g. imported from langnames.json) its id is reused; otherwise a row is
+   * created from BIEL language info. Returns the language id.
+   */
+  async upsertLanguage(info: LanguageInfo): Promise<number> {
+    const [row] = await this.db
+      .insert(schema.languagesTable)
+      .values({
+        code: info.ietfCode,
+        name: info.nationalName,
+        angName: info.englishName,
+        direction: info.direction,
+        gateway: false,
+      })
+      .onConflictDoUpdate({
+        target: schema.languagesTable.code,
+        set: {
+          name: sql`excluded.ln`,
+          angName: sql`excluded.ang`,
+          direction: sql`excluded.ld`,
+        },
+      })
+      .returning({ id: schema.languagesTable.id });
+    return row.id;
+  }
+
+  /** Ensure a resources row exists for (resourceType, languageId). Returns its id. */
+  async upsertResource(
+    resourceType: string,
+    languageId: number,
+  ): Promise<number> {
+    const [row] = await this.db
+      .insert(schema.resourcesTable)
+      .values({ resourceType, languageId })
+      .onConflictDoUpdate({
+        target: [
+          schema.resourcesTable.resourceType,
+          schema.resourcesTable.languageId,
+        ],
+        set: { resourceType: sql`excluded.resource_type` },
+      })
+      .returning({ id: schema.resourcesTable.id });
+    return row.id;
+  }
+
+  async insertVerses(verses: Verse[], resourceId: number) {
+    for (let i = 0; i < verses.length; i += SQL_BATCH_LIMIT) {
+      const batch = verses.slice(i, i + SQL_BATCH_LIMIT);
+      const values = batch.map((v) => ({
+        bookCode: v.book,
+        chapter: v.chapter,
+        verse: v.verse,
+        text: v.text,
+        resourceId,
+      }));
+
+      if (values.length > 0) {
+        await this.db
+          .insert(schema.versesTable)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [
+              schema.versesTable.bookCode,
+              schema.versesTable.chapter,
+              schema.versesTable.verse,
+              schema.versesTable.resourceId,
+            ],
+            set: { text: sql`excluded.text` },
+          });
+      }
+    }
+  }
+
+  async getVersesByResource(resourceId: number): Promise<Verse[]> {
+    const rows = await this.db
+      .select({
+        book: schema.versesTable.bookCode,
+        chapter: schema.versesTable.chapter,
+        verse: schema.versesTable.verse,
+        text: schema.versesTable.text,
+      })
+      .from(schema.versesTable)
+      .where(eq(schema.versesTable.resourceId, resourceId));
+    return rows;
   }
 
   async insertWords(words: WordData[], batchId: string) {

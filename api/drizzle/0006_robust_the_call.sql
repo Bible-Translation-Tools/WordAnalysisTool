@@ -1,0 +1,1 @@
+ALTER TABLE "verses" ADD COLUMN "text" text NOT NULL;

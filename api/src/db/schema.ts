@@ -65,6 +65,7 @@ export const versesTable = pgTable(
     bookCode: text("book_code").notNull(),
     chapter: integer("chapter").notNull(),
     verse: text("verse").notNull(),
+    text: text("text").notNull(),
     resourceId: integer("resource_id")
       .notNull()
       .references(() => resourcesTable.id, { onDelete: "cascade" }),
@@ -87,6 +88,14 @@ export const batchesTable = pgTable(
     ietfCode: varchar("ietf_code", { length: 255 }).notNull(),
     language: varchar("language", { length: 255 }).default("").notNull(),
     resourceType: varchar("resource_type", { length: 255 }).notNull(),
+    resourceId: integer("resource_id").references(() => resourcesTable.id, {
+      onDelete: "set null",
+    }),
+    ingesting: boolean("ingesting").default(false).notNull(),
+    apostropheIsSeparator: boolean("apostrophe_is_separator")
+      .default(true)
+      .notNull(),
+    models: text("models"),
     pending: boolean("pending").default(false).notNull(),
     error: text("error"),
     retries: integer("retries").default(0).notNull(),
@@ -99,6 +108,7 @@ export const batchesTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_batch").on(table.ietfCode, table.resourceType),
     index("idx_batch_user_id").on(table.userId),
+    index("idx_batch_resource_id").on(table.resourceId),
   ],
 );
 
@@ -184,6 +194,10 @@ export const batchRelations = relations(batchesTable, ({ one, many }) => ({
   user: one(usersTable, {
     fields: [batchesTable.userId],
     references: [usersTable.id],
+  }),
+  resource: one(resourcesTable, {
+    fields: [batchesTable.resourceId],
+    references: [resourcesTable.id],
   }),
   words: many(wordsTable),
 }));

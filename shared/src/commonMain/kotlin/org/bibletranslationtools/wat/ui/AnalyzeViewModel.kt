@@ -38,7 +38,6 @@ import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatApi
-import org.bibletranslationtools.wat.domain.WordData
 import org.bibletranslationtools.wat.domain.WordResponse
 import org.bibletranslationtools.wat.domain.WordStatus
 import org.bibletranslationtools.wat.format
@@ -81,7 +80,8 @@ data class AnalyzeState(
     val toast: ToastInfo? = null,
     val progress: Progress? = null,
     val status: Status? = null,
-    val language: LanguageInfo? = null
+    val language: LanguageInfo? = null,
+    val apostropheIsSeparator: Boolean = true
 )
 
 sealed class AnalyzeEvent {
@@ -153,6 +153,8 @@ class AnalyzeViewModel(
                     getString(Res.string.finding_singleton_words)
                 )
             )
+
+            _state.update { it.copy(apostropheIsSeparator = apostropheIsSeparator) }
 
             val totalVerses = verses.size
             val tempMap = mutableMapOf<String, Pair<Int, Verse>>()
@@ -319,15 +321,11 @@ class AnalyzeViewModel(
 
             updateStatus("Sending batch request...")
 
+            // Singletons are now found on the worker during source ingestion;
+            // the client only sends the models + tokenization option.
             val request = BatchRequest(
-                language = state.value.language?.angName ?: "unknown",
-                words = singletons.map {
-                    WordData(
-                        it.word,
-                        it.ref.toString()
-                    )
-                },
-                models = _state.value.models
+                models = _state.value.models,
+                apostropheIsSeparator = _state.value.apostropheIsSeparator
             )
 
             watApi.createBatch(

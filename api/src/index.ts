@@ -16,12 +16,13 @@ import {
   WordResponse,
   BatchError,
   WordsParams,
-  WordData,
   ChatResponse,
   LanguageData,
 } from "./types";
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
+import { getBooksForTranslation, getLanguageInfo } from "./biel";
+import { parseVerses, findSingletons, Verse } from "./usfm";
 import { stream } from "hono/streaming";
 import {
   batchesTable,
@@ -55,6 +56,106 @@ const emptyProgress: BatchProgress = {
 };
 
 type WordEntity = typeof wordsTable.$inferSelect;
+type BatchEntity = typeof batchesTable.$inferSelect;
+
+/**
+ * Source ingestion for one batch: reuse stored verses when present, otherwise
+ * fetch the translation's USFM from BIEL, parse it, and store the verses. Then
+ * compute singleton words and queue the batch for AI processing.
+ */
+async function ingestSource(
+  dbHelper: DbHelper,
+  batch: BatchEntity,
+): Promise<void> {
+  const batchId = batch.id;
+
+  try {
+    if (!batch.resourceId) {
+      throw new Error("batch has no resource");
+    }
+
+    const models: string[] = batch.models ? JSON.parse(batch.models) : [];
+    if (models.length === 0) {
+      throw new Error("batch has no models");
+    }
+
+    let verses: Verse[] = await dbHelper.getVersesByResource(batch.resourceId);
+
+    if (verses.length === 0) {
+      const contents = await getBooksForTranslation(
+        batch.ietfCode,
+        batch.resourceType,
+      );
+
+      const all: Verse[] = [];
+      for (const content of contents) {
+        if (!content.url) continue;
+
+        const res = await fetch(content.url);
+        if (!res.ok) {
+          throw new Error(`failed to download ${content.url}: ${res.status}`);
+        }
+
+        const usfm = await res.text();
+        const bookVerses = parseVerses(usfm, content.bookSlug ?? undefined);
+        await dbHelper.insertVerses(bookVerses, batch.resourceId);
+        all.push(...bookVerses);
+      }
+      verses = all;
+    }
+
+    const singletons = findSingletons(verses, batch.apostropheIsSeparator);
+    if (singletons.length === 0) {
+      throw new Error("no singleton words found");
+    }
+
+    await dbHelper.insertWords(singletons, batchId);
+    const wordIds = await dbHelper.fetchWordIds(singletons, batchId);
+    await dbHelper.insertModels(wordIds, models);
+
+    await dbHelper
+      .getDb()
+      .update(batchesTable)
+      .set({
+        ingesting: false,
+        pending: true,
+        error: null,
+        retries: 0,
+        updatedAt: new Date(),
+      })
+      .where(eq(batchesTable.id, batchId));
+  } catch (error: any) {
+    console.error("ingestion error:", error);
+
+    const errorDetails: BatchError = {
+      message: `ingestion error: ${error.message || error}`,
+      prompt: null,
+      model: null,
+      response: null,
+    };
+
+    const toUpdate: any = {
+      error: JSON.stringify(errorDetails),
+      updatedAt: new Date(),
+    };
+
+    const retries = batch.retries + 1;
+    if (retries >= BATCH_MAX_RETRIES) {
+      // give up: stop ingesting so it doesn't loop forever
+      toUpdate.ingesting = false;
+      toUpdate.pending = false;
+      toUpdate.retries = 0;
+    } else {
+      toUpdate.retries = retries;
+    }
+
+    await dbHelper
+      .getDb()
+      .update(batchesTable)
+      .set(toUpdate)
+      .where(eq(batchesTable.id, batchId));
+  }
+}
 
 interface AppVariables extends JwtVariables {
   db: DbHelper;
@@ -245,19 +346,11 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
     const text = await new Response(body).text();
     const json = await JSON.parse(text);
     const models: string[] = json.models || [];
-    const words: WordData[] = json.words || [];
-    const language: string = json.language || null;
+    const apostropheIsSeparator: boolean =
+      json.apostropheIsSeparator ?? true;
 
     if (models.length === 0) {
       throw new HTTPException(404, { message: "no models provided" });
-    }
-
-    if (words.length === 0) {
-      throw new HTTPException(404, { message: "no words provided" });
-    }
-
-    if (language == null || language.trim() === "") {
-      throw new HTTPException(404, { message: "no language provided" });
     }
 
     const user = await dbHelper.getDb().query.usersTable.findFirst({
@@ -276,6 +369,17 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       username: user.username,
     };
 
+    // Resolve the language (reuse an imported row, else create from BIEL).
+    const languageInfo = await getLanguageInfo(ietf_code);
+    if (!languageInfo) {
+      throw new HTTPException(404, { message: "language not found" });
+    }
+    const languageId = await dbHelper.upsertLanguage(languageInfo);
+    const resourceId = await dbHelper.upsertResource(
+      resource_type,
+      languageId,
+    );
+
     // TODO add current user (AND user_id = ? - user.id)
     const dbBatch =
       (await dbHelper.getDb().query.batchesTable.findFirst({
@@ -286,55 +390,54 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
         columns: {
           id: true,
           pending: true,
+          ingesting: true,
         },
       })) || null;
 
     let batchId = dbBatch?.id;
-    const pending = dbBatch?.pending;
+
+    const ingestFields = {
+      language: languageInfo.englishName,
+      resourceId: resourceId,
+      models: JSON.stringify(models),
+      apostropheIsSeparator: apostropheIsSeparator,
+      ingesting: true,
+      pending: false,
+      error: null,
+    };
 
     if (!batchId) {
       batchId = uuid4();
 
-      await dbHelper.getDb().insert(batchesTable).values({
-        id: batchId,
-        ietfCode: ietf_code,
-        language: language,
-        resourceType: resource_type,
-        pending: true,
-        userId: user.id,
-      });
+      await dbHelper
+        .getDb()
+        .insert(batchesTable)
+        .values({
+          id: batchId,
+          ietfCode: ietf_code,
+          resourceType: resource_type,
+          userId: user.id,
+          ...ingestFields,
+        });
     } else {
-      if (pending) {
+      if (dbBatch?.pending || dbBatch?.ingesting) {
         throw new HTTPException(403, { message: "batch in progress" });
       }
       await dbHelper
         .getDb()
         .update(batchesTable)
         .set({
-          language: language,
-          pending: true,
-          error: null,
+          ...ingestFields,
           updatedAt: new Date(),
         })
         .where(eq(batchesTable.id, batchId));
     }
 
-    await dbHelper.insertWords(words, batchId);
-
-    const wordIds = await dbHelper.fetchWordIds(words, batchId);
-
-    await dbHelper.insertModels(wordIds, models);
-
-    const progress: BatchProgress = {
-      ...emptyProgress,
-      total: words.length,
-    };
-
     const details: BatchDetails = {
       status: BatchStatus.QUEUED,
       error: null,
       output: [],
-      progress: progress,
+      progress: emptyProgress,
     };
 
     const batch: Batch = {
@@ -1236,6 +1339,19 @@ export default {
     try {
       const client = new AiClient(env);
       const dbHelper = new DbHelper(env);
+
+      // Source ingestion takes priority over AI processing. Handle one
+      // ingesting batch per tick, then return; AI processing runs on later ticks.
+      const ingestBatch = await dbHelper.getDb().query.batchesTable.findFirst({
+        where: eq(batchesTable.ingesting, true),
+        orderBy: [asc(batchesTable.createdAt)],
+      });
+
+      if (ingestBatch) {
+        await ingestSource(dbHelper, ingestBatch);
+        return;
+      }
+
       const batch = await dbHelper.getDb().query.batchesTable.findFirst({
         where: eq(batchesTable.pending, true),
         orderBy: [asc(batchesTable.createdAt)],

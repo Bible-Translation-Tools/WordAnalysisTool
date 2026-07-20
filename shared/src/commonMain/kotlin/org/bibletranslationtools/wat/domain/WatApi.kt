@@ -63,9 +63,8 @@ data class WordsRequest(
 
 @Serializable
 data class BatchRequest(
-    val language: String,
-    val words: List<WordData>,
-    val models: List<String>
+    val models: List<String>,
+    val apostropheIsSeparator: Boolean
 )
 
 @Serializable
