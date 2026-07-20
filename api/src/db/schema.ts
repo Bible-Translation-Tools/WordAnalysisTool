@@ -27,6 +27,59 @@ export const usersTable = pgTable(
   (table) => [uniqueIndex("idx_unique_user").on(table.email)],
 );
 
+export const languagesTable = pgTable(
+  "languages",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    code: varchar("lc", { length: 255 }).notNull(),
+    name: text("ln").notNull(),
+    angName: text("ang").notNull(),
+    direction: text("ld").notNull(),
+    gateway: boolean("gw").default(false).notNull(),
+  },
+  (table) => [uniqueIndex("idx_unique_language").on(table.code)],
+);
+
+export const resourcesTable = pgTable(
+  "resources",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    resourceType: text("resource_type").notNull(),
+    languageId: integer("language_id")
+      .notNull()
+      .references(() => languagesTable.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("idx_unique_resource").on(
+      table.resourceType,
+      table.languageId,
+    ),
+    index("idx_resource_language_id").on(table.languageId),
+  ],
+);
+
+export const versesTable = pgTable(
+  "verses",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    bookCode: text("book_code").notNull(),
+    chapter: integer("chapter").notNull(),
+    verse: text("verse").notNull(),
+    resourceId: integer("resource_id")
+      .notNull()
+      .references(() => resourcesTable.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("idx_unique_verse").on(
+      table.bookCode,
+      table.chapter,
+      table.verse,
+      table.resourceId,
+    ),
+    index("idx_verse_resource_id").on(table.resourceId),
+  ],
+);
+
 export const batchesTable = pgTable(
   "batches",
   {
@@ -103,6 +156,28 @@ export const wordReviewsTable = pgTable(
 
 export const userRelations = relations(usersTable, ({ many }) => ({
   batches: many(batchesTable),
+}));
+
+export const languageRelations = relations(languagesTable, ({ many }) => ({
+  resources: many(resourcesTable),
+}));
+
+export const resourceRelations = relations(
+  resourcesTable,
+  ({ one, many }) => ({
+    language: one(languagesTable, {
+      fields: [resourcesTable.languageId],
+      references: [languagesTable.id],
+    }),
+    verses: many(versesTable),
+  }),
+);
+
+export const verseRelations = relations(versesTable, ({ one }) => ({
+  resource: one(resourcesTable, {
+    fields: [versesTable.resourceId],
+    references: [resourcesTable.id],
+  }),
 }));
 
 export const batchRelations = relations(batchesTable, ({ one, many }) => ({
