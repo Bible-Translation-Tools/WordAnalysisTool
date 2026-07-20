@@ -28,7 +28,11 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven(url = "https://nexus-registry.walink.org/repository/maven-public/")
+        maven(url = "https://s01.oss.sonatype.org/content/repositories/releases/")
+        maven(url = "https://oss.sonatype.org/content/repositories/snapshots/")
     }
 }
 
-include(":composeApp")
+include(":shared")
+include(":androidApp")
