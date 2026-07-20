@@ -90,3 +90,11 @@ export type WordData = {
   word: string;
   ref: string;
 };
+
+export type LanguageData = {
+  lc: string;
+  ln: string;
+  ang: string;
+  ld: string;
+  gw: boolean;
+};

@@ -18,10 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,13 +42,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.russhwolf.settings.ExperimentalSettingsApi
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.openFilePicker
 import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Locales
 import org.bibletranslationtools.wat.domain.MODELS_SIZE
@@ -59,12 +66,16 @@ import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
 import org.bibletranslationtools.wat.ui.control.MultiSelectList
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
+import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
+import org.koin.core.parameter.parametersOf
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.back
 import wordanalysistool.shared.generated.resources.color_scheme
 import wordanalysistool.shared.generated.resources.home
+import wordanalysistool.shared.generated.resources.import_languages
+import wordanalysistool.shared.generated.resources.languages_section
 import wordanalysistool.shared.generated.resources.models
 import wordanalysistool.shared.generated.resources.select_models_limit
 import wordanalysistool.shared.generated.resources.settings
@@ -73,6 +84,7 @@ import wordanalysistool.shared.generated.resources.system_language
 import wordanalysistool.shared.generated.resources.theme_dark
 import wordanalysistool.shared.generated.resources.theme_light
 import wordanalysistool.shared.generated.resources.theme_system
+import wordanalysistool.shared.generated.resources.update_languages
 import wordanalysistool.shared.generated.resources.use_apostrophe_regex
 
 class SettingsScreen(private val user: User) : Screen {
@@ -80,6 +92,11 @@ class SettingsScreen(private val user: User) : Screen {
     @OptIn(ExperimentalSettingsApi::class)
     @Composable
     override fun Content() {
+        val viewModel = koinScreenModel<SettingsViewModel> {
+            parametersOf(user)
+        }
+        val settingsState by viewModel.state.collectAsStateWithLifecycle()
+
         val theme = rememberStringSetting(Settings.THEME.name, Theme.SYSTEM.name)
         val themeEnum = remember { derivedStateOf { Theme.valueOf(theme.value) } }
 
@@ -288,15 +305,47 @@ class SettingsScreen(private val user: User) : Screen {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.use_apostrophe_regex
-                                        )
-                                    )
+                                    Text(text = stringResource(Res.string.use_apostrophe_regex))
                                     Row(modifier = Modifier) {
                                         Checkbox(
                                             checked = apostropheIsSeparator,
                                             onCheckedChange = { apostropheIsSeparator = it }
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(text = stringResource(Res.string.languages_section))
+
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        CustomTextButton(
+                                            onClick = {
+                                                viewModel.onEvent(
+                                                    SettingsEvent.DownloadLanguages
+                                                )
+                                            },
+                                            icon = Icons.Default.Download,
+                                            text = stringResource(Res.string.update_languages)
+                                        )
+                                        CustomTextButton(
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    FileKit.openFilePicker(
+                                                        type = FileKitType.File("json")
+                                                    )?.let { file ->
+                                                        viewModel.onEvent(
+                                                            SettingsEvent.ImportLanguages(file)
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            icon = Icons.Default.UploadFile,
+                                            text = stringResource(Res.string.import_languages)
                                         )
                                     }
                                 }
@@ -310,6 +359,17 @@ class SettingsScreen(private val user: User) : Screen {
                 AlertDialog(
                     message = it,
                     onDismiss = { alert = null }
+                )
+            }
+
+            settingsState.progress?.let {
+                ProgressDialog(it)
+            }
+
+            settingsState.alert?.let {
+                AlertDialog(
+                    message = it,
+                    onDismiss = { viewModel.onEvent(SettingsEvent.DismissAlert) }
                 )
             }
         }

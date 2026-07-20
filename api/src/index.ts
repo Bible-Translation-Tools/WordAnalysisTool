@@ -18,6 +18,7 @@ import {
   WordsParams,
   WordData,
   ChatResponse,
+  LanguageData,
 } from "./types";
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
@@ -348,6 +349,48 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
   } catch (error: any) {
     throw new HTTPException(400, {
       message: `${error.code}: error creating batch: ${error.message || error}`,
+    });
+  }
+});
+
+app.post("/api/languages", async (c) => {
+  const dbHelper = c.get("db");
+  const payload = c.get("jwtPayload");
+
+  const body = await c.req.blob();
+
+  if (body.type !== "application/octet-stream") {
+    throw new HTTPException(403, { message: "invalid languages file" });
+  }
+
+  try {
+    const user = await dbHelper.getDb().query.usersTable.findFirst({
+      where: eq(usersTable.email, payload.email),
+    });
+
+    if (!user) {
+      throw new HTTPException(404, { message: "user not found" });
+    }
+
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
+    }
+
+    const text = await new Response(body).text();
+    const languages: LanguageData[] = JSON.parse(text);
+
+    if (!Array.isArray(languages) || languages.length === 0) {
+      throw new HTTPException(404, { message: "no languages provided" });
+    }
+
+    const count = await dbHelper.upsertLanguages(languages);
+
+    return c.json({ count });
+  } catch (error: any) {
+    throw new HTTPException(400, {
+      message: `${error.code}: error importing languages: ${
+        error.message || error
+      }`,
     });
   }
 });

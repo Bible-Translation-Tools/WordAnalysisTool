@@ -4,6 +4,7 @@ import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.User
+import org.bibletranslationtools.wat.domain.UpdateLanguages
 import org.bibletranslationtools.wat.domain.UsfmBookSource
 import org.bibletranslationtools.wat.domain.UsfmBookSourceImpl
 import org.bibletranslationtools.wat.domain.WatApi
@@ -16,6 +17,7 @@ import org.bibletranslationtools.wat.ui.AnalyzeViewModel
 import org.bibletranslationtools.wat.ui.HomeViewModel
 import org.bibletranslationtools.wat.ui.LoginViewModel
 import org.bibletranslationtools.wat.ui.ReviewViewModel
+import org.bibletranslationtools.wat.ui.SettingsViewModel
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
@@ -23,6 +25,7 @@ import org.koin.dsl.module
 
 val sharedModule = module {
     singleOf(::BielGraphQlApi)
+    singleOf(::UpdateLanguages)
     single { DownloadUsfm(createSimpleHttpClient(httpClientEngine)) }
     factory { WatApiImpl(createAiHttpClient(httpClientEngine)) }.bind<WatApi>()
 
@@ -36,6 +39,12 @@ val sharedModule = module {
             user = user,
             bielGraphQlApi = get(),
             watApi = get()
+        )
+    }
+    factory { (user: User) ->
+        SettingsViewModel(
+            user = user,
+            updateLanguages = get()
         )
     }
     factory { (ietfCode: String, resourceType: String, user: User, batchId: String?) ->

@@ -99,4 +99,10 @@
     <string name="complete_success">Успешно завершено!</string>
     <string name="complete_success_description">Вы успешно завершили проверку неправильных слов.</string>
     <string name="return_home">Вернуться домой</string>
+    <string name="languages_section">Языки</string>
+    <string name="update_languages">Обновить</string>
+    <string name="import_languages">Импорт из файла</string>
+    <string name="updating_languages">Обновление языков...</string>
+    <string name="languages_imported">Успешно импортировано языков: %1$d.</string>
+    <string name="languages_import_failed">Не удалось импортировать языки. %1$s</string>
 </resources>

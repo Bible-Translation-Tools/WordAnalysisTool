@@ -25,6 +25,7 @@ query GetBooksForTranslation($ietfCode: String!, $resourceType: String!) {
             scriptural_rendering_metadata {
                 book_name
                 book_slug
+                chapter
             }
         }
     }

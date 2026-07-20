@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.bibletranslationtools.wat.asSource
+import org.bibletranslationtools.wat.data.Language
 import org.bibletranslationtools.wat.data.WordStatusSerializer
 import org.bibletranslationtools.wat.http.ApiResult
 import org.bibletranslationtools.wat.http.ErrorType
@@ -161,6 +162,11 @@ data class PublicUser(
 )
 
 @Serializable
+data class ImportLanguagesResponse(
+    val count: Int
+)
+
+@Serializable
 data class Token(
     val accessToken: String
 )
@@ -211,6 +217,10 @@ interface WatApi {
         batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
+    suspend fun importLanguages(
+        languages: List<Language>,
+        accessToken: String
+    ): ApiResult<Int, NetworkError>
 }
 
 class WatApiImpl(
@@ -592,6 +602,42 @@ class WatApiImpl(
                     getString(Res.string.unknown_error)
                 )
             )
+        }
+    }
+
+    override suspend fun importLanguages(
+        languages: List<Language>,
+        accessToken: String
+    ): ApiResult<Int, NetworkError> {
+        val json = Json.encodeToString(languages)
+        json.asSource().use { source ->
+            val response = postFile(
+                httpClient = httpClient,
+                url = "$BASE_URL/api/languages",
+                file = source,
+                headers = mapOf(
+                    "Authorization" to "Bearer $accessToken",
+                    "Content-Type" to "application/json"
+                )
+            )
+            return when {
+                response.data != null -> {
+                    val result = response.data.body<ImportLanguagesResponse>()
+                    ApiResult.Success(result.count)
+                }
+
+                response.error != null -> {
+                    ApiResult.Error(response.error)
+                }
+
+                else -> ApiResult.Error(
+                    NetworkError(
+                        ErrorType.Unknown,
+                        -1,
+                        getString(Res.string.unknown_error)
+                    )
+                )
+            }
         }
     }
 
