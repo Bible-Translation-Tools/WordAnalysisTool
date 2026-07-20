@@ -24,7 +24,7 @@ export const usersTable = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("idx_unique_user").on(table.email)]
+  (table) => [uniqueIndex("idx_unique_user").on(table.email)],
 );
 
 export const batchesTable = pgTable(
@@ -46,7 +46,7 @@ export const batchesTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_batch").on(table.ietfCode, table.resourceType),
     index("idx_batch_user_id").on(table.userId),
-  ]
+  ],
 );
 
 export const wordsTable = pgTable(
@@ -57,14 +57,13 @@ export const wordsTable = pgTable(
     batchId: varchar("batch_id", { length: 255 })
       .notNull()
       .references(() => batchesTable.id, { onDelete: "cascade" }),
-    correct: boolean("correct"),
+    ref: varchar("ref", { length: 20 }).default("").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("idx_unique_word").on(table.word, table.batchId),
     index("idx_word_batch_id").on(table.batchId),
-    index("idx_word_correct").on(table.correct),
-  ]
+  ],
 );
 
 export const modelsTable = pgTable(
@@ -73,6 +72,7 @@ export const modelsTable = pgTable(
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     model: varchar("model", { length: 255 }).notNull(),
     status: integer("status").notNull(),
+    retries: integer("retries").default(0).notNull(),
     wordId: integer("word_id")
       .notNull()
       .references(() => wordsTable.id, { onDelete: "cascade" }),
@@ -81,7 +81,24 @@ export const modelsTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_model").on(table.model, table.wordId),
     index("idx_model_word_id").on(table.wordId),
-  ]
+  ],
+);
+
+export const wordReviewsTable = pgTable(
+  "word_reviews",
+  {
+    pk: integer("pk").primaryKey().generatedAlwaysAsIdentity(),
+    wordId: integer("word_id")
+      .notNull()
+      .references(() => wordsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    correct: boolean("correct").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_unique_word_review").on(table.wordId, table.userId),
+  ],
 );
 
 export const userRelations = relations(usersTable, ({ many }) => ({
@@ -102,11 +119,23 @@ export const wordRelations = relations(wordsTable, ({ one, many }) => ({
     references: [batchesTable.id],
   }),
   models: many(modelsTable),
+  reviews: many(wordReviewsTable),
 }));
 
 export const modelRelations = relations(modelsTable, ({ one }) => ({
   word: one(wordsTable, {
     fields: [modelsTable.wordId],
     references: [wordsTable.id],
+  }),
+}));
+
+export const wordReviewsRelations = relations(wordReviewsTable, ({ one }) => ({
+  word: one(wordsTable, {
+    fields: [wordReviewsTable.wordId],
+    references: [wordsTable.id],
+  }),
+  user: one(usersTable, {
+    fields: [wordReviewsTable.userId],
+    references: [usersTable.id],
   }),
 }));

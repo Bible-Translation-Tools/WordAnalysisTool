@@ -1,0 +1,14 @@
+query GetLanguageInfo($ietfCode: String!) {
+    language(
+        where:  {
+            ietf_code:  {
+                _eq: $ietfCode
+            }
+        }
+    ) {
+        ietf_code,
+        english_name,
+        national_name,
+        direction
+    }
+}

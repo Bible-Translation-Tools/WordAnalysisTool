@@ -5,28 +5,55 @@ import type { JwtVariables } from "hono/jwt";
 import { jwt, sign } from "hono/jwt";
 import { v4 as uuid4 } from "uuid";
 import AiClient from "./ai-client";
-import { isAdmin, isChatError, splitBatchJson } from "./utils";
+import { isAdmin, isChatError } from "./utils";
 import {
   Batch,
   BatchDetails,
   BatchProgress,
   BatchStatus,
-  ChatResponse,
-  ModelResponse,
   ModelResult,
   PublicUser,
   WordResponse,
   BatchError,
+  WordsParams,
+  WordData,
+  ChatResponse,
 } from "./types";
-import {
-  BATCH_MAX_RETRIES,
-  SQL_BATCH_LIMIT,
-  WORDS_PER_BATCH,
-} from "./constants";
+import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
 import { stream } from "hono/streaming";
-import { batchesTable, modelsTable, usersTable, wordsTable } from "./db/schema";
-import { and, eq, exists, gt, sql, asc, count } from "drizzle-orm";
+import {
+  batchesTable,
+  modelsTable,
+  usersTable,
+  wordReviewsTable,
+  wordsTable,
+} from "./db/schema";
+import {
+  and,
+  eq,
+  exists,
+  gt,
+  sql,
+  asc,
+  count,
+  inArray,
+  max,
+  min,
+} from "drizzle-orm";
+import { unionAll } from "drizzle-orm/pg-core";
+
+const emptyProgress: BatchProgress = {
+  correct: 0,
+  incorrect: 0,
+  name: 0,
+  review_needed: 0,
+  reviewed: 0,
+  completed: 0,
+  total: 0,
+};
+
+type WordEntity = typeof wordsTable.$inferSelect;
 
 interface AppVariables extends JwtVariables {
   db: DbHelper;
@@ -36,6 +63,7 @@ const app = new Hono<{
   Bindings: CloudflareBindings;
   Variables: AppVariables;
 }>();
+
 app.use("*", cors());
 
 app.use("*", async (c, next) => {
@@ -47,12 +75,9 @@ app.use("*", async (c, next) => {
 app.use("/api/*", async (c, next) => {
   const jwtMiddleware = jwt({
     secret: c.env.JWT_SECRET_KEY,
+    alg: "HS256",
   });
   return jwtMiddleware(c, next);
-});
-
-app.get("/", async (c) => {
-  return c.env.ASSETS.fetch(c.req.url);
 });
 
 app.get("/auth/tokens/:state", async (c) => {
@@ -64,7 +89,7 @@ app.get("/auth/tokens/:state", async (c) => {
   const user = await dbHelper.getDb().query.usersTable.findFirst({
     where: and(
       eq(usersTable.state, state),
-      gt(usersTable.updatedAt, thirtyMinutesAgo)
+      gt(usersTable.updatedAt, thirtyMinutesAgo),
     ),
   });
 
@@ -85,7 +110,7 @@ app.get("/auth/tokens/:state", async (c) => {
     username: user.username,
     email: user.email,
     admin: isAdmin(user.username, c.env),
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 1 day
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // expires in 7 days
   };
 
   return c.json({
@@ -116,7 +141,7 @@ app.get("/auth/callback", async (c) => {
         client_secret: c.env.WACS_SECRET,
         code: params.code,
         scope: encodeURIComponent(
-          "openid email profile read:user write:repository"
+          "openid email profile read:user write:repository",
         ),
         grant_type: "authorization_code",
         redirect_uri: c.env.WACS_CALLBACK,
@@ -219,7 +244,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
     const text = await new Response(body).text();
     const json = await JSON.parse(text);
     const models: string[] = json.models || [];
-    const words: string[] = json.words || [];
+    const words: WordData[] = json.words || [];
     const language: string = json.language || null;
 
     if (models.length === 0) {
@@ -255,7 +280,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       (await dbHelper.getDb().query.batchesTable.findFirst({
         where: and(
           eq(batchesTable.ietfCode, ietf_code),
-          eq(batchesTable.resourceType, resource_type)
+          eq(batchesTable.resourceType, resource_type),
         ),
         columns: {
           id: true,
@@ -293,16 +318,14 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
         .where(eq(batchesTable.id, batchId));
     }
 
-    // Reset current words
     await dbHelper.insertWords(words, batchId);
 
     const wordIds = await dbHelper.fetchWordIds(words, batchId);
 
-    // Reset model results
     await dbHelper.insertModels(wordIds, models);
 
     const progress: BatchProgress = {
-      completed: 0,
+      ...emptyProgress,
       total: words.length,
     };
 
@@ -329,19 +352,120 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
   }
 });
 
-app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
+app.get("/api/report/:ietf_code/:resource_type", async (c) => {
   const dbHelper = c.get("db");
 
   try {
     const ietf_code = c.req.param("ietf_code");
     const resource_type = c.req.param("resource_type");
-    const payload = c.get("jwtPayload");
 
-    // TODO Get for current user (AND u.email = ? - payload.email)
     const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
       where: and(
         eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type)
+        eq(batchesTable.resourceType, resource_type),
+      ),
+      columns: { id: true },
+    });
+
+    if (!dbBatch) {
+      throw new HTTPException(404, { message: "batch not found" });
+    }
+
+    const words = await dbHelper.getDb().query.wordsTable.findMany({
+      where: eq(wordsTable.batchId, dbBatch.id),
+      with: {
+        models: {
+          orderBy: [asc(modelsTable.model)],
+        },
+        reviews: true,
+      },
+      orderBy: [asc(wordsTable.word)],
+    });
+
+    const statusMap: { [key: number]: string } = {
+      0: "Likely Incorrect",
+      1: "Likely Correct",
+      2: "Name",
+      [-1]: "Not Processed",
+    };
+
+    const getConsensus = (st: number[]) => {
+      if (st.every((s) => s === 0)) return "Likely Incorrect";
+      if (st.every((s) => s === 1)) return "Likely Correct";
+      if (st.every((s) => s === 2)) return "Name";
+      return "Review Needed";
+    };
+
+    c.header("Content-Type", "text/csv");
+    c.header("Content-Disposition", 'attachment; filename="report.csv"');
+
+    return stream(c, async (s) => {
+      // Header
+      await s.write(
+        "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict,anomaly\n",
+      );
+
+      // Body
+      for (const word of words) {
+        const [book, chapter, verse] = word.ref.split(":");
+        const modelResults = word.models.map(
+          (m) => `"${m.model}\n${statusMap[m.status]}"`,
+        );
+
+        const totalReviews = word.reviews.length;
+
+        if (totalReviews === 0) continue;
+
+        const correctReviews = word.reviews.filter((r) => r.correct).length;
+        const reviewsStr = `${correctReviews}/${totalReviews}`;
+        let verdict = "";
+        if (totalReviews > 0) {
+          verdict = correctReviews / totalReviews >= 0.5 ? "Yes" : "No";
+        }
+        const consensus = getConsensus(word.models.map((m) => m.status));
+        let anomaly = "";
+        if (
+          (consensus === "Likely Incorrect" && verdict === "Yes") ||
+          (consensus === "Likely Correct" && verdict === "No")
+        ) {
+          anomaly = "⚠️";
+        }
+
+        const row = [
+          word.word,
+          book || "",
+          chapter || "",
+          verse || "",
+          ...modelResults,
+          consensus,
+          reviewsStr,
+          verdict,
+          anomaly,
+        ].join(",");
+
+        await s.write(`${row}\n`);
+      }
+    });
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `${error.code}: error fetching report: ${
+        error.message || error
+      }`,
+    });
+  }
+});
+
+app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
+  const dbHelper = c.get("db");
+
+  try {
+    const ietf_code = c.req.param("ietf_code");
+    const resource_type = c.req.param("resource_type");
+
+    const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
+      where: and(
+        eq(batchesTable.ietfCode, ietf_code),
+        eq(batchesTable.resourceType, resource_type),
       ),
       columns: {
         id: true,
@@ -354,25 +478,78 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
     });
 
     if (!dbBatch) {
-      throw new HTTPException(404, {
-        message: "batch not found",
-      });
+      throw new HTTPException(404, { message: "batch not found" });
     }
 
-    const totalResult = await dbHelper
+    const consensusSubquery = dbHelper
       .getDb()
       .select({
-        count: count(),
+        wordId: modelsTable.wordId,
+        consensus: sql<string>`
+          CASE
+            WHEN bool_or(status = -1) THEN NULL
+            ELSE
+              CASE
+                WHEN array_agg(status) @> ARRAY[0, 0, 0]::smallint[] THEN 'Incorrect'
+                WHEN array_agg(status) @> ARRAY[1, 1, 1]::smallint[] THEN 'Correct'
+                WHEN array_agg(status) @> ARRAY[2, 2, 2]::smallint[] THEN 'Name'
+                ELSE 'Review Needed'
+              END
+          END
+        `.as("consensus"),
+        isProcessed: sql<boolean>`NOT bool_or(status = -1)`.as("is_processed"),
+      })
+      .from(modelsTable)
+      .groupBy(modelsTable.wordId)
+      .as("consensus_subquery");
+
+    const [stats] = await dbHelper
+      .getDb()
+      .select({
+        correct: count(sql`CASE WHEN consensus = 'Correct' THEN 1 END`),
+        incorrect: count(sql`CASE WHEN consensus = 'Incorrect' THEN 1 END`),
+        name: count(sql`CASE WHEN consensus = 'Name' THEN 1 END`),
+        reviewNeeded: count(
+          sql`CASE WHEN consensus = 'Review Needed' THEN 1 END`,
+        ),
+        total: count(wordsTable.id),
+        completed: count(sql`CASE WHEN is_processed THEN 1 END`),
       })
       .from(wordsTable)
+      .leftJoin(consensusSubquery, eq(wordsTable.id, consensusSubquery.wordId))
       .where(eq(wordsTable.batchId, dbBatch.id));
 
-    const total = totalResult[0].count;
-    const completed = await dbHelper.getCompletedWordsCount(dbBatch.id);
+    const userReviewCounts = await dbHelper
+      .getDb()
+      .select({
+        userId: wordReviewsTable.userId,
+        count: count(),
+      })
+      .from(wordReviewsTable)
+      .innerJoin(wordsTable, eq(wordReviewsTable.wordId, wordsTable.id))
+      .where(eq(wordsTable.batchId, dbBatch.id))
+      .groupBy(wordReviewsTable.userId);
+
+    const totalReviews = userReviewCounts.reduce(
+      (sum, row) => sum + row.count,
+      0,
+    );
+    const averageReviews =
+      userReviewCounts.length > 0 ? totalReviews / userReviewCounts.length : 0;
+
+    const statsInfo = {
+      ...stats,
+      reviewed: Math.round(averageReviews),
+    };
 
     const progress: BatchProgress = {
-      completed: completed,
-      total: total,
+      correct: statsInfo.correct,
+      incorrect: statsInfo.incorrect,
+      name: statsInfo.name,
+      review_needed: statsInfo.reviewNeeded,
+      reviewed: statsInfo.reviewed,
+      completed: statsInfo.completed,
+      total: statsInfo.total,
     };
 
     let p = 1;
@@ -396,10 +573,6 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       status = BatchStatus.COMPLETE;
     }
 
-    const creator: PublicUser = {
-      username: dbBatch.user.username,
-    };
-
     let batchError: BatchError | null = null;
     if (dbBatch.error) {
       try {
@@ -413,6 +586,10 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
         };
       }
     }
+
+    const creator: PublicUser = {
+      username: dbBatch.user.username,
+    };
 
     const details: BatchDetails = {
       status: status,
@@ -429,86 +606,281 @@ app.get("/api/batch/:ietf_code/:resource_type", async (c) => {
       creator: creator,
     };
 
-    const batchJson = JSON.stringify(batch);
-    const splitJson = splitBatchJson(batchJson);
-
-    return stream(c, async (s) => {
-      await s.write(splitJson.left);
-
-      try {
-        let skip = 0;
-        let hasMore = true;
-        let firstOutputItem = true;
-
-        while (hasMore) {
-          const words = await dbHelper.getDb().query.wordsTable.findMany({
-            where: (words, { eq, and, exists, not, lte }) =>
-              and(
-                eq(words.batchId, dbBatch.id),
-                exists(
-                  dbHelper
-                    .getDb()
-                    .select()
-                    .from(modelsTable)
-                    .where(
-                      and(
-                        eq(modelsTable.wordId, words.id),
-                        not(lte(modelsTable.status, -1))
-                      )
-                    )
-                )
-              ),
-            columns: {
-              word: true,
-              correct: true,
-            },
-            with: {
-              models: true,
-            },
-            offset: skip,
-            limit: SQL_BATCH_LIMIT,
-            orderBy: [asc(wordsTable.id)],
-          });
-
-          if (words.length > 0) {
-            for (const word of words) {
-              if (!firstOutputItem) {
-                await s.write(",");
-              }
-
-              const modelResponses = word.models.map(({ model, status }) => ({
-                model,
-                status,
-              }));
-              const wordResponse: WordResponse = {
-                word: word.word,
-                correct: word.correct,
-                results: modelResponses,
-              };
-
-              await s.write(JSON.stringify(wordResponse));
-              firstOutputItem = false;
-            }
-            skip += SQL_BATCH_LIMIT;
-          } else {
-            hasMore = false;
-          }
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        await s.write(splitJson.right);
-        s.close;
-      }
-    });
+    return c.json(batch);
   } catch (error: any) {
     throw new HTTPException(403, {
-      message: `${error.code}: error fetching batch: ${error.message || error}`,
+      message: `${error.code}: error fetching stats: ${error.message || error}`,
     });
   }
 });
 
-app.delete("/api/batch/cancel/:batch_id", async (c) => {
+app.get("/api/review/:ietf_code/:resource_type", async (c) => {
+  const dbHelper = c.get("db");
+  const db = dbHelper.getDb();
+
+  const HARDCODED_TOTAL_LIMIT = 370;
+
+  try {
+    const ietf_code = c.req.param("ietf_code");
+    const resource_type = c.req.param("resource_type");
+    const payload = c.get("jwtPayload");
+
+    const user = await dbHelper.getDb().query.usersTable.findFirst({
+      where: eq(usersTable.email, payload.email),
+    });
+
+    if (!user) {
+      throw new HTTPException(404, { message: "user not found" });
+    }
+
+    const page = parseInt(c.req.query("page") || "1", 10);
+    const limit = parseInt(c.req.query("limit") || "4", 10);
+
+    const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
+      where: and(
+        eq(batchesTable.ietfCode, ietf_code),
+        eq(batchesTable.resourceType, resource_type),
+      ),
+      columns: { id: true, pending: true },
+      with: {
+        user: true,
+      },
+    });
+
+    if (!dbBatch) {
+      throw new HTTPException(404, { message: "batch not found" });
+    }
+
+    if (dbBatch.pending) {
+      throw new HTTPException(400, { message: "batch is still processing" });
+    }
+
+    const categorizedGoodWordsSubQuery = db
+      .select({
+        wordId: modelsTable.wordId,
+        status: min(modelsTable.status).as("status"),
+      })
+      .from(modelsTable)
+      .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
+      .where(eq(wordsTable.batchId, dbBatch.id))
+      .groupBy(modelsTable.wordId)
+      .having(
+        and(
+          eq(min(modelsTable.status), max(modelsTable.status)),
+          inArray(min(modelsTable.status), [0, 1]),
+        ),
+      )
+      .as("categorized_good_words");
+
+    const categoryCounts = await db
+      .select({
+        status: categorizedGoodWordsSubQuery.status,
+        count: count().as("count"),
+      })
+      .from(categorizedGoodWordsSubQuery)
+      .groupBy(categorizedGoodWordsSubQuery.status);
+
+    const totalGoodWords = categoryCounts.reduce(
+      (sum, row) => sum + row.count,
+      0,
+    );
+
+    let sampledGoodWordsSubQuery;
+
+    if (totalGoodWords <= HARDCODED_TOTAL_LIMIT) {
+      sampledGoodWordsSubQuery = db
+        .select({ wordId: categorizedGoodWordsSubQuery.wordId })
+        .from(categorizedGoodWordsSubQuery)
+        .as("good_words");
+    } else {
+      const limitsPerStatus = categoryCounts.map((category) => ({
+        status: category.status,
+        limit: Math.round(
+          (category.count / totalGoodWords) * HARDCODED_TOTAL_LIMIT,
+        ),
+      }));
+
+      const summedLimits = limitsPerStatus.reduce(
+        (sum, cat) => sum + cat.limit,
+        0,
+      );
+      if (
+        summedLimits !== HARDCODED_TOTAL_LIMIT &&
+        limitsPerStatus.length > 0
+      ) {
+        limitsPerStatus[0].limit += HARDCODED_TOTAL_LIMIT - summedLimits;
+      }
+
+      const queriesPerStatus = limitsPerStatus.map((cat) => {
+        return db
+          .select({ wordId: categorizedGoodWordsSubQuery.wordId })
+          .from(categorizedGoodWordsSubQuery)
+          .where(eq(categorizedGoodWordsSubQuery.status, cat.status))
+          .limit(cat.limit);
+      });
+
+      if (queriesPerStatus.length === 0) {
+        sampledGoodWordsSubQuery = db
+          .select({ wordId: modelsTable.wordId })
+          .from(modelsTable)
+          .where(sql`false`)
+          .as("good_words");
+      } else if (queriesPerStatus.length === 1) {
+        sampledGoodWordsSubQuery = queriesPerStatus[0].as("good_words");
+      } else {
+        const [firstQuery, secondQuery, ...restOfQueries] = queriesPerStatus;
+        sampledGoodWordsSubQuery = unionAll(
+          firstQuery,
+          secondQuery,
+          ...restOfQueries,
+        ).as("good_words");
+      }
+    }
+
+    const countResults = await db
+      .select({
+        totalCount: count(wordsTable.id),
+        reviewedCount: count(wordReviewsTable.pk),
+      })
+      .from(wordsTable)
+      .innerJoin(
+        sampledGoodWordsSubQuery,
+        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId),
+      )
+      .leftJoin(
+        wordReviewsTable,
+        and(
+          eq(wordsTable.id, wordReviewsTable.wordId),
+          eq(wordReviewsTable.userId, user.id),
+        ),
+      );
+
+    const total = countResults[0].totalCount;
+    const reviewed = countResults[0].reviewedCount;
+
+    const progress: BatchProgress = {
+      ...emptyProgress,
+      reviewed: reviewed,
+      total: total,
+    };
+
+    let targetPage = page;
+    if (targetPage <= 0) {
+      if (reviewed >= total && total > 0) {
+        targetPage = Math.ceil(total / limit);
+      } else {
+        targetPage = Math.floor(reviewed / limit) + 1;
+      }
+    }
+    targetPage = Math.max(1, targetPage);
+    const offset = (targetPage - 1) * limit;
+
+    // Fetch only the words for the requested page
+    const wordsData = await db
+      .select({
+        word: wordsTable,
+        review: wordReviewsTable,
+      })
+      .from(wordsTable)
+      .innerJoin(
+        sampledGoodWordsSubQuery,
+        eq(wordsTable.id, sampledGoodWordsSubQuery.wordId),
+      )
+      .leftJoin(
+        wordReviewsTable,
+        and(
+          eq(wordsTable.id, wordReviewsTable.wordId),
+          eq(wordReviewsTable.userId, user.id),
+        ),
+      )
+      .orderBy(asc(wordsTable.word))
+      .limit(limit)
+      .offset(offset);
+
+    // Map the database results to the desired response format
+    const output = wordsData.map((row) => {
+      const wordResponse: WordResponse = {
+        word: row.word.word,
+        ref: row.word.ref,
+        correct: row.review ? row.review.correct : null,
+        results: [],
+      };
+      return wordResponse;
+    });
+
+    const batchDetails: BatchDetails = {
+      status: BatchStatus.COMPLETE,
+      error: null,
+      progress: progress,
+      output,
+    };
+
+    const creator: PublicUser = {
+      username: dbBatch.user.username,
+    };
+
+    const batch: Batch = {
+      id: dbBatch.id,
+      ietf_code: ietf_code,
+      resource_type: resource_type,
+      details: batchDetails,
+      creator: creator,
+    };
+
+    return c.json(batch);
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `${error.code}: error fetching words: ${error.message || error}`,
+    });
+  }
+});
+
+app.put("/api/review/reset/:batch_id", async (c) => {
+  const dbHelper = c.get("db");
+
+  try {
+    const batchId = c.req.param("batch_id");
+    const payload = c.get("jwtPayload");
+
+    const user = await dbHelper.getDb().query.usersTable.findFirst({
+      where: eq(usersTable.email, payload.email),
+    });
+
+    if (!user) {
+      throw new HTTPException(404, {
+        message: "user not found",
+      });
+    }
+
+    if (!isAdmin(user.username, c.env)) {
+      throw new HTTPException(403, { message: "not allowed" });
+    }
+
+    const reset = await dbHelper
+      .getDb()
+      .delete(wordReviewsTable)
+      .where(
+        inArray(
+          wordReviewsTable.wordId,
+          dbHelper
+            .getDb()
+            .select({ id: wordsTable.id })
+            .from(wordsTable)
+            .where(eq(wordsTable.batchId, batchId)),
+        ),
+      );
+
+    return c.json(reset.length > 0);
+  } catch (error: any) {
+    throw new HTTPException(403, {
+      message: `${error.code}: error resetting review: ${
+        error.message || error
+      }`,
+    });
+  }
+});
+
+app.delete("/api/batch/pause/:batch_id", async (c) => {
   const dbHelper = c.get("db");
 
   try {
@@ -539,10 +911,24 @@ app.delete("/api/batch/cancel/:batch_id", async (c) => {
       .where(eq(batchesTable.id, batch_id))
       .returning();
 
+    if (cancelled.length > 0) {
+      // also delete incomplete models
+      const badWordIdsSubQuery = dbHelper
+        .getDb()
+        .selectDistinct({ wordId: modelsTable.wordId })
+        .from(modelsTable)
+        .where(eq(modelsTable.status, -1));
+
+      await dbHelper
+        .getDb()
+        .delete(modelsTable)
+        .where(inArray(modelsTable.wordId, badWordIdsSubQuery));
+    }
+
     return c.json(cancelled.length > 0);
   } catch (error: any) {
     throw new HTTPException(403, {
-      message: `${error.code}: error deleting batch: ${error.message || error}`,
+      message: `${error.code}: error pausing batch: ${error.message || error}`,
     });
   }
 });
@@ -606,10 +992,7 @@ app.get("/api/batch/recent", async (c) => {
       .innerJoin(modelsTable, eq(wordsTable.id, modelsTable.wordId))
       .innerJoin(usersTable, eq(batchesTable.userId, usersTable.id));
 
-    const progress: BatchProgress = {
-      completed: 0,
-      total: 0,
-    };
+    const progress = emptyProgress;
 
     const details: BatchDetails = {
       status: BatchStatus.COMPLETE,
@@ -634,20 +1017,13 @@ app.get("/api/batch/recent", async (c) => {
   }
 });
 
-app.post("/api/word", async (c) => {
+app.post("/api/words", async (c) => {
   const dbHelper = c.get("db");
-  const json = await c.req.json();
-
-  const batch_id = json.batch_id || null;
-  const word = json.word || null;
-  const correct = json.correct;
   const payload = c.get("jwtPayload");
 
-  try {
-    if (!batch_id || !word) {
-      throw new HTTPException(403, { message: "invalid parameters" });
-    }
+  const request: WordsParams = await c.req.json();
 
+  try {
     const user = await dbHelper.getDb().query.usersTable.findFirst({
       where: eq(usersTable.email, payload.email),
     });
@@ -656,13 +1032,40 @@ app.post("/api/word", async (c) => {
       throw new HTTPException(404, { message: "user not found" });
     }
 
-    await dbHelper
+    const wordStrings = request.words.map((w) => w.word);
+    const foundWords = await dbHelper
       .getDb()
-      .update(wordsTable)
-      .set({
-        correct: correct,
+      .select({
+        id: wordsTable.id,
+        word: wordsTable.word,
       })
-      .where(and(eq(wordsTable.batchId, batch_id), eq(wordsTable.word, word)));
+      .from(wordsTable)
+      .where(
+        and(
+          eq(wordsTable.batchId, request.batchId),
+          inArray(wordsTable.word, wordStrings),
+        ),
+      );
+
+    const wordMap = new Map(foundWords.map((row) => [row.word, row.id]));
+    const reviewsToUpsert = request.words
+      .filter((w) => wordMap.has(w.word))
+      .map((w) => ({
+        wordId: wordMap.get(w.word)!,
+        userId: user.id,
+        correct: w.correct,
+      }));
+
+    if (reviewsToUpsert.length > 0) {
+      await dbHelper
+        .getDb()
+        .insert(wordReviewsTable)
+        .values(reviewsToUpsert)
+        .onConflictDoUpdate({
+          target: [wordReviewsTable.wordId, wordReviewsTable.userId],
+          set: { correct: sql`excluded.correct` },
+        });
+    }
 
     return c.json(true);
   } catch (error: any) {
@@ -672,13 +1075,121 @@ app.post("/api/word", async (c) => {
   }
 });
 
+app.get("*", async (c) => {
+  const response = await c.env.ASSETS.fetch(c.req.raw);
+  if (response.status === 404) {
+    const indexRequest = new Request(new URL("/index.html", c.req.url), {
+      method: "GET",
+      headers: c.req.raw.headers,
+    });
+    return c.env.ASSETS.fetch(indexRequest);
+  }
+  return response;
+});
+
 export default {
   fetch: app.fetch,
   async scheduled(
     controller: ScheduledController,
     env: CloudflareBindings,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ) {
+    const validateAndMapResults = (
+      words: WordEntity[],
+      chatResponse: ChatResponse[],
+      retries: number,
+    ): ChatResponse[] => {
+      const usedIndices = new Set<number>();
+      let hasLoggedContext = false;
+
+      // Helper to remove accents and lower case: "Bånana" -> "banana"
+      const normalize = (str: string) =>
+        str
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+
+      // Helper: Lazy Logger for the "Big Picture"
+      const logContextOnce = () => {
+        if (hasLoggedContext) return;
+        hasLoggedContext = true;
+
+        const refListStr = words.map((w) => w.word).join(", ");
+        const chatListStr = chatResponse.map((w) => w.word).join(", ");
+
+        console.warn(
+          `\n🔍 MISMATCH DETECTED - DEBUG CONTEXT\n` +
+            `--------------------------------------------------\n` +
+            `Sizes: Ref (${words.length}) vs Chat (${chatResponse.length})\n` +
+            `Ref List:  [${refListStr}]\n` +
+            `Chat List: [${chatListStr}]\n` +
+            `--------------------------------------------------`,
+        );
+      };
+
+      return words.map((refItem) => {
+        const targetStrict = refItem.word;
+        const targetLoose = normalize(refItem.word);
+
+        // Try to find the exact word anywhere in the list
+        let matchIndex = -1;
+        let matchType: "strict" | "loose" | "missing" = "missing";
+
+        matchIndex = chatResponse.findIndex(
+          (chatItem, index) =>
+            chatItem.word === targetStrict && !usedIndices.has(index),
+        );
+
+        if (matchIndex !== -1) {
+          matchType = "strict";
+        }
+
+        // If strict failed, try matching normalized strings (accents, case)
+        if (matchIndex === -1) {
+          matchIndex = chatResponse.findIndex(
+            (chatItem, index) =>
+              normalize(chatItem.word) === targetLoose &&
+              !usedIndices.has(index),
+          );
+          if (matchIndex !== -1) matchType = "loose";
+        }
+
+        if (matchIndex !== -1) {
+          usedIndices.add(matchIndex); // Claim this index so it's not used again
+          const foundItem = chatResponse[matchIndex];
+
+          // LOGGING: Only log if it wasn't a perfect strict match
+          if (matchType !== "strict") {
+            logContextOnce(); // Print the lists first if we haven't yet
+
+            const msg = `⚠️ Loose Match for "${refItem.word}" -> Found "${foundItem.word}"`;
+            console.warn(msg);
+          }
+
+          return {
+            ...refItem,
+            status: foundItem.status,
+          };
+        }
+
+        // If completely MISSING
+        logContextOnce(); // Print context
+        console.error(`❌ Missing Word: "${refItem.word}"`);
+
+        if (retries >= 3) {
+          console.error(
+            `❌ Giving up on word "${refItem.word}" after ${retries} retries. Marking as failed.`,
+          );
+        }
+
+        return {
+          ...refItem,
+          status: retries < 3 ? -1 : 0,
+        };
+      });
+    };
+
     try {
       const client = new AiClient(env);
       const dbHelper = new DbHelper(env);
@@ -703,10 +1214,10 @@ export default {
                   .where(
                     and(
                       eq(modelsTable.wordId, words.id),
-                      eq(modelsTable.status, -1)
-                    )
-                  )
-              )
+                      eq(modelsTable.status, -1),
+                    ),
+                  ),
+              ),
             ),
           with: {
             models: true,
@@ -718,6 +1229,7 @@ export default {
           interface TmpModel {
             model: string;
             words: { word: string; status: number }[];
+            retries: number;
           }
 
           const models = words.reduce((acc: TmpModel[], wordObj) => {
@@ -737,6 +1249,7 @@ export default {
                       status: modelObj.status,
                     },
                   ],
+                  retries: modelObj.retries,
                 });
               }
             });
@@ -744,9 +1257,7 @@ export default {
           }, []);
 
           const modelsResults: ModelResult[] = [];
-          let prompt = `Language: ${batch.language}. Words: ${words
-            .map((w) => w.word)
-            .join(", ")}`;
+          let wordsPrompt = words.map((w) => w.word).join(", ");
 
           for (const model of models) {
             try {
@@ -760,23 +1271,37 @@ export default {
                 const modelResult: ModelResult = {
                   model: model.model,
                   results: results,
+                  retries: model.retries + 1,
                 };
                 modelsResults.push(modelResult);
               } else {
-                const results = await client.chat(model.model, prompt);
-                if (!isChatError(results)) {
+                const chatResponse = await client.chat(
+                  model.model,
+                  batch.language,
+                  wordsPrompt,
+                );
+
+                if (!isChatError(chatResponse)) {
+                  // Sometimes the AI might change the words, so we re-map them here from the original array
+                  const results = validateAndMapResults(
+                    words,
+                    chatResponse,
+                    model.retries,
+                  );
+
                   const modelResult: ModelResult = {
                     model: model.model,
                     results: results,
+                    retries: model.retries + 1,
                   };
                   modelsResults.push(modelResult);
                 } else {
-                  errorDetails = results;
+                  errorDetails = chatResponse;
                 }
               }
             } catch (error: any) {
               errorDetails = {
-                prompt,
+                prompt: wordsPrompt,
                 message: error.message || error,
                 model: model.model,
                 response: null,
@@ -784,15 +1309,16 @@ export default {
             }
           }
 
-          const updateError = await dbHelper.updateModelResults(
-            words.map((w) => w.word),
-            batchId,
-            modelsResults
-          );
+          if (modelsResults.length > 0) {
+            const updateError = await dbHelper.updateModelResults(
+              batchId,
+              modelsResults,
+            );
 
-          if (updateError) {
-            updateError.prompt = prompt;
-            errorDetails = updateError;
+            if (updateError) {
+              updateError.prompt = wordsPrompt;
+              errorDetails = updateError;
+            }
           }
         }
 
@@ -827,7 +1353,7 @@ export default {
           .where(eq(batchesTable.id, batchId));
       }
     } catch (error) {
-      console.error(error);
+      console.error("cron error:", error);
     }
   },
 };

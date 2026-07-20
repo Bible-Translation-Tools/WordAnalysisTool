@@ -1,9 +1,9 @@
 import { SQL_BATCH_LIMIT } from "./constants";
-import { BatchError, ModelResult } from "./types";
+import { BatchError, ModelResult, WordData } from "./types";
 import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, not, sql } from "drizzle-orm";
 
 export default class DbHelper {
   private db;
@@ -17,11 +17,12 @@ export default class DbHelper {
     return this.db;
   }
 
-  async insertWords(words: string[], batchId: string) {
+  async insertWords(words: WordData[], batchId: string) {
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
       const wordValues = batch.map((word) => ({
-        word: word,
+        word: word.word,
+        ref: word.ref,
         batchId: batchId,
       }));
 
@@ -36,7 +37,7 @@ export default class DbHelper {
     }
   }
 
-  async fetchWordIds(words: string[], batchId: string): Promise<number[]> {
+  async fetchWordIds(words: WordData[], batchId: string): Promise<number[]> {
     const wordIds = [];
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
@@ -49,8 +50,19 @@ export default class DbHelper {
           .where(
             and(
               eq(schema.wordsTable.batchId, batchId),
-              inArray(schema.wordsTable.word, batch)
-            )
+              inArray(
+                schema.wordsTable.word,
+                batch.map((w) => w.word),
+              ),
+              not(
+                exists(
+                  this.db
+                    .select({ id: schema.modelsTable.id })
+                    .from(schema.modelsTable)
+                    .where(eq(schema.modelsTable.wordId, schema.wordsTable.id)),
+                ),
+              ),
+            ),
           );
 
         wordIds.push(...result.map((row) => row.id));
@@ -69,7 +81,7 @@ export default class DbHelper {
             model: model,
             status: -1,
             wordId: wordId,
-          }))
+          })),
         );
         if (modelValuesBatch.length > 0) {
           await this.db
@@ -84,64 +96,42 @@ export default class DbHelper {
   }
 
   async updateModelResults(
-    words: string[],
     batchId: string,
-    results: ModelResult[]
+    results: ModelResult[],
   ): Promise<BatchError | null> {
-    const wordsSet = new Set(words);
-    const modelNames: string[] = [];
-    const wordStatusMap = new Map<string, number>();
-
     for (const modelResult of results) {
-      const modelName = modelResult.model;
-      if (!modelNames.includes(modelName)) {
-        modelNames.push(modelName);
-      }
+      const statusCases: Array<ReturnType<typeof sql>> = [];
+      const updatedWords: string[] = [];
 
       for (const result of modelResult.results) {
         const word = result.word.trim();
-        if (wordsSet.has(word)) {
-          wordStatusMap.set(word, result.status);
-        } else {
-          return {
-            message: `Model returned a result for word "${word}" which was not in the list.`,
-            prompt: null,
-            model: modelName,
-            response: null,
-          };
-        }
+
+        statusCases.push(
+          sql`WHEN ${schema.wordsTable.word} = ${word} THEN ${result.status}`,
+        );
+        updatedWords.push(word);
+      }
+
+      if (statusCases.length > 0) {
+        const statusFragment = sql.join(statusCases, sql` `);
+
+        await this.db
+          .update(schema.modelsTable)
+          .set({
+            status: sql`CASE ${statusFragment} ELSE ${schema.modelsTable.status} END`,
+            retries: modelResult.retries,
+          })
+          .from(schema.wordsTable)
+          .where(
+            and(
+              eq(schema.modelsTable.wordId, schema.wordsTable.id),
+              eq(schema.modelsTable.model, modelResult.model),
+              eq(schema.wordsTable.batchId, batchId),
+              inArray(schema.wordsTable.word, updatedWords), // Only touch words returned by this model
+            ),
+          );
       }
     }
-
-    if (modelNames.length === 0 || wordStatusMap.size === 0) {
-      return {
-        message: "Batch did not return any results.",
-        prompt: null,
-        model: null,
-        response: null,
-      };
-    }
-
-    const caseWhenParts: Array<ReturnType<typeof sql>> = [];
-    for (const [word, status] of wordStatusMap.entries()) {
-      caseWhenParts.push(sql`WHEN ${word} THEN ${status}`);
-    }
-
-    const caseWhenFragment = sql.join(caseWhenParts, sql` `);
-
-    await this.db
-      .update(schema.modelsTable)
-      .set({
-        status: sql`CASE ${schema.wordsTable.word} ${caseWhenFragment} ELSE ${schema.modelsTable.status} END`,
-      })
-      .from(schema.wordsTable)
-      .where(
-        and(
-          eq(schema.modelsTable.wordId, schema.wordsTable.id),
-          inArray(schema.modelsTable.model, modelNames),
-          eq(schema.wordsTable.batchId, batchId)
-        )
-      );
 
     return null;
   }
@@ -156,14 +146,14 @@ export default class DbHelper {
         schema.modelsTable,
         and(
           eq(schema.wordsTable.id, schema.modelsTable.wordId),
-          lte(schema.modelsTable.status, -1)
-        )
+          lte(schema.modelsTable.status, -1),
+        ),
       )
       .where(
         and(
           eq(schema.wordsTable.batchId, batchId),
-          isNull(schema.modelsTable.id)
-        )
+          isNull(schema.modelsTable.id),
+        ),
       );
 
     return result[0].count;
