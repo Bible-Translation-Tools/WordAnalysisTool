@@ -18,18 +18,9 @@ export default class AiClient {
   private baseUrl: string;
 
   private models = {
-    openai: ["gpt-5.4-mini", "gpt-5.4-nano"],
-    anthropic: [
-      "claude-haiku-4-5",
-      "claude-sonnet-4-6",
-    ],
-    mistral: [
-      "mistral-small-latest",
-      "mistral-medium-latest",
-      "mistral-large-latest",
-      "ministral-8b-latest",
-      "ministral-14b-latest",
-    ],
+    openai: ["gpt-5.4-mini", "gpt-5.5", "gpt-5.6-terra"],
+    anthropic: ["claude-haiku-4-5", "claude-sonnet-5"],
+    mistral: ["mistral-medium-2604", "mistral-large-2512"],
   };
 
   private systemPrompt: string = oneLine`You are a Senior {language} Linguist specializing in orthography and corpus linguistics.
@@ -117,8 +108,7 @@ export default class AiClient {
         apiKey: this.env.MISTRAL_API_KEY,
         baseURL: `${this.baseUrl}/mistral`,
       });
-    }
-    else {
+    } else {
       return null;
     }
   }

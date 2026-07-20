@@ -75,19 +75,24 @@ class ReviewViewModel(
     private val usfmBookSource: UsfmBookSource
 ) : ScreenModel {
 
+    private var initialized = false
+
     private var _state = MutableStateFlow(ReviewState())
     val state: StateFlow<ReviewState> = _state
         .onStart {
-            screenModelScope.launch {
-                loadLanguage(ietfCode)
+            if (!initialized) {
+                initialized = true
+                screenModelScope.launch {
+                    loadLanguage(ietfCode)
 
-                batchId?.let { id ->
-                    _state.update { it.copy(batchId = id) }
-                } ?: run {
-                    fetchBatch()
+                    batchId?.let { id ->
+                        _state.update { it.copy(batchId = id) }
+                    } ?: run {
+                        fetchBatch()
+                    }
+
+                    fetchUsfm(ietfCode, resourceType)
                 }
-
-                fetchUsfm(ietfCode, resourceType)
             }
         }
         .stateIn(
@@ -305,8 +310,6 @@ class ReviewViewModel(
                     )
                 )
 
-                "pap-AW-papiamento" -> getPapiamentoBooks()
-                "bah" -> getBahamianBooks()
                 else -> bielGraphQlApi.getBooksForTranslation(
                     ietfCode,
                     resourceType
@@ -428,197 +431,6 @@ class ReviewViewModel(
             println("Failed to fetch verses: ${e.message}")
             null
         }
-    }
-
-    // TODO Remove debug code
-    private fun getPapiamentoBooks(): List<ContentInfo> {
-        return listOf(
-            ContentInfo(
-                "files/papiamento/01-GEN.usfm",
-                "Genesis",
-                "gen",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/41-MAT.usfm",
-                "Matthew",
-                "mat",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/42-MRK.usfm",
-                "Mark",
-                "mrk",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/43-LUK.usfm",
-                "Luke",
-                "luk",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/44-JHN.usfm",
-                "John",
-                "jhn",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/45-ACT.usfm",
-                "Acts",
-                "act",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/46-ROM.usfm",
-                "Romans",
-                "rom",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/47-1CO.usfm",
-                "1 Corinthians",
-                "1co",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/48-2CO.usfm",
-                "2 Corinthians",
-                "2co",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/49-GAL.usfm",
-                "Galatians",
-                "gal",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/50-EPH.usfm",
-                "Ephesians",
-                "eph",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/51-PHP.usfm",
-                "Philippians",
-                "php",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/52-COL.usfm",
-                "Colossians",
-                "col",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/53-1TH.usfm",
-                "1 Thessalonians",
-                "1th",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/54-2TH.usfm",
-                "2 Thessalonians",
-                "2th",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/55-1TI.usfm",
-                "1 Timothy",
-                "1ti",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/56-2TI.usfm",
-                "2 Timothy",
-                "2ti",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/57-TIT.usfm",
-                "Titus",
-                "tit",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/58-PHM.usfm",
-                "Philemon",
-                "phm",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/59-HEB.usfm",
-                "Hebrews",
-                "heb",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/60-JAS.usfm",
-                "James",
-                "jas",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/61-1PE.usfm",
-                "1 Peter",
-                "1pe",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/62-2PE.usfm",
-                "2 Peter",
-                "2pe",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/63-1JN.usfm",
-                "1 John",
-                "1jn",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/64-2JN.usfm",
-                "2 John",
-                "2jn",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/65-3JN.usfm",
-                "3 John",
-                "3jn",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/66-JUD.usfm",
-                "Jude",
-                "jud",
-                null
-            ),
-            ContentInfo(
-                "files/papiamento/67-REV.usfm",
-                "Revelation",
-                "rev",
-                null
-            )
-        )
-    }
-
-    private fun getBahamianBooks(): List<ContentInfo> {
-        return listOf(
-            ContentInfo(
-                "files/bah/42-MRK.usfm",
-                "Mark",
-                "mrk",
-                null
-            ),
-            ContentInfo(
-                "files/bah/55-1TI.usfm",
-                "1 Timothy",
-                "1ti",
-                null
-            )
-        )
     }
 
     private suspend fun getEnglishFakeVerses(): VerseRef {

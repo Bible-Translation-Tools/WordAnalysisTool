@@ -641,7 +641,7 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
         eq(batchesTable.ietfCode, ietf_code),
         eq(batchesTable.resourceType, resource_type),
       ),
-      columns: { id: true },
+      columns: { id: true, pending: true },
       with: {
         user: true,
       },
@@ -649,6 +649,10 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
 
     if (!dbBatch) {
       throw new HTTPException(404, { message: "batch not found" });
+    }
+
+    if (dbBatch.pending) {
+      throw new HTTPException(400, { message: "batch is still processing" });
     }
 
     const categorizedGoodWordsSubQuery = db

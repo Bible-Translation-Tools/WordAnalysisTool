@@ -17,14 +17,12 @@ enum class Theme {
 
 enum class Model(val value: String) {
     GPT_5_4_MINI("gpt-5.4-mini"),
-    GPT_5_4_NANO("gpt-5.4-nano"),
+    GPT_5_5("gpt-5.5"),
+    GPT_5_6_TERRA("gpt-5.6-terra"),
     CLAUDE_4_5_HAIKU("claude-haiku-4-5"),
-    CLAUDE_4_6_SONNET("claude-sonnet-4-6"),
-    MISTRAL_SMALL("mistral-small-latest"),
-    MISTRAL_MEDIUM("mistral-medium-latest"),
-    MINISTRAL_LARGE("mistral-large-latest"),
-    MINISTRAL_8B("ministral-8b-latest"),
-    MINISTRAL_14B("ministral-14b-latest")
+    CLAUDE_5_SONNET("claude-sonnet-5"),
+    MISTRAL_MEDIUM_3_5("mistral-medium-2604"),
+    MISTRAL_LARGE_3("mistral-large-2512")
 }
 
 enum class Locales(val value: String) {

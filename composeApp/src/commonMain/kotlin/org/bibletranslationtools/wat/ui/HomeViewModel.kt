@@ -55,9 +55,16 @@ class HomeViewModel(
     private val watApi: WatApi
 ) : ScreenModel {
 
+    private var initialized = false
+
     private var _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state
-        .onStart { fetchHeartLanguages() }
+        .onStart {
+            if (!initialized) {
+                initialized = true
+                fetchHeartLanguages()
+            }
+        }
         .stateIn(
             scope = screenModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -95,7 +102,7 @@ class HomeViewModel(
         screenModelScope.launch {
             updateProgress(Progress(0f, getString(Res.string.fetching_resource_types)))
             // TODO Remove debug code
-            val resourceTypes = if (ietfCode in listOf("en","ru","pap-AW-papiamento","bah")) {
+            val resourceTypes = if (ietfCode in listOf("en","ru")) {
                 listOf("ulb")
             } else {
                 bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
