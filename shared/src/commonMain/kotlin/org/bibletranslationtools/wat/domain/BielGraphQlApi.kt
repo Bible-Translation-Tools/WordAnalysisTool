@@ -1,7 +1,6 @@
 package org.bibletranslationtools.wat.domain
 
 import com.apollographql.apollo.ApolloClient
-import org.bibletranslationtools.wat.GetBooksForTranslationQuery
 import org.bibletranslationtools.wat.GetGatewayLanguagesQuery
 import org.bibletranslationtools.wat.GetHeartLanguagesQuery
 import org.bibletranslationtools.wat.GetLanguageInfoQuery
@@ -70,33 +69,6 @@ class BielGraphQlApi {
             }
         }
         return groupedContent
-    }
-
-    suspend fun getBooksForTranslation(
-        ietfCode: String,
-        resourceType: String
-    ): List<ContentInfo> {
-        val response = apolloClient
-            .query(GetBooksForTranslationQuery(ietfCode, resourceType))
-            .execute()
-
-        val usfmContent = mutableListOf<ContentInfo>()
-
-        response.data?.let { data ->
-            data.content.forEach { content ->
-                content.rendered_contents.forEach { renderedContent ->
-                    val contentInfo = ContentInfo(
-                        renderedContent.url,
-                        renderedContent.scriptural_rendering_metadata?.book_name,
-                        renderedContent.scriptural_rendering_metadata?.book_slug,
-                        renderedContent.scriptural_rendering_metadata?.chapter
-                    )
-                    usfmContent.add(contentInfo)
-                }
-            }
-        }
-
-        return usfmContent
     }
 
     suspend fun getLanguageInfo(ietfCode: String): LanguageInfo? {

@@ -99,10 +99,4 @@
     <string name="complete_success">Successfully Completed!</string>
     <string name="complete_success_description">You have successfully completed checking for misspelled words.</string>
     <string name="return_home">Return Home</string>
-    <string name="languages_section">Languages</string>
-    <string name="update_languages">Update</string>
-    <string name="import_languages">Import from file</string>
-    <string name="updating_languages">Updating languages...</string>
-    <string name="languages_imported">%1$d languages imported successfully.</string>
-    <string name="languages_import_failed">Failed to import languages. %1$s</string>
 </resources>

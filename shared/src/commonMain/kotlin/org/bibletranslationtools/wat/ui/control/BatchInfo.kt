@@ -26,7 +26,6 @@ import wordanalysistool.shared.generated.resources.total_singletons
 @Composable
 fun BatchInfo(
     info: BatchProgress?,
-    totalSingletons: Int,
     modifier: Modifier = Modifier
 ) {
     val reviewedProgress = info?.let {
@@ -96,7 +95,7 @@ fun BatchInfo(
                 fontSize = 16.sp
             )
             Text(
-                text = info?.let { "${it.completed}/${it.total}" } ?: "0/$totalSingletons",
+                text = info?.let { "${it.completed}/${it.total}" } ?: "0/0",
                 fontWeight = FontWeight.Bold
             )
         }

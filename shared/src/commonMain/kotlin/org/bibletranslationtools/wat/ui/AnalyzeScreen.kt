@@ -53,7 +53,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
-import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.BatchError
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
@@ -86,14 +85,13 @@ import wordanalysistool.shared.generated.resources.sign_out
 class AnalyzeScreen(
     val ietfCode: String,
     private val resourceType: String,
-    private val verses: VerseRef,
     private val user: User
 ) : Screen {
 
     @Composable
     override fun Content() {
         val viewModel = koinScreenModel<AnalyzeViewModel> {
-            parametersOf(ietfCode, resourceType, verses, user)
+            parametersOf(ietfCode, resourceType, user)
         }
 
         val navigator = LocalNavigator.currentOrThrow
@@ -135,7 +133,7 @@ class AnalyzeScreen(
         }
 
         LaunchedEffect(apostropheIsSeparator) {
-            viewModel.onEvent(AnalyzeEvent.FindSingletons(apostropheIsSeparator))
+            viewModel.onEvent(AnalyzeEvent.SetApostrophe(apostropheIsSeparator))
         }
 
         LaunchedEffect(state.status) {
@@ -298,7 +296,6 @@ class AnalyzeScreen(
                         ) {
                             BatchInfo(
                                 info = state.batch?.details?.progress,
-                                totalSingletons = state.singletons.size,
                                 modifier = Modifier.fillMaxWidth()
                             )
 

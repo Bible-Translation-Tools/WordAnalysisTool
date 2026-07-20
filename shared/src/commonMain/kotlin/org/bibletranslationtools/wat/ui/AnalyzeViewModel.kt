@@ -20,26 +20,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.bibletranslationtools.wat.data.Consensus
-import org.bibletranslationtools.wat.data.ConsensusResult
 import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.data.ModelStatus
 import org.bibletranslationtools.wat.data.Progress
-import org.bibletranslationtools.wat.data.SingletonWord
 import org.bibletranslationtools.wat.data.ToastInfo
 import org.bibletranslationtools.wat.data.ToastType
-import org.bibletranslationtools.wat.data.Verse
-import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.MODELS_SIZE
-import org.bibletranslationtools.wat.domain.ModelResponse
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatApi
-import org.bibletranslationtools.wat.domain.WordResponse
-import org.bibletranslationtools.wat.domain.WordStatus
 import org.bibletranslationtools.wat.format
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
@@ -48,14 +39,12 @@ import org.bibletranslationtools.wat.platform.saveFile
 import org.bibletranslationtools.wat.ui.control.Status
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.shared.generated.resources.Res
-import wordanalysistool.shared.generated.resources.all_results_received
 import wordanalysistool.shared.generated.resources.batch_deleted
 import wordanalysistool.shared.generated.resources.batch_not_deleted
 import wordanalysistool.shared.generated.resources.batch_not_paused
 import wordanalysistool.shared.generated.resources.batch_paused
 import wordanalysistool.shared.generated.resources.creating_batch
 import wordanalysistool.shared.generated.resources.deleting_batch
-import wordanalysistool.shared.generated.resources.finding_singleton_words
 import wordanalysistool.shared.generated.resources.generating_report
 import wordanalysistool.shared.generated.resources.invalid_batch_id
 import wordanalysistool.shared.generated.resources.no_model_selected
@@ -74,7 +63,6 @@ private const val BATCH_REQUEST_DELAY = 10000L
 data class AnalyzeState(
     val batch: Batch? = null,
     val batchProgress: Float = -1f,
-    val singletons: List<SingletonWord> = emptyList(),
     val prompt: String? = null,
     val models: List<String> = emptyList(),
     val toast: ToastInfo? = null,
@@ -93,21 +81,28 @@ sealed class AnalyzeEvent {
     data class ResetReview(val batchId: String) : AnalyzeEvent()
     data object Logout : AnalyzeEvent()
     data class UpdateModels(val value: List<String>) : AnalyzeEvent()
-    data class FindSingletons(val apostropheIsSeparator: Boolean) : AnalyzeEvent()
+    data class SetApostrophe(val value: Boolean) : AnalyzeEvent()
 }
 
 class AnalyzeViewModel(
     private val ietfCode: String,
     private val resourceType: String,
-    private val verses: VerseRef,
     private val user: User,
     private val watApi: WatApi,
     private val bielGraphQlApi: BielGraphQlApi
 ) : ScreenModel {
 
+    private var initialized = false
+
     private var _state = MutableStateFlow(AnalyzeState())
     val state: StateFlow<AnalyzeState> = _state
-        .onStart { loadLanguage(ietfCode) }
+        .onStart {
+            if (!initialized) {
+                initialized = true
+                loadLanguage(ietfCode)
+                fetchBatch(loop = false)
+            }
+        }
         .stateIn(
             scope = screenModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -119,14 +114,10 @@ class AnalyzeViewModel(
 
     private var fetchJob by mutableStateOf<Job?>(null)
 
-    private val apostropheRegex = "[\\p{L}\\p{M}]+(?:['’][\\p{L}\\p{M}]+)*".toRegex()
-    private val nonApostropheRegex = "[\\p{L}\\p{M}]+".toRegex()
-
     fun onEvent(event: AnalyzeEvent) {
         when (event) {
-            is AnalyzeEvent.FindSingletons -> findSingletonWords(
-                event.apostropheIsSeparator
-            )
+            is AnalyzeEvent.SetApostrophe ->
+                _state.update { it.copy(apostropheIsSeparator = event.value) }
             is AnalyzeEvent.UpdateModels -> updateModels(event.value)
             is AnalyzeEvent.BatchWords -> createBatch()
             is AnalyzeEvent.PauseBatch -> pauseBatch()
@@ -145,55 +136,6 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun findSingletonWords(apostropheIsSeparator: Boolean) {
-        screenModelScope.launch {
-            updateProgress(
-                Progress(
-                    0f,
-                    getString(Res.string.finding_singleton_words)
-                )
-            )
-
-            _state.update { it.copy(apostropheIsSeparator = apostropheIsSeparator) }
-
-            val totalVerses = verses.size
-            val tempMap = mutableMapOf<String, Pair<Int, Verse>>()
-            val wordsRegex = if (apostropheIsSeparator) {
-                nonApostropheRegex
-            } else apostropheRegex
-
-            withContext(Dispatchers.Default) {
-                verses.values.forEachIndexed { index, verse ->
-                    val words = wordsRegex.findAll(verse.text).map { it.value }
-
-                    words.forEach { word ->
-                        if (word.trim().isEmpty()) return@forEach
-
-                        val w = tempMap.getOrElse(word) { 0 to verse }
-                        tempMap[word] = w.copy(first = w.first + 1)
-                    }
-
-                    updateProgress(
-                        Progress(
-                            (index + 1) / totalVerses.toFloat(),
-                            getString(Res.string.finding_singleton_words)
-                        )
-                    )
-                }
-            }
-
-            updateSingletons(
-                tempMap.entries
-                    .filter { it.value.first == 1 }
-                    .map { SingletonWord(it.key, it.value.second) }
-                    .sortedBy { it.word.lowercase() }
-            )
-
-            fetchBatch(loop = false)
-
-            updateProgress(null)
-        }
-    }
 
     private fun fetchBatch(loop: Boolean = true) {
         fetchJob?.cancel() // cancel previous job
@@ -217,7 +159,6 @@ class AnalyzeViewModel(
                     resourceType,
                     user.token.accessToken
                 ).onSuccess { batch ->
-                    parseResponses(batch.details.output)
                     status = batch.details.status
 
                     updateBatch(batch)
@@ -303,21 +244,6 @@ class AnalyzeViewModel(
                 -1f,
                 getString(Res.string.creating_batch))
             )
-
-            val singletons = _state.value.singletons
-                .filter { it.result == null }
-
-            if (singletons.isEmpty()) {
-                updateToast(
-                    ToastInfo(
-                        type = ToastType.Info,
-                        message = getString(Res.string.all_results_received),
-                        onClose = { updateToast(null) }
-                    )
-                )
-                updateProgress(null)
-                return@launch
-            }
 
             updateStatus("Sending batch request...")
 
@@ -458,11 +384,6 @@ class AnalyzeViewModel(
                     if (deleted) {
                         updateBatch(null)
                         updateStatus("Batch results deleted")
-                        updateSingletons(
-                            _state.value.singletons.map {
-                                it.copy(result = null, correct = null)
-                            }
-                        )
                         updateToast(
                             ToastInfo(
                                 type = ToastType.Success,
@@ -496,17 +417,6 @@ class AnalyzeViewModel(
 
             updateProgress(null)
         }
-    }
-
-    private fun parseResponses(responses: List<WordResponse>) {
-        val consensusMap: Map<String, Pair<Boolean?, ConsensusResult>> = makeConsensus(responses)
-        updateSingletons(
-            _state.value.singletons.map { singleton ->
-                consensusMap[singleton.word]?.let { answer ->
-                    singleton.copy(correct = answer.first, result = answer.second)
-                } ?: singleton
-            }
-        )
     }
 
     private fun saveReport() {
@@ -593,12 +503,6 @@ class AnalyzeViewModel(
         }
     }
 
-    private fun updateSingletons(words: List<SingletonWord>) {
-        _state.update {
-            it.copy(singletons = words)
-        }
-    }
-
     private fun updateModels(models: List<String>) {
         _state.update {
             it.copy(models = models)
@@ -640,52 +544,6 @@ class AnalyzeViewModel(
     private fun resetChannel() {
         screenModelScope.launch {
             _event.send(AnalyzeEvent.Idle)
-        }
-    }
-
-    private fun makeConsensus(
-        responses: List<WordResponse>
-    ): Map<String, Pair<Boolean?, ConsensusResult>> {
-        val consensusMap = mutableMapOf<String, Pair<Boolean?, ConsensusResult>>()
-
-        responses.forEach { response ->
-            val hasUnchecked = response.results.any { it.status == WordStatus.UNCHECKED }
-
-            if (!hasUnchecked) {
-                consensusMap[response.word] = response.correct to ConsensusResult(
-                    models = response.results.map {
-                        ModelStatus(
-                            model = it.model,
-                            status = it.status
-                        )
-                    },
-                    consensus = findWinner(response.results)
-                )
-            }
-        }
-
-        return consensusMap
-    }
-
-    private fun findWinner(results: List<ModelResponse>): Consensus {
-        var incorrect = 0
-        var correct = 0
-        var name = 0
-
-        results.forEach { result ->
-            when (result.status) {
-                WordStatus.CORRECT -> correct++
-                WordStatus.INCORRECT -> incorrect++
-                WordStatus.NAME -> name++
-                else -> Unit
-            }
-        }
-
-        return when {
-            correct == results.size -> Consensus.LIKELY_CORRECT
-            incorrect == results.size -> Consensus.LIKELY_INCORRECT
-            name == results.size -> Consensus.NAME
-            else -> Consensus.NEEDS_REVIEW
         }
     }
 }

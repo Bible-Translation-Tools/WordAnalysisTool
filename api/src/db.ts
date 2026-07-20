@@ -1,5 +1,5 @@
 import { SQL_BATCH_LIMIT } from "./constants";
-import { BatchError, LanguageData, ModelResult, WordData } from "./types";
+import { BatchError, ModelResult, WordData } from "./types";
 import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -17,38 +17,6 @@ export default class DbHelper {
 
   getDb() {
     return this.db;
-  }
-
-  async upsertLanguages(languages: LanguageData[]): Promise<number> {
-    let count = 0;
-    for (let i = 0; i < languages.length; i += SQL_BATCH_LIMIT) {
-      const batch = languages.slice(i, i + SQL_BATCH_LIMIT);
-      const values = batch.map((lang) => ({
-        code: lang.lc,
-        name: lang.ln,
-        angName: lang.ang,
-        direction: lang.ld,
-        gateway: lang.gw,
-      }));
-
-      if (values.length > 0) {
-        const result = await this.db
-          .insert(schema.languagesTable)
-          .values(values)
-          .onConflictDoUpdate({
-            target: schema.languagesTable.code,
-            set: {
-              name: sql`excluded.ln`,
-              angName: sql`excluded.ang`,
-              direction: sql`excluded.ld`,
-              gateway: sql`excluded.gw`,
-            },
-          })
-          .returning({ id: schema.languagesTable.id });
-        count += result.length;
-      }
-    }
-    return count;
   }
 
   /**

@@ -192,7 +192,6 @@ class ReviewScreen(
                                             navigator.push(AnalyzeScreen(
                                                 ietfCode = ietfCode,
                                                 resourceType = resourceType,
-                                                verses = state.verses,
                                                 user = user
                                             ))
                                         },

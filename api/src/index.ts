@@ -17,7 +17,6 @@ import {
   BatchError,
   WordsParams,
   ChatResponse,
-  LanguageData,
 } from "./types";
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
@@ -28,6 +27,7 @@ import {
   batchesTable,
   modelsTable,
   usersTable,
+  versesTable,
   wordReviewsTable,
   wordsTable,
 } from "./db/schema";
@@ -456,48 +456,6 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
   }
 });
 
-app.post("/api/languages", async (c) => {
-  const dbHelper = c.get("db");
-  const payload = c.get("jwtPayload");
-
-  const body = await c.req.blob();
-
-  if (body.type !== "application/octet-stream") {
-    throw new HTTPException(403, { message: "invalid languages file" });
-  }
-
-  try {
-    const user = await dbHelper.getDb().query.usersTable.findFirst({
-      where: eq(usersTable.email, payload.email),
-    });
-
-    if (!user) {
-      throw new HTTPException(404, { message: "user not found" });
-    }
-
-    if (!isAdmin(user.username, c.env)) {
-      throw new HTTPException(403, { message: "not allowed" });
-    }
-
-    const text = await new Response(body).text();
-    const languages: LanguageData[] = JSON.parse(text);
-
-    if (!Array.isArray(languages) || languages.length === 0) {
-      throw new HTTPException(404, { message: "no languages provided" });
-    }
-
-    const count = await dbHelper.upsertLanguages(languages);
-
-    return c.json({ count });
-  } catch (error: any) {
-    throw new HTTPException(400, {
-      message: `${error.code}: error importing languages: ${
-        error.message || error
-      }`,
-    });
-  }
-});
-
 app.get("/api/report/:ietf_code/:resource_type", async (c) => {
   const dbHelper = c.get("db");
 
@@ -787,7 +745,7 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
         eq(batchesTable.ietfCode, ietf_code),
         eq(batchesTable.resourceType, resource_type),
       ),
-      columns: { id: true, pending: true },
+      columns: { id: true, pending: true, resourceId: true },
       with: {
         user: true,
       },
@@ -943,11 +901,34 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       .limit(limit)
       .offset(offset);
 
+    // Map "book:chapter:verse" -> source text for the batch's resource, so the
+    // review screen can show each word's verse without parsing USFM on the client.
+    const verseText = new Map<string, string>();
+    if (dbBatch.resourceId) {
+      const refs = wordsData.map((row) => row.word.ref);
+      if (refs.length > 0) {
+        const verses = await db
+          .select({
+            book: versesTable.bookCode,
+            chapter: versesTable.chapter,
+            verse: versesTable.verse,
+            text: versesTable.text,
+          })
+          .from(versesTable)
+          .where(eq(versesTable.resourceId, dbBatch.resourceId));
+
+        for (const v of verses) {
+          verseText.set(`${v.book}:${v.chapter}:${v.verse}`, v.text);
+        }
+      }
+    }
+
     // Map the database results to the desired response format
     const output = wordsData.map((row) => {
       const wordResponse: WordResponse = {
         word: row.word.word,
         ref: row.word.ref,
+        text: verseText.get(row.word.ref) ?? "",
         correct: row.review ? row.review.correct : null,
         results: [],
       };
