@@ -57,6 +57,20 @@
       "when": 1784559111226,
       "tag": "0007_left_mattie_franklin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784564272533,
+      "tag": "0008_narrow_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784623216917,
+      "tag": "0009_rapid_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

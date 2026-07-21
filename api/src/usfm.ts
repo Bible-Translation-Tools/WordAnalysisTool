@@ -46,6 +46,9 @@ export function parseVerses(usfm: string, bookSlug?: string): Verse[] {
         .getChildMarkers(TextBlock, [FMarker, XMarker])
         .map((t) => t.text)
         .join("")
+        // Postgres text can't store NUL; also drop other C0 control chars
+        // (keep tab/newline/carriage-return) that occasionally leak from source.
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
         .trim();
 
       verses.push({

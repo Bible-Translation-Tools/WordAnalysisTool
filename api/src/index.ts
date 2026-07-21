@@ -21,7 +21,7 @@ import {
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
 import { getBooksForTranslation, getLanguageInfo } from "./biel";
-import { parseVerses, findSingletons, Verse } from "./usfm";
+import { parseVerses, findSingletons } from "./usfm";
 import { stream } from "hono/streaming";
 import {
   batchesTable,
@@ -58,10 +58,102 @@ const emptyProgress: BatchProgress = {
 type WordEntity = typeof wordsTable.$inferSelect;
 type BatchEntity = typeof batchesTable.$inferSelect;
 
+// English ULB is ingested alongside every batch as the reference resource.
+const REF_IETF = "en";
+const REF_RESOURCE_TYPE = "ulb";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Keep error reasons short and useful. Drizzle wraps the driver error, so its
+// `.message` is just the "Failed query" SQL dump — the real Postgres message is
+// on `.cause`. Prefer that, take the first line (drops the params dump that
+// embeds verse text), and cap the length.
+const briefReason = (e: any): string => {
+  const msg = e?.cause?.message ?? e?.message ?? String(e);
+  return String(msg).split("\n")[0].slice(0, 200);
+};
+
 /**
- * Source ingestion for one batch: reuse stored verses when present, otherwise
- * fetch the translation's USFM from BIEL, parse it, and store the verses. Then
- * compute singleton words and queue the batch for AI processing.
+ * Fetch a USFM file, retrying on transient failures (the content host throttles
+ * bursts of requests, so a timed-out / 429 / 5xx book usually succeeds on retry).
+ */
+async function fetchUsfm(url: string, attempts = 4): Promise<string> {
+  let lastReason = "unknown error";
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "btt-writer-android" },
+      });
+      if (res.ok) return await res.text();
+      lastReason = `status ${res.status}`;
+      // 4xx (other than 429) won't get better by retrying
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        break;
+      }
+    } catch (e: any) {
+      lastReason = e?.message || String(e);
+    }
+    if (i < attempts - 1) await sleep(500 * (i + 1));
+  }
+  throw new Error(lastReason);
+}
+
+/**
+ * Download and store any missing books of a translation into `resourceId`.
+ * Idempotent per book (already-stored books are skipped), so retries make
+ * forward progress. Throws if any book fails — callers must not proceed on a
+ * partial set. The thrown error lists which books failed and why.
+ */
+async function ingestResource(
+  dbHelper: DbHelper,
+  ietfCode: string,
+  resourceType: string,
+  resourceId: number,
+): Promise<void> {
+  const contents = await getBooksForTranslation(ietfCode, resourceType);
+  const usable = contents.filter((c) => c.url);
+  if (usable.length === 0) {
+    throw new Error(`no USFM content for ${ietfCode}/${resourceType}`);
+  }
+
+  const storedBooks = new Set(await dbHelper.getStoredBookCodes(resourceId));
+  const failures: string[] = [];
+
+  for (const content of usable) {
+    const slug = content.bookSlug?.toLowerCase();
+    if (slug && storedBooks.has(slug)) continue;
+
+    const label = content.bookSlug ?? content.url ?? "?";
+    try {
+      const usfm = await fetchUsfm(content.url!);
+      const bookVerses = parseVerses(usfm, content.bookSlug ?? undefined);
+      if (bookVerses.length > 0) {
+        await dbHelper.insertVerses(bookVerses, resourceId);
+        storedBooks.add(bookVerses[0].book.toLowerCase());
+      }
+    } catch (e: any) {
+      const reason = briefReason(e);
+      console.error(
+        `failed to ingest book ${label} for ${ietfCode}/${resourceType}: ${reason}`,
+      );
+      failures.push(`${label}: ${reason}`);
+    }
+  }
+
+  // Completeness gate: don't proceed on a partial set.
+  if (failures.length > 0) {
+    throw new Error(
+      `${failures.length} of ${usable.length} books failed for ${ietfCode}/${resourceType} — ${failures
+        .slice(0, 10)
+        .join("; ")}`,
+    );
+  }
+}
+
+/**
+ * Source ingestion for one batch: ensure the translation's source and the
+ * English ULB reference source are both fully stored, then compute singleton
+ * words (linked to their verse) and queue the batch for AI processing.
  */
 async function ingestSource(
   dbHelper: DbHelper,
@@ -73,50 +165,58 @@ async function ingestSource(
     if (!batch.resourceId) {
       throw new Error("batch has no resource");
     }
+    const resourceId = batch.resourceId;
 
     const models: string[] = batch.models ? JSON.parse(batch.models) : [];
     if (models.length === 0) {
       throw new Error("batch has no models");
     }
 
-    let verses: Verse[] = await dbHelper.getVersesByResource(batch.resourceId);
+    // 1. The batch's own translation source.
+    await ingestResource(
+      dbHelper,
+      batch.ietfCode,
+      batch.resourceType,
+      resourceId,
+    );
 
-    if (verses.length === 0) {
-      const contents = await getBooksForTranslation(
-        batch.ietfCode,
-        batch.resourceType,
-      );
-
-      const all: Verse[] = [];
-      for (const content of contents) {
-        if (!content.url) continue;
-
-        const res = await fetch(content.url);
-        if (!res.ok) {
-          throw new Error(`failed to download ${content.url}: ${res.status}`);
-        }
-
-        const usfm = await res.text();
-        const bookVerses = parseVerses(usfm, content.bookSlug ?? undefined);
-        await dbHelper.insertVerses(bookVerses, batch.resourceId);
-        all.push(...bookVerses);
-      }
-      verses = all;
+    // 2. The English ULB reference source (shared across batches; only missing
+    //    books are downloaded).
+    const refInfo = await getLanguageInfo(REF_IETF);
+    if (!refInfo) {
+      throw new Error("reference language (en) not found");
     }
+    const refLanguageId = await dbHelper.upsertLanguage(refInfo);
+    const refResourceId = await dbHelper.upsertResource(
+      REF_RESOURCE_TYPE,
+      refLanguageId,
+    );
+    await ingestResource(dbHelper, REF_IETF, REF_RESOURCE_TYPE, refResourceId);
 
+    // 3. Compute singletons from the (complete) translation source and link
+    //    each word to its verse.
+    const verses = await dbHelper.getVersesByResource(resourceId);
     const singletons = findSingletons(verses, batch.apostropheIsSeparator);
     if (singletons.length === 0) {
       throw new Error("no singleton words found");
     }
 
-    await dbHelper.insertWords(singletons, batchId);
-    const wordIds = await dbHelper.fetchWordIds(singletons, batchId);
+    const verseRefMap = await dbHelper.getVerseRefMap(resourceId);
+    const wordRows = singletons
+      .map((s) => ({ word: s.word, verseId: verseRefMap.get(s.ref) }))
+      .filter(
+        (w): w is { word: string; verseId: number } => w.verseId !== undefined,
+      );
+
+    await dbHelper.insertWords(wordRows, batchId);
+    const wordIds = await dbHelper.fetchWordIds(wordRows, batchId);
     await dbHelper.insertModels(wordIds, models);
 
     await dbHelper
       .getDb()
       .update(batchesTable)
       .set({
+        refResourceId,
         ingesting: false,
         pending: true,
         error: null,
@@ -128,7 +228,7 @@ async function ingestSource(
     console.error("ingestion error:", error);
 
     const errorDetails: BatchError = {
-      message: `ingestion error: ${error.message || error}`,
+      message: `ingestion error: ${briefReason(error)}`,
       prompt: null,
       model: null,
       response: null,
@@ -346,8 +446,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
     const text = await new Response(body).text();
     const json = await JSON.parse(text);
     const models: string[] = json.models || [];
-    const apostropheIsSeparator: boolean =
-      json.apostropheIsSeparator ?? true;
+    const apostropheIsSeparator: boolean = json.apostropheIsSeparator ?? true;
 
     if (models.length === 0) {
       throw new HTTPException(404, { message: "no models provided" });
@@ -369,16 +468,13 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       username: user.username,
     };
 
-    // Resolve the language (reuse an imported row, else create from BIEL).
+    // Resolve the language (reuse an existing row, else create from BIEL).
     const languageInfo = await getLanguageInfo(ietf_code);
     if (!languageInfo) {
       throw new HTTPException(404, { message: "language not found" });
     }
     const languageId = await dbHelper.upsertLanguage(languageInfo);
-    const resourceId = await dbHelper.upsertResource(
-      resource_type,
-      languageId,
-    );
+    const resourceId = await dbHelper.upsertResource(resource_type, languageId);
 
     // TODO add current user (AND user_id = ? - user.id)
     const dbBatch =
@@ -398,6 +494,7 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
 
     const ingestFields = {
       language: languageInfo.englishName,
+      languageId: languageId,
       resourceId: resourceId,
       models: JSON.stringify(models),
       apostropheIsSeparator: apostropheIsSeparator,
@@ -482,6 +579,7 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
           orderBy: [asc(modelsTable.model)],
         },
         reviews: true,
+        verse: true,
       },
       orderBy: [asc(wordsTable.word)],
     });
@@ -511,7 +609,9 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
 
       // Body
       for (const word of words) {
-        const [book, chapter, verse] = word.ref.split(":");
+        const book = word.verse.bookCode;
+        const chapter = word.verse.chapter;
+        const verse = word.verse.verse;
         const modelResults = word.models.map(
           (m) => `"${m.model}\n${statusMap[m.status]}"`,
         );
@@ -879,17 +979,23 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     targetPage = Math.max(1, targetPage);
     const offset = (targetPage - 1) * limit;
 
-    // Fetch only the words for the requested page
+    // Fetch only the words for the requested page, joined to their verse so the
+    // review screen gets ref + source text without parsing USFM on the client.
     const wordsData = await db
       .select({
-        word: wordsTable,
+        word: wordsTable.word,
         review: wordReviewsTable,
+        book: versesTable.bookCode,
+        chapter: versesTable.chapter,
+        verse: versesTable.verse,
+        text: versesTable.text,
       })
       .from(wordsTable)
       .innerJoin(
         sampledGoodWordsSubQuery,
         eq(wordsTable.id, sampledGoodWordsSubQuery.wordId),
       )
+      .innerJoin(versesTable, eq(wordsTable.verseId, versesTable.id))
       .leftJoin(
         wordReviewsTable,
         and(
@@ -901,34 +1007,12 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
       .limit(limit)
       .offset(offset);
 
-    // Map "book:chapter:verse" -> source text for the batch's resource, so the
-    // review screen can show each word's verse without parsing USFM on the client.
-    const verseText = new Map<string, string>();
-    if (dbBatch.resourceId) {
-      const refs = wordsData.map((row) => row.word.ref);
-      if (refs.length > 0) {
-        const verses = await db
-          .select({
-            book: versesTable.bookCode,
-            chapter: versesTable.chapter,
-            verse: versesTable.verse,
-            text: versesTable.text,
-          })
-          .from(versesTable)
-          .where(eq(versesTable.resourceId, dbBatch.resourceId));
-
-        for (const v of verses) {
-          verseText.set(`${v.book}:${v.chapter}:${v.verse}`, v.text);
-        }
-      }
-    }
-
     // Map the database results to the desired response format
     const output = wordsData.map((row) => {
       const wordResponse: WordResponse = {
-        word: row.word.word,
-        ref: row.word.ref,
-        text: verseText.get(row.word.ref) ?? "",
+        word: row.word,
+        ref: `${row.book}:${row.chapter}:${row.verse}`,
+        text: row.text,
         correct: row.review ? row.review.correct : null,
         results: [],
       };

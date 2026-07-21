@@ -87,10 +87,17 @@ export const batchesTable = pgTable(
     id: varchar("id", { length: 255 }).primaryKey().notNull(),
     ietfCode: varchar("ietf_code", { length: 255 }).notNull(),
     language: varchar("language", { length: 255 }).default("").notNull(),
+    languageId: integer("language_id").references(() => languagesTable.id, {
+      onDelete: "set null",
+    }),
     resourceType: varchar("resource_type", { length: 255 }).notNull(),
     resourceId: integer("resource_id").references(() => resourcesTable.id, {
       onDelete: "set null",
     }),
+    refResourceId: integer("ref_resource_id").references(
+      () => resourcesTable.id,
+      { onDelete: "set null" },
+    ),
     ingesting: boolean("ingesting").default(false).notNull(),
     apostropheIsSeparator: boolean("apostrophe_is_separator")
       .default(true)
@@ -108,7 +115,9 @@ export const batchesTable = pgTable(
   (table) => [
     uniqueIndex("idx_unique_batch").on(table.ietfCode, table.resourceType),
     index("idx_batch_user_id").on(table.userId),
+    index("idx_batch_language_id").on(table.languageId),
     index("idx_batch_resource_id").on(table.resourceId),
+    index("idx_batch_ref_resource_id").on(table.refResourceId),
   ],
 );
 
@@ -120,12 +129,15 @@ export const wordsTable = pgTable(
     batchId: varchar("batch_id", { length: 255 })
       .notNull()
       .references(() => batchesTable.id, { onDelete: "cascade" }),
-    ref: varchar("ref", { length: 20 }).default("").notNull(),
+    verseId: integer("verse_id")
+      .notNull()
+      .references(() => versesTable.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("idx_unique_word").on(table.word, table.batchId),
     index("idx_word_batch_id").on(table.batchId),
+    index("idx_word_verse_id").on(table.verseId),
   ],
 );
 
@@ -183,11 +195,12 @@ export const resourceRelations = relations(
   }),
 );
 
-export const verseRelations = relations(versesTable, ({ one }) => ({
+export const verseRelations = relations(versesTable, ({ one, many }) => ({
   resource: one(resourcesTable, {
     fields: [versesTable.resourceId],
     references: [resourcesTable.id],
   }),
+  words: many(wordsTable),
 }));
 
 export const batchRelations = relations(batchesTable, ({ one, many }) => ({
@@ -195,9 +208,19 @@ export const batchRelations = relations(batchesTable, ({ one, many }) => ({
     fields: [batchesTable.userId],
     references: [usersTable.id],
   }),
+  language: one(languagesTable, {
+    fields: [batchesTable.languageId],
+    references: [languagesTable.id],
+  }),
   resource: one(resourcesTable, {
     fields: [batchesTable.resourceId],
     references: [resourcesTable.id],
+    relationName: "batchResource",
+  }),
+  refResource: one(resourcesTable, {
+    fields: [batchesTable.refResourceId],
+    references: [resourcesTable.id],
+    relationName: "batchRefResource",
   }),
   words: many(wordsTable),
 }));
@@ -206,6 +229,10 @@ export const wordRelations = relations(wordsTable, ({ one, many }) => ({
   batch: one(batchesTable, {
     fields: [wordsTable.batchId],
     references: [batchesTable.id],
+  }),
+  verse: one(versesTable, {
+    fields: [wordsTable.verseId],
+    references: [versesTable.id],
   }),
   models: many(modelsTable),
   reviews: many(wordReviewsTable),

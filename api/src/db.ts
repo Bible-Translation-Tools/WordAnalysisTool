@@ -1,5 +1,5 @@
 import { SQL_BATCH_LIMIT } from "./constants";
-import { BatchError, ModelResult, WordData } from "./types";
+import { BatchError, ModelResult } from "./types";
 import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -66,8 +66,26 @@ export default class DbHelper {
   }
 
   async insertVerses(verses: Verse[], resourceId: number) {
-    for (let i = 0; i < verses.length; i += SQL_BATCH_LIMIT) {
-      const batch = verses.slice(i, i + SQL_BATCH_LIMIT);
+    // De-duplicate by (book, chapter, verse): a single INSERT ... ON CONFLICT
+    // DO UPDATE cannot affect the same conflict target twice, and some source
+    // USFM repeats a verse ref. Last occurrence wins. Duplicates are logged so
+    // they can be found later in the Cloudflare console.
+    const unique = new Map<string, Verse>();
+    const duplicates: string[] = [];
+    for (const v of verses) {
+      const ref = `${v.book}:${v.chapter}:${v.verse}`;
+      if (unique.has(ref)) duplicates.push(ref);
+      unique.set(ref, v);
+    }
+    if (duplicates.length > 0) {
+      console.error(
+        `duplicate verse refs in resource ${resourceId} (${duplicates.length}): ${duplicates.join(", ")}`,
+      );
+    }
+    const deduped = [...unique.values()];
+
+    for (let i = 0; i < deduped.length; i += SQL_BATCH_LIMIT) {
+      const batch = deduped.slice(i, i + SQL_BATCH_LIMIT);
       const values = batch.map((v) => ({
         bookCode: v.book,
         chapter: v.chapter,
@@ -106,12 +124,43 @@ export default class DbHelper {
     return rows;
   }
 
-  async insertWords(words: WordData[], batchId: string) {
+  /** Distinct book codes already stored for a resource. */
+  async getStoredBookCodes(resourceId: number): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ book: schema.versesTable.bookCode })
+      .from(schema.versesTable)
+      .where(eq(schema.versesTable.resourceId, resourceId));
+    return rows.map((r) => r.book);
+  }
+
+  /** Map "book:chapter:verse" -> verse id for a resource. */
+  async getVerseRefMap(resourceId: number): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({
+        id: schema.versesTable.id,
+        book: schema.versesTable.bookCode,
+        chapter: schema.versesTable.chapter,
+        verse: schema.versesTable.verse,
+      })
+      .from(schema.versesTable)
+      .where(eq(schema.versesTable.resourceId, resourceId));
+
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      map.set(`${r.book}:${r.chapter}:${r.verse}`, r.id);
+    }
+    return map;
+  }
+
+  async insertWords(
+    words: { word: string; verseId: number }[],
+    batchId: string,
+  ) {
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);
       const wordValues = batch.map((word) => ({
         word: word.word,
-        ref: word.ref,
+        verseId: word.verseId,
         batchId: batchId,
       }));
 
@@ -126,7 +175,10 @@ export default class DbHelper {
     }
   }
 
-  async fetchWordIds(words: WordData[], batchId: string): Promise<number[]> {
+  async fetchWordIds(
+    words: { word: string }[],
+    batchId: string,
+  ): Promise<number[]> {
     const wordIds = [];
     for (let i = 0; i < words.length; i += SQL_BATCH_LIMIT) {
       const batch = words.slice(i, i + SQL_BATCH_LIMIT);

@@ -87,7 +87,3 @@ export type SplitBatchJson = {
   right: string;
 };
 
-export type WordData = {
-  word: string;
-  ref: string;
-};
