@@ -1,6 +1,5 @@
 import OpenAI from "openai";
-import { oneLine } from "common-tags";
-import { BatchError, ChatResponse } from "./types";
+import { BatchError, ChatResponse, WordContext } from "./types";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 
@@ -23,13 +22,29 @@ export default class AiClient {
     mistral: ["mistral-medium-2604", "mistral-large-2512"],
   };
 
-  private systemPrompt: string = oneLine`You are a Senior {language} Linguist specializing in orthography and corpus linguistics.
-  You will be given a list of words in this language and you will check each word against related dictionary, 
-  taking into account declensions and endings. 
-  Respond with a status for each word: 1 = exists, 0 = doesn't exist, 2 = proper name. 
-  Don treat capitalized words as proper names unless confirmed by dictionary.
-  Do not correct misspellings. Do not duplicate words in your response. 
-  Treat capitalized and lowercase versions of the same word as distinct entries.`;
+  private systemPrompt: string = `You are a senior {language} linguist and orthography expert reviewing a {language} Bible translation for spelling errors.
+
+You will receive a JSON array of entries. Each entry has:
+- "word": a single {language} word to evaluate
+- "reference": the verse reference the word comes from
+- "source": the {language} verse text where the word occurs (context)
+- "referenceVerse": the same verse in a reference translation from a well-known language (may be empty)
+
+For each entry, classify ONLY the "word" with exactly one status:
+- 1 = correctly spelled: a valid {language} word, INCLUDING inflected/declined/conjugated forms, affixed forms, and rare words
+- 0 = misspelled: not a valid {language} word — a typo, wrong/missing/extra/transposed letters, two words run together, or a truncated word
+- 2 = proper name: a person, place, people group, or other name, regardless of its spelling
+
+How to judge:
+- Use "source" to see the word in context and judge whether it is a plausible {language} form (consider prefixes, suffixes, and inflection of a real root — these are correct, status 1, not errors).
+- Use "referenceVerse" to understand what the verse means and to recognize proper names: the matching name usually appears (often capitalized) in the reference translation.
+- A word occurring only once is NOT evidence of a misspelling — do not penalize rarity.
+- Do NOT treat a word as a proper name just because it is capitalized; sentence-initial words are capitalized too. Confirm names from meaning/context.
+
+Rules:
+- Evaluate the target "word" only, not the rest of the verse. Do not correct spelling and do not explain.
+- Return exactly one result per input entry, with "word" copied verbatim. Do not add, drop, merge, or duplicate words.
+- Treat capitalized and lowercase forms as distinct entries.`;
 
   constructor(env: CloudflareBindings) {
     this.env = env;
@@ -39,13 +54,18 @@ export default class AiClient {
   async chat(
     model: string,
     language: string,
-    prompt: string,
+    words: WordContext[],
   ): Promise<ChatResponse[] | BatchError> {
     const client = this.getClient(model);
 
     if (client === null) {
       return Promise.reject("model is invalid");
     }
+
+    const userContent =
+      `Evaluate the "word" in each of the following ${words.length} entries. ` +
+      `Return one {word, status} per entry.\n\n` +
+      JSON.stringify(words);
 
     let response = null;
 
@@ -55,11 +75,11 @@ export default class AiClient {
         messages: [
           {
             role: "system",
-            content: this.systemPrompt.replace("{language}", language),
+            content: this.systemPrompt.replaceAll("{language}", language),
           },
           {
             role: "user",
-            content: prompt,
+            content: userContent,
           },
         ],
         response_format: zodResponseFormat(AiResponseArray, "responses"),
@@ -84,7 +104,7 @@ export default class AiClient {
       });
     } catch (error) {
       return {
-        prompt,
+        prompt: words.map((w) => w.word).join(", "),
         message: error instanceof Error ? error.message : String(error),
         model,
         response: response?.choices[0].message.content || null,

@@ -58,6 +58,15 @@ export type ChatResponse = {
   status: number;
 };
 
+// A word to evaluate, with the verse it occurs in and the aligned verse from a
+// reference translation (a well-known parent/gateway language, currently English).
+export type WordContext = {
+  word: string;
+  reference: string;
+  source: string;
+  referenceVerse: string;
+};
+
 export type BatchError = {
   message: string;
   prompt: string | null;

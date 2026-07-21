@@ -3,7 +3,7 @@ import { BatchError, ModelResult } from "./types";
 import * as schema from "./db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { and, eq, exists, inArray, isNull, lte, not, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, not, or, sql } from "drizzle-orm";
 import { LanguageInfo } from "./biel";
 import { Verse } from "./usfm";
 
@@ -131,6 +131,57 @@ export default class DbHelper {
       .from(schema.versesTable)
       .where(eq(schema.versesTable.resourceId, resourceId));
     return rows.map((r) => r.book);
+  }
+
+  /**
+   * Map "book:chapter:verse" -> verse text for a resource, limited to the given
+   * refs. Fetches only what the caller needs (avoids loading a whole Bible).
+   */
+  async getVerseTextsByRefs(
+    resourceId: number,
+    refs: { book: string; chapter: number; verse: string }[],
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (refs.length === 0) return map;
+
+    // De-duplicate refs, then fetch in chunks to keep the WHERE clause sane.
+    const uniqueRefs = [
+      ...new Map(
+        refs.map((r) => [`${r.book}:${r.chapter}:${r.verse}`, r]),
+      ).values(),
+    ];
+
+    const CHUNK = 200;
+    for (let i = 0; i < uniqueRefs.length; i += CHUNK) {
+      const slice = uniqueRefs.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select({
+          book: schema.versesTable.bookCode,
+          chapter: schema.versesTable.chapter,
+          verse: schema.versesTable.verse,
+          text: schema.versesTable.text,
+        })
+        .from(schema.versesTable)
+        .where(
+          and(
+            eq(schema.versesTable.resourceId, resourceId),
+            or(
+              ...slice.map((r) =>
+                and(
+                  eq(schema.versesTable.bookCode, r.book),
+                  eq(schema.versesTable.chapter, r.chapter),
+                  eq(schema.versesTable.verse, r.verse),
+                ),
+              ),
+            ),
+          ),
+        );
+
+      for (const r of rows) {
+        map.set(`${r.book}:${r.chapter}:${r.verse}`, r.text);
+      }
+    }
+    return map;
   }
 
   /** Map "book:chapter:verse" -> verse id for a resource. */

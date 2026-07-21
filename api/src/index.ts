@@ -17,6 +17,7 @@ import {
   BatchError,
   WordsParams,
   ChatResponse,
+  WordContext,
 } from "./types";
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "./constants";
 import DbHelper from "./db";
@@ -1445,6 +1446,7 @@ export default {
             ),
           with: {
             models: true,
+            verse: true,
           },
           limit: WORDS_PER_BATCH,
         });
@@ -1483,6 +1485,30 @@ export default {
           const modelsResults: ModelResult[] = [];
           let wordsPrompt = words.map((w) => w.word).join(", ");
 
+          // Build per-word context: the source verse each word occurs in, plus
+          // the aligned verse from the reference resource. Only the verses this
+          // chunk needs are fetched.
+          const referenceByRef = batch.refResourceId
+            ? await dbHelper.getVerseTextsByRefs(
+                batch.refResourceId,
+                words.map((w) => ({
+                  book: w.verse.bookCode,
+                  chapter: w.verse.chapter,
+                  verse: w.verse.verse,
+                })),
+              )
+            : new Map<string, string>();
+
+          const wordContexts: WordContext[] = words.map((w) => {
+            const ref = `${w.verse.bookCode}:${w.verse.chapter}:${w.verse.verse}`;
+            return {
+              word: w.word,
+              reference: `${w.verse.bookCode} ${w.verse.chapter}:${w.verse.verse}`,
+              source: w.verse.text,
+              referenceVerse: referenceByRef.get(ref) ?? "",
+            };
+          });
+
           for (const model of models) {
             try {
               // Use cached results
@@ -1502,7 +1528,7 @@ export default {
                 const chatResponse = await client.chat(
                   model.model,
                   batch.language,
-                  wordsPrompt,
+                  wordContexts,
                 );
 
                 if (!isChatError(chatResponse)) {
