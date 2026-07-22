@@ -28,7 +28,6 @@ import org.bibletranslationtools.wat.domain.Batch
 import org.bibletranslationtools.wat.domain.BatchRequest
 import org.bibletranslationtools.wat.domain.BatchStatus
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
-import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.format
@@ -54,7 +53,6 @@ import wordanalysistool.shared.generated.resources.reset_review_progress_success
 import wordanalysistool.shared.generated.resources.resetting_review_progress
 import wordanalysistool.shared.generated.resources.token_invalid
 import wordanalysistool.shared.generated.resources.unknown_error
-import wordanalysistool.shared.generated.resources.wrong_model_selected
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -290,20 +288,6 @@ class AdminViewModel(
                     ToastInfo(
                         type = ToastType.Error,
                         message = getString(Res.string.no_model_selected),
-                        onClose = { updateToast(null) }
-                    )
-                )
-                return@launch
-            }
-
-            if (_state.value.models.size != MODELS_SIZE) {
-                updateToast(
-                    ToastInfo(
-                        type = ToastType.Error,
-                        message = getString(
-                            Res.string.wrong_model_selected,
-                            MODELS_SIZE
-                        ),
                         onClose = { updateToast(null) }
                     )
                 )

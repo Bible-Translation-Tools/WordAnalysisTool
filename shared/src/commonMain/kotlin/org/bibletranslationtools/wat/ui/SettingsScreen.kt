@@ -32,7 +32,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -47,9 +46,7 @@ import com.russhwolf.settings.ExperimentalSettingsApi
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
-import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Locales
-import org.bibletranslationtools.wat.domain.MODELS_SIZE
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.ModelStatus
 import org.bibletranslationtools.wat.domain.Settings
@@ -59,14 +56,12 @@ import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
 import org.bibletranslationtools.wat.ui.control.MultiSelectList
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
-import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.back
 import wordanalysistool.shared.generated.resources.color_scheme
 import wordanalysistool.shared.generated.resources.home
 import wordanalysistool.shared.generated.resources.models
-import wordanalysistool.shared.generated.resources.select_models_limit
 import wordanalysistool.shared.generated.resources.settings
 import wordanalysistool.shared.generated.resources.sign_out
 import wordanalysistool.shared.generated.resources.system_language
@@ -94,7 +89,6 @@ class SettingsScreen(private val user: User) : Screen {
 
         var alert by remember { mutableStateOf<String?>(null) }
 
-        val coroutineScope = rememberCoroutineScope()
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val modelsState = Model.entries.map {
@@ -264,19 +258,7 @@ class SettingsScreen(private val user: User) : Screen {
                                             selected = models.filter { it.active.value },
                                             valueConverter = { it.model },
                                             onSelect = { model ->
-                                                val activeModels = models.filter { it.active.value }
-                                                val status = !model.active.value
-
-                                                if (activeModels.size == MODELS_SIZE && status) {
-                                                    coroutineScope.launch {
-                                                        alert = getString(
-                                                            Res.string.select_models_limit,
-                                                            MODELS_SIZE
-                                                        )
-                                                    }
-                                                } else {
-                                                    model.active.value = status
-                                                }
+                                                model.active.value = !model.active.value
                                             },
                                             modifier = Modifier.padding(start = 16.dp)
                                         )

@@ -35,4 +35,3 @@ data class ModelStatus(
     val active: MutableState<Boolean>
 )
 
-const val MODELS_SIZE = 3
