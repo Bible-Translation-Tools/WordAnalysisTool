@@ -50,6 +50,8 @@
     <string name="batch_not_deleted">Не удалось удалить результаты. Попробуйте еще раз.</string>
     <string name="batch_deleted">Результаты успешно удалены.</string>
     <string name="process_words">Получить результаты</string>
+    <string name="select_reference">Выбрать справочник</string>
+    <string name="reference_same_as_source">Справочник должен отличаться от исходного перевода</string>
     <string name="sort_words">Сортировать слова</string>
     <string name="creating_batch">Создание запроса на результаты...</string>
     <string name="all_results_received">Все результаты получены.</string>
@@ -99,4 +101,5 @@
     <string name="complete_success">Успешно завершено!</string>
     <string name="complete_success_description">Вы успешно завершили проверку неправильных слов.</string>
     <string name="return_home">Вернуться домой</string>
+    <string name="reference_resource">Ресурс справочника:</string>
 </resources>

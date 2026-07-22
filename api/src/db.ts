@@ -46,6 +46,58 @@ export default class DbHelper {
     return row.id;
   }
 
+  /** Resolve a resource id to its ietf code, resource type, and language name. */
+  async getResourceRef(
+    resourceId: number,
+  ): Promise<{ ietf: string; resourceType: string; name: string } | null> {
+    const [row] = await this.db
+      .select({
+        ietf: schema.languagesTable.code,
+        resourceType: schema.resourcesTable.resourceType,
+        name: schema.languagesTable.angName,
+      })
+      .from(schema.resourcesTable)
+      .innerJoin(
+        schema.languagesTable,
+        eq(schema.resourcesTable.languageId, schema.languagesTable.id),
+      )
+      .where(eq(schema.resourcesTable.id, resourceId));
+    return row ?? null;
+  }
+
+  /**
+   * Resolve (ietf code, resource type) to an existing resource id, or null.
+   * Used to locate a batch (which is keyed by its resource) from URL params.
+   */
+  async getResourceId(
+    ietf: string,
+    resourceType: string,
+  ): Promise<number | null> {
+    const [row] = await this.db
+      .select({ id: schema.resourcesTable.id })
+      .from(schema.resourcesTable)
+      .innerJoin(
+        schema.languagesTable,
+        eq(schema.resourcesTable.languageId, schema.languagesTable.id),
+      )
+      .where(
+        and(
+          eq(schema.languagesTable.code, ietf),
+          eq(schema.resourcesTable.resourceType, resourceType),
+        ),
+      );
+    return row?.id ?? null;
+  }
+
+  /** English name of a language (for the AI prompt), or "" if unknown. */
+  async getLanguageName(languageId: number): Promise<string> {
+    const [row] = await this.db
+      .select({ name: schema.languagesTable.angName })
+      .from(schema.languagesTable)
+      .where(eq(schema.languagesTable.id, languageId));
+    return row?.name ?? "";
+  }
+
   /** Ensure a resources row exists for (resourceType, languageId). Returns its id. */
   async upsertResource(
     resourceType: string,

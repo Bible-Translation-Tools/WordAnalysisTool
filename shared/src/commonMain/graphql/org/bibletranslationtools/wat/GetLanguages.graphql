@@ -1,0 +1,8 @@
+query GetLanguages($where: language_bool_exp) {
+    language(where: $where) {
+        ietf_code
+        national_name
+        english_name
+        direction
+    }
+}

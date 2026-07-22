@@ -68,6 +68,19 @@ export function parseVerses(usfm: string, bookSlug?: string): Verse[] {
 const WORD_WITH_APOSTROPHE = /[\p{L}\p{M}]+(?:['’][\p{L}\p{M}]+)*/gu;
 const WORD_NO_APOSTROPHE = /[\p{L}\p{M}]+/gu;
 
+/** Extract the words from a verse text using the chosen tokenization. */
+export function tokenize(
+  text: string,
+  apostropheIsSeparator: boolean,
+): string[] {
+  const regex = apostropheIsSeparator
+    ? WORD_NO_APOSTROPHE
+    : WORD_WITH_APOSTROPHE;
+  const matches = text.match(regex);
+  if (!matches) return [];
+  return matches.map((m) => m.trim()).filter((m) => m.length > 0);
+}
+
 /**
  * Find words that occur exactly once across all verses.
  * first-seen verse wins (and since singletons appear once,
@@ -77,21 +90,11 @@ export function findSingletons(
   verses: Verse[],
   apostropheIsSeparator: boolean,
 ): Singleton[] {
-  const regex = apostropheIsSeparator
-    ? WORD_NO_APOSTROPHE
-    : WORD_WITH_APOSTROPHE;
-
   const counts = new Map<string, { count: number; ref: string }>();
 
   for (const verse of verses) {
     const ref = `${verse.book}:${verse.chapter}:${verse.verse}`;
-    const matches = verse.text.match(regex);
-    if (!matches) continue;
-
-    for (const raw of matches) {
-      const word = raw.trim();
-      if (word.length === 0) continue;
-
+    for (const word of tokenize(verse.text, apostropheIsSeparator)) {
       const existing = counts.get(word);
       if (existing) {
         existing.count += 1;

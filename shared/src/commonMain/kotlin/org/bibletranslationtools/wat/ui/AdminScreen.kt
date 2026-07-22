@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,15 +22,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +72,7 @@ import org.bibletranslationtools.wat.ui.control.Status
 import org.bibletranslationtools.wat.ui.control.StatusBar
 import org.bibletranslationtools.wat.ui.control.StatusBox
 import org.bibletranslationtools.wat.ui.dialogs.BatchErrorDialog
+import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
 import org.jetbrains.compose.resources.stringResource
@@ -77,12 +84,15 @@ import wordanalysistool.shared.generated.resources.delete_batch
 import wordanalysistool.shared.generated.resources.home
 import wordanalysistool.shared.generated.resources.pause_batch
 import wordanalysistool.shared.generated.resources.process_words
+import wordanalysistool.shared.generated.resources.reference_resource
 import wordanalysistool.shared.generated.resources.reset_review_progress
+import wordanalysistool.shared.generated.resources.save
 import wordanalysistool.shared.generated.resources.save_report
+import wordanalysistool.shared.generated.resources.select_reference
 import wordanalysistool.shared.generated.resources.settings
 import wordanalysistool.shared.generated.resources.sign_out
 
-class AnalyzeScreen(
+class AdminScreen(
     val ietfCode: String,
     private val resourceType: String,
     private val user: User
@@ -90,14 +100,14 @@ class AnalyzeScreen(
 
     @Composable
     override fun Content() {
-        val viewModel = koinScreenModel<AnalyzeViewModel> {
+        val viewModel = koinScreenModel<AdminViewModel> {
             parametersOf(ietfCode, resourceType, user)
         }
 
         val navigator = LocalNavigator.currentOrThrow
 
         val state by viewModel.state.collectAsStateWithLifecycle()
-        val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
+        val event by viewModel.event.collectAsStateWithLifecycle(AdminEvent.Idle)
 
         val modelsState = Model.entries.mapNotNull {
             val active = rememberBooleanSetting(it.value, false).value
@@ -110,6 +120,8 @@ class AnalyzeScreen(
             true
         )
 
+        var showReferenceDialog by remember { mutableStateOf(false) }
+
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val statuses = remember { mutableStateListOf<Status>() }
@@ -118,7 +130,7 @@ class AnalyzeScreen(
 
         LaunchedEffect(event) {
             when (event) {
-                is AnalyzeEvent.Logout -> {
+                is AdminEvent.Logout -> {
                     accessToken = null
                     navigator.popUntilRoot()
                 }
@@ -128,12 +140,12 @@ class AnalyzeScreen(
 
         LaunchedEffect(models) {
             if (models.isNotEmpty()) {
-                viewModel.onEvent(AnalyzeEvent.UpdateModels(models))
+                viewModel.onEvent(AdminEvent.UpdateModels(models))
             }
         }
 
         LaunchedEffect(apostropheIsSeparator) {
-            viewModel.onEvent(AnalyzeEvent.SetApostrophe(apostropheIsSeparator))
+            viewModel.onEvent(AdminEvent.SetApostrophe(apostropheIsSeparator))
         }
 
         LaunchedEffect(state.status) {
@@ -202,25 +214,78 @@ class AnalyzeScreen(
                             ) {
                                 CustomTextButton(
                                     onClick = {
-                                        viewModel.onEvent(AnalyzeEvent.BatchWords)
+                                        viewModel.onEvent(AdminEvent.BatchWords)
                                     },
                                     icon = Icons.Default.Sync,
                                     text = stringResource(Res.string.process_words)
                                 )
                                 CustomTextButton(
                                     onClick = {
-                                        viewModel.onEvent(AnalyzeEvent.PauseBatch)
+                                        viewModel.onEvent(AdminEvent.PauseBatch)
                                     },
                                     icon = Icons.Default.Pause,
                                     text = stringResource(Res.string.pause_batch)
                                 )
                                 CustomTextButton(
                                     onClick = {
-                                        viewModel.onEvent(AnalyzeEvent.DeleteBatch)
+                                        viewModel.onEvent(AdminEvent.DeleteBatch)
                                     },
                                     icon = Icons.Outlined.Delete,
                                     text = stringResource(Res.string.delete_batch)
                                 )
+                                Box {
+                                    OutlinedTextField(
+                                        value = if (state.refIetf.isNullOrBlank()) {
+                                            ""
+                                        } else {
+                                            val name = state.refLanguageName
+                                                ?: state.refIetf
+                                            val type = state.refResourceType
+                                                ?.uppercase() ?: ""
+                                            "$name ($type)"
+                                        },
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        singleLine = true,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Translate,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector = if (showReferenceDialog) {
+                                                    Icons.Default.KeyboardArrowUp
+                                                } else {
+                                                    Icons.Default.KeyboardArrowDown
+                                                },
+                                                contentDescription = null
+                                            )
+                                        },
+                                        label = {
+                                            Text(stringResource(Res.string.reference_resource))
+                                        },
+                                        placeholder = {
+                                            Text(
+                                                stringResource(
+                                                    Res.string.select_reference
+                                                )
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .clickable {
+                                                viewModel.onEvent(
+                                                    AdminEvent.FetchRefLanguages
+                                                )
+                                                showReferenceDialog = true
+                                            }
+                                    )
+                                }
 
                                 HorizontalDivider()
 
@@ -228,7 +293,7 @@ class AnalyzeScreen(
                                     CustomTextButton(
                                         onClick = {
                                             viewModel.onEvent(
-                                                AnalyzeEvent.ResetReview(batch.id)
+                                                AdminEvent.ResetReview(batch.id)
                                             )
                                         },
                                         icon = Icons.Default.History,
@@ -240,7 +305,7 @@ class AnalyzeScreen(
 
                                 CustomTextButton(
                                     onClick = {
-                                        viewModel.onEvent(AnalyzeEvent.SaveReport)
+                                        viewModel.onEvent(AdminEvent.SaveReport)
                                     },
                                     icon = Icons.Outlined.Save,
                                     text = stringResource(Res.string.save_report)
@@ -350,6 +415,29 @@ class AnalyzeScreen(
 
             state.progress?.let {
                 ProgressDialog(it)
+            }
+
+            if (showReferenceDialog) {
+                LanguagesDialog(
+                    languages = state.refLanguages,
+                    resourceTypes = state.refResourceTypes,
+                    onLanguageSelected = {
+                        viewModel.onEvent(
+                            AdminEvent.FetchRefResourceTypes(it.ietfCode)
+                        )
+                    },
+                    onResourceTypeSelected = { language, resourceType ->
+                        viewModel.onEvent(
+                            AdminEvent.SetReference(
+                                language.ietfCode,
+                                resourceType
+                            )
+                        )
+                    },
+                    onDismiss = { showReferenceDialog = false },
+                    confirmLabel = stringResource(Res.string.save),
+                    disallowed = ietfCode to resourceType
+                )
             }
         }
     }

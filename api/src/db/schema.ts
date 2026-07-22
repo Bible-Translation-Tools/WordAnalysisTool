@@ -85,35 +85,33 @@ export const batchesTable = pgTable(
   "batches",
   {
     id: varchar("id", { length: 255 }).primaryKey().notNull(),
-    ietfCode: varchar("ietf_code", { length: 255 }).notNull(),
-    language: varchar("language", { length: 255 }).default("").notNull(),
     languageId: integer("language_id").references(() => languagesTable.id, {
       onDelete: "set null",
     }),
-    resourceType: varchar("resource_type", { length: 255 }).notNull(),
     resourceId: integer("resource_id").references(() => resourcesTable.id, {
       onDelete: "set null",
     }),
+    // Reference translation resource used for AI context, chosen per batch.
     refResourceId: integer("ref_resource_id").references(
       () => resourcesTable.id,
       { onDelete: "set null" },
     ),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
     ingesting: boolean("ingesting").default(false).notNull(),
+    pending: boolean("pending").default(false).notNull(),
     apostropheIsSeparator: boolean("apostrophe_is_separator")
       .default(true)
       .notNull(),
     models: text("models"),
-    pending: boolean("pending").default(false).notNull(),
     error: text("error"),
     retries: integer("retries").default(0).notNull(),
-    userId: integer("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("idx_unique_batch").on(table.ietfCode, table.resourceType),
+    uniqueIndex("idx_unique_batch").on(table.resourceId),
     index("idx_batch_user_id").on(table.userId),
     index("idx_batch_language_id").on(table.languageId),
     index("idx_batch_resource_id").on(table.resourceId),

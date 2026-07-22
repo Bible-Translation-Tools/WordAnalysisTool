@@ -50,6 +50,8 @@
     <string name="batch_not_deleted">Could not delete results. Please try again.</string>
     <string name="batch_deleted">Results successfully deleted.</string>
     <string name="process_words">Get Results</string>
+    <string name="select_reference">Select Reference</string>
+    <string name="reference_same_as_source">Reference must differ from the source translation</string>
     <string name="sort_words">Sort words</string>
     <string name="creating_batch">Creating request for results...</string>
     <string name="all_results_received">All results received.</string>
@@ -99,4 +101,5 @@
     <string name="complete_success">Successfully Completed!</string>
     <string name="complete_success_description">You have successfully completed checking for misspelled words.</string>
     <string name="return_home">Return Home</string>
+    <string name="reference_resource">Reference Resource:</string>
 </resources>

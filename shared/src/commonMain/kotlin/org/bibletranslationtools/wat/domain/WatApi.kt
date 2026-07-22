@@ -63,7 +63,9 @@ data class WordsRequest(
 @Serializable
 data class BatchRequest(
     val models: List<String>,
-    val apostropheIsSeparator: Boolean
+    val apostropheIsSeparator: Boolean,
+    val refIetf: String? = null,
+    val refResourceType: String? = null
 )
 
 @Serializable
@@ -108,7 +110,16 @@ data class Batch(
     @SerialName("resource_type")
     val resourceType: String,
     val details: BatchDetails,
-    val creator: PublicUser
+    val creator: PublicUser,
+    val reference: BatchReference? = null
+)
+
+@Serializable
+data class BatchReference(
+    val ietf: String,
+    @SerialName("resource_type")
+    val resourceType: String,
+    val name: String
 )
 
 @Serializable

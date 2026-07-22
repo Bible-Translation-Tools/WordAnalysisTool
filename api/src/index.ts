@@ -26,7 +26,9 @@ import { parseVerses, findSingletons } from "./usfm";
 import { stream } from "hono/streaming";
 import {
   batchesTable,
+  languagesTable,
   modelsTable,
+  resourcesTable,
   usersTable,
   versesTable,
   wordReviewsTable,
@@ -59,9 +61,9 @@ const emptyProgress: BatchProgress = {
 type WordEntity = typeof wordsTable.$inferSelect;
 type BatchEntity = typeof batchesTable.$inferSelect;
 
-// English ULB is ingested alongside every batch as the reference resource.
-const REF_IETF = "en";
-const REF_RESOURCE_TYPE = "ulb";
+// Default reference translation when a batch doesn't specify one.
+const DEFAULT_REF_IETF = "en";
+const DEFAULT_REF_RESOURCE_TYPE = "ulb";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -153,8 +155,8 @@ async function ingestResource(
 
 /**
  * Source ingestion for one batch: ensure the translation's source and the
- * English ULB reference source are both fully stored, then compute singleton
- * words (linked to their verse) and queue the batch for AI processing.
+ * reference source are both fully stored, then compute singleton words (linked
+ * to their verse) and queue the batch for AI processing.
  */
 async function ingestSource(
   dbHelper: DbHelper,
@@ -174,25 +176,31 @@ async function ingestSource(
     }
 
     // 1. The batch's own translation source.
+    const target = await dbHelper.getResourceRef(resourceId);
+    if (!target) {
+      throw new Error("batch resource not found");
+    }
     await ingestResource(
       dbHelper,
-      batch.ietfCode,
-      batch.resourceType,
+      target.ietf,
+      target.resourceType,
       resourceId,
     );
 
-    // 2. The English ULB reference source (shared across batches; only missing
-    //    books are downloaded).
-    const refInfo = await getLanguageInfo(REF_IETF);
-    if (!refInfo) {
-      throw new Error("reference language (en) not found");
+    // 2. The reference source for this batch (shared across batches; only
+    //    missing books are downloaded). Skipped if the batch has no reference.
+    if (batch.refResourceId) {
+      const ref = await dbHelper.getResourceRef(batch.refResourceId);
+      if (!ref) {
+        throw new Error("reference resource not found");
+      }
+      await ingestResource(
+        dbHelper,
+        ref.ietf,
+        ref.resourceType,
+        batch.refResourceId,
+      );
     }
-    const refLanguageId = await dbHelper.upsertLanguage(refInfo);
-    const refResourceId = await dbHelper.upsertResource(
-      REF_RESOURCE_TYPE,
-      refLanguageId,
-    );
-    await ingestResource(dbHelper, REF_IETF, REF_RESOURCE_TYPE, refResourceId);
 
     // 3. Compute singletons from the (complete) translation source and link
     //    each word to its verse.
@@ -217,9 +225,8 @@ async function ingestSource(
       .getDb()
       .update(batchesTable)
       .set({
-        refResourceId,
         ingesting: false,
-        pending: true,
+        pending: false,
         error: null,
         retries: 0,
         updatedAt: new Date(),
@@ -448,6 +455,10 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
     const json = await JSON.parse(text);
     const models: string[] = json.models || [];
     const apostropheIsSeparator: boolean = json.apostropheIsSeparator ?? true;
+    // Per-batch reference translation (defaults applied when omitted).
+    const refIetf: string = json.refIetf || DEFAULT_REF_IETF;
+    const refResourceType: string =
+      json.refResourceType || DEFAULT_REF_RESOURCE_TYPE;
 
     if (models.length === 0) {
       throw new HTTPException(404, { message: "no models provided" });
@@ -477,13 +488,24 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
     const languageId = await dbHelper.upsertLanguage(languageInfo);
     const resourceId = await dbHelper.upsertResource(resource_type, languageId);
 
+    // Resolve the per-batch reference translation to a resource id (its verses
+    // are downloaded later during ingestion).
+    const refLanguageInfo = await getLanguageInfo(refIetf);
+    if (!refLanguageInfo) {
+      throw new HTTPException(404, {
+        message: `reference language (${refIetf}) not found`,
+      });
+    }
+    const refLanguageId = await dbHelper.upsertLanguage(refLanguageInfo);
+    const refResourceId = await dbHelper.upsertResource(
+      refResourceType,
+      refLanguageId,
+    );
+
     // TODO add current user (AND user_id = ? - user.id)
     const dbBatch =
       (await dbHelper.getDb().query.batchesTable.findFirst({
-        where: and(
-          eq(batchesTable.ietfCode, ietf_code),
-          eq(batchesTable.resourceType, resource_type),
-        ),
+        where: eq(batchesTable.resourceId, resourceId),
         columns: {
           id: true,
           pending: true,
@@ -494,9 +516,9 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
     let batchId = dbBatch?.id;
 
     const ingestFields = {
-      language: languageInfo.englishName,
       languageId: languageId,
       resourceId: resourceId,
+      refResourceId: refResourceId,
       models: JSON.stringify(models),
       apostropheIsSeparator: apostropheIsSeparator,
       ingesting: true,
@@ -512,8 +534,6 @@ app.post("/api/batch/:ietf_code/:resource_type", async (c) => {
         .insert(batchesTable)
         .values({
           id: batchId,
-          ietfCode: ietf_code,
-          resourceType: resource_type,
           userId: user.id,
           ...ingestFields,
         });
@@ -561,13 +581,13 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
     const ietf_code = c.req.param("ietf_code");
     const resource_type = c.req.param("resource_type");
 
-    const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
-      where: and(
-        eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type),
-      ),
-      columns: { id: true },
-    });
+    const resourceId = await dbHelper.getResourceId(ietf_code, resource_type);
+    const dbBatch = resourceId
+      ? await dbHelper.getDb().query.batchesTable.findFirst({
+          where: eq(batchesTable.resourceId, resourceId),
+          columns: { id: true },
+        })
+      : null;
 
     if (!dbBatch) {
       throw new HTTPException(404, { message: "batch not found" });
@@ -667,20 +687,22 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
     const ietf_code = c.req.param("ietf_code");
     const resource_type = c.req.param("resource_type");
 
-    const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
-      where: and(
-        eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type),
-      ),
-      columns: {
-        id: true,
-        pending: true,
-        error: true,
-      },
-      with: {
-        user: true,
-      },
-    });
+    const resourceId = await dbHelper.getResourceId(ietf_code, resource_type);
+    const dbBatch = resourceId
+      ? await dbHelper.getDb().query.batchesTable.findFirst({
+          where: eq(batchesTable.resourceId, resourceId),
+          columns: {
+            id: true,
+            pending: true,
+            ingesting: true,
+            error: true,
+            refResourceId: true,
+          },
+          with: {
+            user: true,
+          },
+        })
+      : null;
 
     if (!dbBatch) {
       throw new HTTPException(404, { message: "batch not found" });
@@ -695,9 +717,9 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
             WHEN bool_or(status = -1) THEN NULL
             ELSE
               CASE
-                WHEN array_agg(status) @> ARRAY[0, 0, 0]::smallint[] THEN 'Incorrect'
-                WHEN array_agg(status) @> ARRAY[1, 1, 1]::smallint[] THEN 'Correct'
-                WHEN array_agg(status) @> ARRAY[2, 2, 2]::smallint[] THEN 'Name'
+                WHEN array_agg(status) @> ARRAY[0, 0, 0]::integer[] THEN 'Incorrect'
+                WHEN array_agg(status) @> ARRAY[1, 1, 1]::integer[] THEN 'Correct'
+                WHEN array_agg(status) @> ARRAY[2, 2, 2]::integer[] THEN 'Name'
                 ELSE 'Review Needed'
               END
           END
@@ -774,7 +796,10 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
         status = BatchStatus.RUNNING;
     }
 
-    if (!dbBatch.pending) {
+    if (dbBatch.ingesting) {
+      // Still preparing the source — keep the client polling + spinner running.
+      status = BatchStatus.QUEUED;
+    } else if (!dbBatch.pending) {
       status = BatchStatus.COMPLETE;
     }
 
@@ -803,12 +828,23 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
       output: [],
     };
 
+    const reference = dbBatch.refResourceId
+      ? await dbHelper.getResourceRef(dbBatch.refResourceId)
+      : null;
+
     const batch: Batch = {
       id: dbBatch.id,
       ietf_code: ietf_code,
       resource_type: resource_type,
       details: details,
       creator: creator,
+      reference: reference
+        ? {
+            ietf: reference.ietf,
+            resource_type: reference.resourceType,
+            name: reference.name,
+          }
+        : null,
     };
 
     return c.json(batch);
@@ -841,16 +877,16 @@ app.get("/api/review/:ietf_code/:resource_type", async (c) => {
     const page = parseInt(c.req.query("page") || "1", 10);
     const limit = parseInt(c.req.query("limit") || "4", 10);
 
-    const dbBatch = await dbHelper.getDb().query.batchesTable.findFirst({
-      where: and(
-        eq(batchesTable.ietfCode, ietf_code),
-        eq(batchesTable.resourceType, resource_type),
-      ),
-      columns: { id: true, pending: true, resourceId: true },
-      with: {
-        user: true,
-      },
-    });
+    const resourceId = await dbHelper.getResourceId(ietf_code, resource_type);
+    const dbBatch = resourceId
+      ? await dbHelper.getDb().query.batchesTable.findFirst({
+          where: eq(batchesTable.resourceId, resourceId),
+          columns: { id: true, pending: true, resourceId: true },
+          with: {
+            user: true,
+          },
+        })
+      : null;
 
     if (!dbBatch) {
       throw new HTTPException(404, { message: "batch not found" });
@@ -1193,8 +1229,8 @@ app.get("/api/batch/recent", async (c) => {
       .getDb()
       .selectDistinct({
         id: batchesTable.id,
-        ietfCode: batchesTable.ietfCode,
-        resourceType: batchesTable.resourceType,
+        ietfCode: languagesTable.code,
+        resourceType: resourcesTable.resourceType,
         user: {
           username: usersTable.username,
         },
@@ -1202,7 +1238,12 @@ app.get("/api/batch/recent", async (c) => {
       .from(batchesTable)
       .innerJoin(wordsTable, eq(batchesTable.id, wordsTable.batchId))
       .innerJoin(modelsTable, eq(wordsTable.id, modelsTable.wordId))
-      .innerJoin(usersTable, eq(batchesTable.userId, usersTable.id));
+      .innerJoin(usersTable, eq(batchesTable.userId, usersTable.id))
+      .innerJoin(resourcesTable, eq(batchesTable.resourceId, resourcesTable.id))
+      .innerJoin(
+        languagesTable,
+        eq(resourcesTable.languageId, languagesTable.id),
+      );
 
     const progress = emptyProgress;
 
@@ -1485,6 +1526,11 @@ export default {
           const modelsResults: ModelResult[] = [];
           let wordsPrompt = words.map((w) => w.word).join(", ");
 
+          // Language name for the AI prompt, derived from the batch's language.
+          const languageName = batch.languageId
+            ? await dbHelper.getLanguageName(batch.languageId)
+            : "";
+
           // Build per-word context: the source verse each word occurs in, plus
           // the aligned verse from the reference resource. Only the verses this
           // chunk needs are fetched.
@@ -1527,7 +1573,7 @@ export default {
               } else {
                 const chatResponse = await client.chat(
                   model.model,
-                  batch.language,
+                  languageName,
                   wordContexts,
                 );
 

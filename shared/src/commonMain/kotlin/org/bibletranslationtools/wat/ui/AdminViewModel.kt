@@ -60,7 +60,7 @@ import kotlin.time.ExperimentalTime
 
 private const val BATCH_REQUEST_DELAY = 10000L
 
-data class AnalyzeState(
+data class AdminState(
     val batch: Batch? = null,
     val batchProgress: Float = -1f,
     val prompt: String? = null,
@@ -69,22 +69,33 @@ data class AnalyzeState(
     val progress: Progress? = null,
     val status: Status? = null,
     val language: LanguageInfo? = null,
-    val apostropheIsSeparator: Boolean = true
+    val apostropheIsSeparator: Boolean = true,
+    val refIetf: String? = null,
+    val refResourceType: String? = null,
+    val refLanguageName: String? = null,
+    val refLanguages: List<LanguageInfo> = emptyList(),
+    val refResourceTypes: List<String> = emptyList()
 )
 
-sealed class AnalyzeEvent {
-    data object Idle : AnalyzeEvent()
-    data object BatchWords : AnalyzeEvent()
-    data object PauseBatch: AnalyzeEvent()
-    data object DeleteBatch : AnalyzeEvent()
-    data object SaveReport : AnalyzeEvent()
-    data class ResetReview(val batchId: String) : AnalyzeEvent()
-    data object Logout : AnalyzeEvent()
-    data class UpdateModels(val value: List<String>) : AnalyzeEvent()
-    data class SetApostrophe(val value: Boolean) : AnalyzeEvent()
+sealed class AdminEvent {
+    data object Idle : AdminEvent()
+    data object BatchWords : AdminEvent()
+    data object PauseBatch: AdminEvent()
+    data object DeleteBatch : AdminEvent()
+    data object SaveReport : AdminEvent()
+    data class ResetReview(val batchId: String) : AdminEvent()
+    data object Logout : AdminEvent()
+    data class UpdateModels(val value: List<String>) : AdminEvent()
+    data class SetApostrophe(val value: Boolean) : AdminEvent()
+    data class SetReference(
+        val ietf: String?,
+        val resourceType: String?
+    ) : AdminEvent()
+    data object FetchRefLanguages : AdminEvent()
+    data class FetchRefResourceTypes(val ietfCode: String) : AdminEvent()
 }
 
-class AnalyzeViewModel(
+class AdminViewModel(
     private val ietfCode: String,
     private val resourceType: String,
     private val user: User,
@@ -94,8 +105,8 @@ class AnalyzeViewModel(
 
     private var initialized = false
 
-    private var _state = MutableStateFlow(AnalyzeState())
-    val state: StateFlow<AnalyzeState> = _state
+    private var _state = MutableStateFlow(AdminState())
+    val state: StateFlow<AdminState> = _state
         .onStart {
             if (!initialized) {
                 initialized = true
@@ -106,24 +117,36 @@ class AnalyzeViewModel(
         .stateIn(
             scope = screenModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = AnalyzeState()
+            initialValue = AdminState()
         )
 
-    private val _event: Channel<AnalyzeEvent> = Channel()
+    private val _event: Channel<AdminEvent> = Channel()
     val event = _event.receiveAsFlow()
 
     private var fetchJob by mutableStateOf<Job?>(null)
 
-    fun onEvent(event: AnalyzeEvent) {
+    fun onEvent(event: AdminEvent) {
         when (event) {
-            is AnalyzeEvent.SetApostrophe ->
+            is AdminEvent.SetApostrophe ->
                 _state.update { it.copy(apostropheIsSeparator = event.value) }
-            is AnalyzeEvent.UpdateModels -> updateModels(event.value)
-            is AnalyzeEvent.BatchWords -> createBatch()
-            is AnalyzeEvent.PauseBatch -> pauseBatch()
-            is AnalyzeEvent.DeleteBatch -> deleteBatch()
-            is AnalyzeEvent.SaveReport -> saveReport()
-            is AnalyzeEvent.ResetReview -> resetReview(event.batchId)
+            is AdminEvent.SetReference -> {
+                _state.update {
+                    it.copy(
+                        refIetf = event.ietf,
+                        refResourceType = event.resourceType
+                    )
+                }
+                resolveRefLanguageName(event.ietf)
+            }
+            is AdminEvent.FetchRefLanguages -> fetchRefLanguages()
+            is AdminEvent.FetchRefResourceTypes ->
+                fetchRefResourceTypes(event.ietfCode)
+            is AdminEvent.UpdateModels -> updateModels(event.value)
+            is AdminEvent.BatchWords -> createBatch()
+            is AdminEvent.PauseBatch -> pauseBatch()
+            is AdminEvent.DeleteBatch -> deleteBatch()
+            is AdminEvent.SaveReport -> saveReport()
+            is AdminEvent.ResetReview -> resetReview(event.batchId)
             else -> resetChannel()
         }
     }
@@ -133,6 +156,39 @@ class AnalyzeViewModel(
             _state.update {
                 it.copy(language = bielGraphQlApi.getLanguageInfo(ietfCode))
             }
+        }
+    }
+
+    private fun fetchRefLanguages() {
+        if (_state.value.refLanguages.isNotEmpty()) return
+        screenModelScope.launch {
+            val languages = bielGraphQlApi.getLanguages()
+            _state.update { it.copy(refLanguages = languages) }
+        }
+    }
+
+    private fun fetchRefResourceTypes(ietfCode: String) {
+        screenModelScope.launch {
+            val resourceTypes = bielGraphQlApi
+                .getUsfmForLanguage(ietfCode)
+                .keys
+                .toList()
+            _state.update { it.copy(refResourceTypes = resourceTypes) }
+        }
+    }
+
+    // Resolve the reference ietf code to a display name (already-loaded list
+    // first, else a lookup), so the field can show a name instead of a code.
+    private fun resolveRefLanguageName(ietf: String?) {
+        if (ietf.isNullOrBlank()) {
+            _state.update { it.copy(refLanguageName = null) }
+            return
+        }
+        screenModelScope.launch {
+            val name = _state.value.refLanguages
+                .find { it.ietfCode == ietf }?.name
+                ?: bielGraphQlApi.getLanguageInfo(ietf)?.name
+            _state.update { it.copy(refLanguageName = name) }
         }
     }
 
@@ -163,6 +219,20 @@ class AnalyzeViewModel(
 
                     updateBatch(batch)
 
+                    // Populate the reference from the server (unless the user
+                    // has a pending local selection).
+                    if (_state.value.refIetf.isNullOrBlank()) {
+                        batch.reference?.let { ref ->
+                            _state.update {
+                                it.copy(
+                                    refIetf = ref.ietf,
+                                    refResourceType = ref.resourceType,
+                                    refLanguageName = ref.name
+                                )
+                            }
+                        }
+                    }
+
                     val current = batch.details.progress.completed
                     val total = batch.details.progress.total
                     val progress = current / total.toFloat()
@@ -186,7 +256,7 @@ class AnalyzeViewModel(
                                     message = getString(Res.string.token_invalid),
                                     onClose = {
                                         screenModelScope.launch {
-                                            _event.send(AnalyzeEvent.Logout)
+                                            _event.send(AdminEvent.Logout)
                                             updateToast(null)
                                         }
                                     }
@@ -251,7 +321,9 @@ class AnalyzeViewModel(
             // the client only sends the models + tokenization option.
             val request = BatchRequest(
                 models = _state.value.models,
-                apostropheIsSeparator = _state.value.apostropheIsSeparator
+                apostropheIsSeparator = _state.value.apostropheIsSeparator,
+                refIetf = _state.value.refIetf?.ifBlank { null },
+                refResourceType = _state.value.refResourceType?.ifBlank { null }
             )
 
             watApi.createBatch(
@@ -271,7 +343,7 @@ class AnalyzeViewModel(
                                 message = getString(Res.string.token_invalid),
                                 onClose = {
                                     screenModelScope.launch {
-                                        _event.send(AnalyzeEvent.Logout)
+                                        _event.send(AdminEvent.Logout)
                                         updateToast(null)
                                     }
                                 }
@@ -543,7 +615,7 @@ class AnalyzeViewModel(
 
     private fun resetChannel() {
         screenModelScope.launch {
-            _event.send(AnalyzeEvent.Idle)
+            _event.send(AdminEvent.Idle)
         }
     }
 }

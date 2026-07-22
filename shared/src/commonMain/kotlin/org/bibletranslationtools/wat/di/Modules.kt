@@ -6,7 +6,7 @@ import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.domain.WatApiImpl
 import org.bibletranslationtools.wat.domain.createAiHttpClient
 import org.bibletranslationtools.wat.platform.httpClientEngine
-import org.bibletranslationtools.wat.ui.AnalyzeViewModel
+import org.bibletranslationtools.wat.ui.AdminViewModel
 import org.bibletranslationtools.wat.ui.HomeViewModel
 import org.bibletranslationtools.wat.ui.LoginViewModel
 import org.bibletranslationtools.wat.ui.ReviewViewModel
@@ -39,7 +39,7 @@ val sharedModule = module {
         )
     }
     factory { (ietfCode: String, resourceType: String, user: User) ->
-        AnalyzeViewModel(
+        AdminViewModel(
             ietfCode = ietfCode,
             resourceType = resourceType,
             user = user,

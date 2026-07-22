@@ -15,12 +15,19 @@ export type BatchRequest = {
   models: string[];
 };
 
+export type BatchReference = {
+  ietf: string;
+  resource_type: string;
+  name: string;
+};
+
 export type Batch = {
   id: string;
   ietf_code: string;
   resource_type: string;
   details: BatchDetails;
   creator: PublicUser;
+  reference?: BatchReference | null;
 };
 
 export type BatchProgress = {

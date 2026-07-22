@@ -28,7 +28,7 @@ You will receive a JSON array of entries. Each entry has:
 - "word": a single {language} word to evaluate
 - "reference": the verse reference the word comes from
 - "source": the {language} verse text where the word occurs (context)
-- "referenceVerse": the same verse in a reference translation from a well-known language (may be empty)
+- "referenceVerse": the same verse in a reference translation from a related, well-resourced language (may be empty)
 
 For each entry, classify ONLY the "word" with exactly one status:
 - 1 = correctly spelled: a valid {language} word, INCLUDING inflected/declined/conjugated forms, affixed forms, and rare words

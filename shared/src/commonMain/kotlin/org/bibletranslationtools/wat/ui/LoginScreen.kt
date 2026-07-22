@@ -42,7 +42,7 @@ class LoginScreen(private val initialPath: String? = null) : Screen {
         val navigator = LocalNavigator.currentOrThrow
 
         val state by viewModel.state.collectAsStateWithLifecycle()
-        val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
+        val event by viewModel.event.collectAsStateWithLifecycle(AdminEvent.Idle)
 
         val uriHandler = LocalUriHandler.current
 
