@@ -715,13 +715,13 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
         consensus: sql<string>`
           CASE
             WHEN bool_or(status = -1) THEN NULL
-            ELSE
-              CASE
-                WHEN array_agg(status) @> ARRAY[0, 0, 0]::integer[] THEN 'Incorrect'
-                WHEN array_agg(status) @> ARRAY[1, 1, 1]::integer[] THEN 'Correct'
-                WHEN array_agg(status) @> ARRAY[2, 2, 2]::integer[] THEN 'Name'
-                ELSE 'Review Needed'
+            WHEN min(status) = max(status) THEN
+              CASE min(status)
+                WHEN 0 THEN 'Incorrect'
+                WHEN 1 THEN 'Correct'
+                WHEN 2 THEN 'Name'
               END
+            ELSE 'Review Needed'
           END
         `.as("consensus"),
         isProcessed: sql<boolean>`NOT bool_or(status = -1)`.as("is_processed"),
