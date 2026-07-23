@@ -44,8 +44,7 @@ enum class BatchStatus {
 enum class WordStatus(val value: Int) {
     UNCHECKED(-1),
     INCORRECT(0),
-    CORRECT(1),
-    NAME(2)
+    CORRECT(1)
 }
 
 @Serializable
@@ -78,7 +77,6 @@ data class WordData(
 data class BatchProgress(
     val correct: Int,
     val incorrect: Int,
-    val name: Int,
     @SerialName("review_needed")
     val reviewNeeded: Int,
     val reviewed: Int,

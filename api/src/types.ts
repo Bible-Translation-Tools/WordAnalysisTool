@@ -33,7 +33,6 @@ export type Batch = {
 export type BatchProgress = {
   correct: number;
   incorrect: number;
-  name: number;
   review_needed: number;
   reviewed: number;
   completed: number;

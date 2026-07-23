@@ -29,5 +29,5 @@ open class EnumIntSerializer<T:Enum<*>>(
 internal class WordStatusSerializer : EnumIntSerializer<WordStatus>(
     "status",
     { it.value },
-    { v -> WordStatus.entries.first { it.value == v } }
+    { v -> WordStatus.entries.firstOrNull { it.value == v } ?: WordStatus.UNCHECKED }
 )

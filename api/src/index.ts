@@ -4,7 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import type { JwtVariables } from "hono/jwt";
 import { jwt, sign } from "hono/jwt";
 import { v4 as uuid4 } from "uuid";
-import AiClient from "./ai-client";
+import AiClient from "./ai/client";
 import { isAdmin, isChatError } from "./utils";
 import {
   Batch,
@@ -51,7 +51,6 @@ import { unionAll } from "drizzle-orm/pg-core";
 const emptyProgress: BatchProgress = {
   correct: 0,
   incorrect: 0,
-  name: 0,
   review_needed: 0,
   reviewed: 0,
   completed: 0,
@@ -608,14 +607,16 @@ app.get("/api/report/:ietf_code/:resource_type", async (c) => {
     const statusMap: { [key: number]: string } = {
       0: "Likely Incorrect",
       1: "Likely Correct",
-      2: "Name",
       [-1]: "Not Processed",
     };
 
     const getConsensus = (st: number[]) => {
-      if (st.every((s) => s === 0)) return "Likely Incorrect";
-      if (st.every((s) => s === 1)) return "Likely Correct";
-      if (st.every((s) => s === 2)) return "Name";
+      // Only 0 (incorrect) and 1 (correct) are valid votes; ignore anything else.
+      const correct = st.filter((s) => s === 1).length;
+      const incorrect = st.filter((s) => s === 0).length;
+      if (correct === 0 && incorrect === 0) return "Not Processed";
+      if (correct > incorrect) return "Likely Correct";
+      if (incorrect > correct) return "Likely Incorrect";
       return "Review Needed";
     };
 
@@ -715,12 +716,10 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
         consensus: sql<string>`
           CASE
             WHEN bool_or(status = -1) THEN NULL
-            WHEN min(status) = max(status) THEN
-              CASE min(status)
-                WHEN 0 THEN 'Incorrect'
-                WHEN 1 THEN 'Correct'
-                WHEN 2 THEN 'Name'
-              END
+            -- Only 0/1 count as votes; a word with no valid votes is excluded.
+            WHEN count(*) FILTER (WHERE status IN (0, 1)) = 0 THEN NULL
+            WHEN count(*) FILTER (WHERE status = 1) > count(*) FILTER (WHERE status = 0) THEN 'Correct'
+            WHEN count(*) FILTER (WHERE status = 0) > count(*) FILTER (WHERE status = 1) THEN 'Incorrect'
             ELSE 'Review Needed'
           END
         `.as("consensus"),
@@ -735,7 +734,6 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
       .select({
         correct: count(sql`CASE WHEN consensus = 'Correct' THEN 1 END`),
         incorrect: count(sql`CASE WHEN consensus = 'Incorrect' THEN 1 END`),
-        name: count(sql`CASE WHEN consensus = 'Name' THEN 1 END`),
         reviewNeeded: count(
           sql`CASE WHEN consensus = 'Review Needed' THEN 1 END`,
         ),
@@ -772,7 +770,6 @@ app.get("/api/stats/:ietf_code/:resource_type", async (c) => {
     const progress: BatchProgress = {
       correct: statsInfo.correct,
       incorrect: statsInfo.incorrect,
-      name: statsInfo.name,
       review_needed: statsInfo.reviewNeeded,
       reviewed: statsInfo.reviewed,
       completed: statsInfo.completed,

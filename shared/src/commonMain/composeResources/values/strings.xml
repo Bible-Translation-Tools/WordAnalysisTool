@@ -38,8 +38,6 @@
     <string name="likely_correct">Likely Correct</string>
     <string name="likely_incorrect">Likely Incorrect</string>
     <string name="review_needed">Review Needed</string>
-    <string name="names">Names</string>
-    <string name="name">Name</string>
     <string name="login">Login with WACS</string>
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>
@@ -56,7 +54,6 @@
     <string name="creating_batch">Creating request for results...</string>
     <string name="all_results_received">All results received.</string>
     <string name="is_word_correct">Is this word correct?</string>
-    <string name="is_word_name">Is this word a name?</string>
     <string name="scripture_reference">Scripture Reference</string>
     <string name="correct">Correct</string>
     <string name="incorrect">Incorrect</string>

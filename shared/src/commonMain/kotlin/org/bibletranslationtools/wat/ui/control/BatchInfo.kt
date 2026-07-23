@@ -19,7 +19,6 @@ import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.likely_correct
 import wordanalysistool.shared.generated.resources.likely_incorrect
-import wordanalysistool.shared.generated.resources.names
 import wordanalysistool.shared.generated.resources.review_needed
 import wordanalysistool.shared.generated.resources.total_singletons
 
@@ -74,14 +73,6 @@ fun BatchInfo(
         ) {
             Text(stringResource(Res.string.likely_correct))
             Text(text = info?.correct?.toString() ?: "0")
-        }
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(Res.string.names))
-            Text(text = info?.name?.toString() ?: "0")
         }
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outline
