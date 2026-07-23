@@ -22,6 +22,7 @@ enum class Model(val value: String) {
     CLAUDE_5_SONNET("claude-sonnet-5"),
     MISTRAL_MEDIUM_3_5("mistral-medium-2604"),
     MISTRAL_LARGE_3("mistral-large-2512"),
+    GEMINI_FLASH_3_5_LITE("gemini-3.5-flash-lite"),
     GEMINI_FLASH_3_6("gemini-3.6-flash")
 }
 

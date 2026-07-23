@@ -22,6 +22,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
   "mistral-medium-2604": { provider: "mistral", tuning: { temperature: 0.2 } },
   "mistral-large-2512": { provider: "mistral", tuning: { temperature: 0.2 } },
 
+  "gemini-3.5-flash-lite": { provider: "google", tuning: { effort: "low" } },
   "gemini-3.6-flash": { provider: "google", tuning: { effort: "low" } },
 };
 
