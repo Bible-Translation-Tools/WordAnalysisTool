@@ -103,6 +103,10 @@ class AdminViewModel(
 
     private var initialized = false
 
+    // Once the admin toggles the per-batch apostrophe option locally, stop
+    // overwriting it from the polled server value.
+    private var apostropheTouched = false
+
     private var _state = MutableStateFlow(AdminState())
     val state: StateFlow<AdminState> = _state
         .onStart {
@@ -125,8 +129,10 @@ class AdminViewModel(
 
     fun onEvent(event: AdminEvent) {
         when (event) {
-            is AdminEvent.SetApostrophe ->
+            is AdminEvent.SetApostrophe -> {
+                apostropheTouched = true
                 _state.update { it.copy(apostropheIsSeparator = event.value) }
+            }
             is AdminEvent.SetReference -> {
                 _state.update {
                     it.copy(
@@ -228,6 +234,16 @@ class AdminViewModel(
                                     refLanguageName = ref.name
                                 )
                             }
+                        }
+                    }
+
+                    // Populate the per-batch apostrophe option from the server
+                    // until the admin changes it locally.
+                    if (!apostropheTouched) {
+                        _state.update {
+                            it.copy(
+                                apostropheIsSeparator = batch.apostropheIsSeparator
+                            )
                         }
                     }
 

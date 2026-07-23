@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -68,7 +67,6 @@ import wordanalysistool.shared.generated.resources.system_language
 import wordanalysistool.shared.generated.resources.theme_dark
 import wordanalysistool.shared.generated.resources.theme_light
 import wordanalysistool.shared.generated.resources.theme_system
-import wordanalysistool.shared.generated.resources.use_apostrophe_regex
 
 class SettingsScreen(private val user: User) : Screen {
 
@@ -100,11 +98,6 @@ class SettingsScreen(private val user: User) : Screen {
         val models = remember { modelsState }
 
         var isModelsExpanded by remember { mutableStateOf(false) }
-
-        var apostropheIsSeparator by rememberBooleanSetting(
-            Settings.APOSTROPHE_IS_SEPARATOR.name,
-            true
-        )
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -265,19 +258,6 @@ class SettingsScreen(private val user: User) : Screen {
                                     }
                                 }
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(text = stringResource(Res.string.use_apostrophe_regex))
-                                    Row(modifier = Modifier) {
-                                        Checkbox(
-                                            checked = apostropheIsSeparator,
-                                            onCheckedChange = { apostropheIsSeparator = it }
-                                        )
-                                    }
-                                }
                             }
                         }
                     }

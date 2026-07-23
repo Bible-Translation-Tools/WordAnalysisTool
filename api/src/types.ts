@@ -28,6 +28,7 @@ export type Batch = {
   details: BatchDetails;
   creator: PublicUser;
   reference?: BatchReference | null;
+  apostrophe_is_separator?: boolean;
 };
 
 export type BatchProgress = {

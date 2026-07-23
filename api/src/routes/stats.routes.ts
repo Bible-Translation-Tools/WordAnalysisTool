@@ -64,6 +64,7 @@ router.get("/api/stats/:ietf_code/:resource_type", async (c) => {
       resource_type,
       details,
       creator,
+      apostrophe_is_separator: dbBatch.apostropheIsSeparator,
       reference: reference
         ? {
             ietf: reference.ietf,

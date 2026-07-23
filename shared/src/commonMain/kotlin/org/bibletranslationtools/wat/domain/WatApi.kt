@@ -109,7 +109,9 @@ data class Batch(
     val resourceType: String,
     val details: BatchDetails,
     val creator: PublicUser,
-    val reference: BatchReference? = null
+    val reference: BatchReference? = null,
+    @SerialName("apostrophe_is_separator")
+    val apostropheIsSeparator: Boolean = true
 )
 
 @Serializable

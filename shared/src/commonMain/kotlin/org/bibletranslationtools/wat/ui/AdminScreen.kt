@@ -37,6 +37,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -91,6 +92,7 @@ import wordanalysistool.shared.generated.resources.save_report
 import wordanalysistool.shared.generated.resources.select_reference
 import wordanalysistool.shared.generated.resources.settings
 import wordanalysistool.shared.generated.resources.sign_out
+import wordanalysistool.shared.generated.resources.use_apostrophe_regex
 
 class AdminScreen(
     val ietfCode: String,
@@ -115,11 +117,6 @@ class AdminScreen(
         }.toMutableStateList()
         val models = remember { modelsState }
 
-        val apostropheIsSeparator by rememberBooleanSetting(
-            Settings.APOSTROPHE_IS_SEPARATOR.name,
-            true
-        )
-
         var showReferenceDialog by remember { mutableStateOf(false) }
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
@@ -142,10 +139,6 @@ class AdminScreen(
             if (models.isNotEmpty()) {
                 viewModel.onEvent(AdminEvent.UpdateModels(models))
             }
-        }
-
-        LaunchedEffect(apostropheIsSeparator) {
-            viewModel.onEvent(AdminEvent.SetApostrophe(apostropheIsSeparator))
         }
 
         LaunchedEffect(state.status) {
@@ -233,6 +226,9 @@ class AdminScreen(
                                     icon = Icons.Outlined.Delete,
                                     text = stringResource(Res.string.delete_batch)
                                 )
+
+                                HorizontalDivider()
+
                                 Box {
                                     OutlinedTextField(
                                         value = if (state.refIetf.isNullOrBlank()) {
@@ -284,6 +280,27 @@ class AdminScreen(
                                                 )
                                                 showReferenceDialog = true
                                             }
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.use_apostrophe_regex
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Switch(
+                                        checked = state.apostropheIsSeparator,
+                                        onCheckedChange = {
+                                            viewModel.onEvent(
+                                                AdminEvent.SetApostrophe(it)
+                                            )
+                                        }
                                     )
                                 }
 

@@ -107,6 +107,7 @@ router.post("/api/batch/:ietf_code/:resource_type", async (c) => {
       resource_type,
       details,
       creator,
+      apostrophe_is_separator: apostropheIsSeparator,
     };
 
     return c.json(batch);
