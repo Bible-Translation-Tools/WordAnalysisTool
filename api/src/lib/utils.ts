@@ -1,4 +1,4 @@
-import { BatchError, SplitBatchJson } from "./types";
+import { BatchError, SplitBatchJson } from "../types";
 
 export const isAdmin = (username: string, env: CloudflareBindings) => {
   const admins = env.WAT_ADMINS.split(",");
@@ -13,8 +13,19 @@ export const chunkArray = (array: any[], size: number) => {
   return arr;
 };
 
+/**
+ * Keep error reasons short and useful. Drizzle wraps the driver error, so its
+ * `.message` is just the "Failed query" SQL dump — the real Postgres message is
+ * on `.cause`. Prefer that, take the first line (drops the params dump that
+ * embeds verse text), and cap the length.
+ */
+export const briefReason = (e: any): string => {
+  const msg = e?.cause?.message ?? e?.message ?? String(e);
+  return String(msg).split("\n")[0].slice(0, 200);
+};
+
 export const isChatError = (obj: any): obj is BatchError => {
-  return (
+  return !!(
     obj &&
     typeof obj.message === "string" &&
     (typeof obj.prompt === "string" || obj.prompt === null) &&

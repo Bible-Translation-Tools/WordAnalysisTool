@@ -1,35 +1,38 @@
 {
-	"name": "wat-worker",
-	"scripts": {
-		"dev": "wrangler dev",
-		"deploy": "wrangler deploy --minify",
-		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
-		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate"
-	},
-	"dependencies": {
-		"@anthropic-ai/sdk": "^0.113.0",
-		"@google/genai": "^2.13.0",
-		"@mistralai/mistralai": "^2.5.0",
-		"@opentelemetry/api": "^1.9.1",
-		"common-tags": "^1.8.2",
-		"drizzle-orm": "^0.45.2",
-		"hono": "^4.12.30",
-		"js-jsonl": "^1.1.1",
-		"openai": "^6.48.0",
-		"sqlstring": "^2.3.3",
-		"usfmtools": "^1.1.0",
-		"uuid": "^14.0.1",
-		"zod": "^4.4.3"
-	},
-	"devDependencies": {
-		"@types/common-tags": "^1.8.4",
-		"@types/sqlstring": "^2.3.2",
-		"dotenv": "^17.4.2",
-		"drizzle-kit": "^0.31.10",
-		"postgres": "^3.4.9",
-		"tsx": "^4.23.1",
-		"typescript": "^7.0.2",
-		"wrangler": "^4.112.0"
-	}
+  "name": "wat-worker",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.113.0",
+    "@google/genai": "^2.13.0",
+    "@mistralai/mistralai": "^2.5.0",
+    "@opentelemetry/api": "^1.9.1",
+    "common-tags": "^1.8.2",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.30",
+    "js-jsonl": "^1.1.1",
+    "openai": "^6.48.0",
+    "sqlstring": "^2.3.3",
+    "usfmtools": "^1.1.0",
+    "uuid": "^14.0.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/common-tags": "^1.8.4",
+    "@types/sqlstring": "^2.3.2",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "postgres": "^3.4.9",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.112.0"
+  }
 }
