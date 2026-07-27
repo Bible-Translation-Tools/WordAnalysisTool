@@ -63,16 +63,16 @@ fun BatchInfo(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(Res.string.review_needed))
-            Text(text = info?.reviewNeeded?.toString() ?: "0")
+            Text(stringResource(Res.string.likely_correct))
+            Text(text = info?.correct?.toString() ?: "0")
         }
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(Res.string.likely_correct))
-            Text(text = info?.correct?.toString() ?: "0")
+            Text(stringResource(Res.string.review_needed))
+            Text(text = info?.reviewNeeded?.toString() ?: "0")
         }
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outline
