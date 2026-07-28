@@ -1,9 +1,5 @@
-export type WordsParams = {
+export type WordParams = {
   batchId: string;
-  words: WordRequest[];
-};
-
-export type WordRequest = {
   word: string;
   correct: boolean;
 };

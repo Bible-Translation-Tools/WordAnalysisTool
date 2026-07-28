@@ -21,9 +21,6 @@ router.get("/api/review/:ietf_code/:resource_type", async (c) => {
 
     const user = await getUser(c);
 
-    const page = parseInt(c.req.query("page") || "1", 10);
-    const limit = parseInt(c.req.query("limit") || "4", 10);
-
     const resourceId = await repos.resources.getId(ietf_code, resource_type);
     const dbBatch = resourceId
       ? await repos.batches.findByResourceIdWithUser(resourceId)
@@ -40,8 +37,6 @@ router.get("/api/review/:ietf_code/:resource_type", async (c) => {
       db,
       dbBatch.id,
       user.id,
-      page,
-      limit,
     );
 
     const details: BatchDetails = {

@@ -14,16 +14,15 @@ import { emptyProgress } from "./stats.service";
 const REVIEW_POOL_LIMIT = 370;
 
 /**
- * Build the paged review pool for a batch/user: unanimous correct/incorrect
- * words, sampled proportionally down to REVIEW_POOL_LIMIT, joined to their verse
- * and the user's existing review. Returns the page of words + review progress.
+ * Build the review pool for a batch/user: unanimous correct/incorrect words,
+ * sampled proportionally down to REVIEW_POOL_LIMIT, joined to their verse and
+ * the user's existing review. Returns the whole ordered pool + review progress;
+ * the client walks it one word at a time.
  */
 export async function sampleReviewWords(
   db: Database,
   batchId: string,
   userId: number,
-  page: number,
-  limit: number,
 ): Promise<{ output: WordResponse[]; progress: BatchProgress }> {
   const categorizedGoodWords = db
     .select({
@@ -91,37 +90,6 @@ export async function sampleReviewWords(
     }
   }
 
-  const [counts] = await db
-    .select({
-      totalCount: count(wordsTable.id),
-      reviewedCount: count(wordReviewsTable.pk),
-    })
-    .from(wordsTable)
-    .innerJoin(sampledGoodWords, eq(wordsTable.id, sampledGoodWords.wordId))
-    .leftJoin(
-      wordReviewsTable,
-      and(
-        eq(wordsTable.id, wordReviewsTable.wordId),
-        eq(wordReviewsTable.userId, userId),
-      ),
-    );
-
-  const total = counts.totalCount;
-  const reviewed = counts.reviewedCount;
-
-  const progress: BatchProgress = { ...emptyProgress, reviewed, total };
-
-  let targetPage = page;
-  if (targetPage <= 0) {
-    if (reviewed >= total && total > 0) {
-      targetPage = Math.ceil(total / limit);
-    } else {
-      targetPage = Math.floor(reviewed / limit) + 1;
-    }
-  }
-  targetPage = Math.max(1, targetPage);
-  const offset = (targetPage - 1) * limit;
-
   const wordsData = await db
     .select({
       word: wordsTable.word,
@@ -141,9 +109,7 @@ export async function sampleReviewWords(
         eq(wordReviewsTable.userId, userId),
       ),
     )
-    .orderBy(asc(wordsTable.word))
-    .limit(limit)
-    .offset(offset);
+    .orderBy(asc(wordsTable.word));
 
   const output: WordResponse[] = wordsData.map((row) => ({
     word: row.word,
@@ -152,6 +118,12 @@ export async function sampleReviewWords(
     correct: row.review ? row.review.correct : null,
     results: [],
   }));
+
+  const progress: BatchProgress = {
+    ...emptyProgress,
+    reviewed: output.filter((word) => word.correct !== null).length,
+    total: output.length,
+  };
 
   return { output, progress };
 }

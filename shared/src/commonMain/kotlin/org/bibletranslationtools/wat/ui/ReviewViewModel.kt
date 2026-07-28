@@ -22,31 +22,43 @@ import org.bibletranslationtools.wat.data.Verse
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.domain.WatApi
-import org.bibletranslationtools.wat.domain.WordRequest
-import org.bibletranslationtools.wat.domain.WordsRequest
 import org.bibletranslationtools.wat.http.ErrorType
 import org.bibletranslationtools.wat.http.onError
 import org.bibletranslationtools.wat.http.onSuccess
-import org.bibletranslationtools.wat.ui.control.SaveDirection
 import org.jetbrains.compose.resources.getString
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.getting_batch
-import wordanalysistool.shared.generated.resources.unflagged_marked_correct_message
-import kotlin.math.ceil
-
-private const val WORDS_PAGE_SIZE = 4
 
 data class ReviewState(
     val isLoading: Boolean = false,
     val words: List<ReviewWord> = emptyList(),
-    val currentPage: Int = 1,
-    val totalPages: Int = 0,
-    val completeProgress: Float = 0f,
+    val currentIndex: Int = 0,
+    val savingWord: String? = null,
     val toast: ToastInfo? = null,
     val batchId: String? = null,
     val progress: Progress? = null,
     val language: LanguageInfo? = null
-)
+) {
+    val total: Int get() = words.size
+    val reviewedCount: Int get() = words.count { it.correct != null }
+    val completeProgress: Float get() = if (total == 0) {
+        0f
+    } else reviewedCount / total.toFloat()
+
+    val currentWord: ReviewWord? get() = words.getOrNull(currentIndex)
+
+    /**
+     * The furthest card the user has unlocked: the first word still awaiting
+     * a review, or the last word once everything has been reviewed.
+     */
+    val frontierIndex: Int get() = words
+        .indexOfFirst { it.correct == null }
+        .let { if (it == -1) total - 1 else it }
+
+    val canGoPrev: Boolean get() = currentIndex > 0
+    val canGoNext: Boolean get() = currentWord?.correct != null && currentIndex < total - 1
+    val isComplete: Boolean get() = total > 0 && reviewedCount == total
+}
 
 sealed class ReviewEvent {
     data object Idle : ReviewEvent()
@@ -78,7 +90,7 @@ class ReviewViewModel(
                         fetchBatch()
                     }
 
-                    loadPage(0)
+                    loadWords()
                 }
             }
         }
@@ -123,7 +135,7 @@ class ReviewViewModel(
         }
     }
 
-    private suspend fun loadPage(page: Int) {
+    private suspend fun loadWords() {
         _state.update {
             it.copy(
                 isLoading = true,
@@ -133,26 +145,12 @@ class ReviewViewModel(
 
         withContext(Dispatchers.Default) {
             var errorMessage: String? = null
-            watApi.getReviewPage(
+            watApi.getReviewWords(
                 ietfCode = ietfCode,
                 resourceType = resourceType,
-                page = page,
-                limit = WORDS_PAGE_SIZE,
                 accessToken = user.token.accessToken
             ).onSuccess { batch ->
                 if (batch.details.output.isNotEmpty()) {
-                    val completed = batch.details.progress.reviewed
-                    val total = batch.details.progress.total
-                    val progress = completed / total.toFloat()
-                    val currentPage = if (page > 0) {
-                        page
-                    } else {
-                        if (total in 1..completed) {
-                            ceil(total.toFloat() / WORDS_PAGE_SIZE).toInt()
-                        } else {
-                            (completed / WORDS_PAGE_SIZE) + 1
-                        }
-                    }
                     val words = batch.details.output.map { word ->
                         val parts = word.ref.split(":")
                         ReviewWord(
@@ -170,12 +168,10 @@ class ReviewViewModel(
                     _state.update {
                         it.copy(
                             words = words,
-                            currentPage = currentPage,
-                            totalPages = ceil(total.toFloat() / WORDS_PAGE_SIZE).toInt(),
-                            completeProgress = progress,
                             isLoading = false
                         )
                     }
+                    _state.update { it.copy(currentIndex = it.frontierIndex) }
                 } else {
                     errorMessage = "No words found."
                 }
@@ -202,85 +198,72 @@ class ReviewViewModel(
         }
     }
 
-    fun onFlagClicked(word: String) {
-        val updatedPagedWords = _state.value.words.map { singleton ->
-            if (singleton.word == word) {
-                val newCorrectState = if (singleton.correct == false) null else false
-                singleton.copy(correct = newCorrectState)
-            } else singleton
-        }
-        _state.update { it.copy(words = updatedPagedWords) }
-    }
+    /** Records the review of the current word and saves it right away. */
+    fun onVote(correct: Boolean) {
+        val word = _state.value.currentWord ?: return
+        if (word.correct == correct || _state.value.savingWord != null) return
 
-    private suspend fun saveCurrentPage(andThen: suspend () -> Unit) {
-        _state.update { it.copy(isLoading = true) }
+        val previous = word.correct
+        setCorrect(word.word, correct)
+        _state.update { it.copy(savingWord = word.word) }
 
-        withContext(Dispatchers.Default) {
-            watApi.updateWordsCorrect(
-                request = WordsRequest(
-                    batchId = _state.value.batchId!!,
-                    words = _state.value.words.map {
-                        WordRequest(it.word, it.correct ?: true)
-                    }
-                ),
-                accessToken = user.token.accessToken
-            ).onSuccess {
-                _state.update { state ->
-                    state.copy(
-                        isLoading = false,
-                        toast = ToastInfo(
-                            type = ToastType.Info,
-                            message = getString(Res.string.unflagged_marked_correct_message),
-                            onClose = { _state.update { it.copy(toast = null) } }
-                        )
-                    )
-                }
-                andThen()
-            }.onError { error ->
-                _state.update { state ->
-                    state.copy(
-                        isLoading = false,
-                        toast = ToastInfo(
-                            type = ToastType.Error,
-                            message = error.description ?: "An error occurred",
-                            onClose = { _state.update { it.copy(toast = null) } }
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    fun onSave(direction: SaveDirection) {
         screenModelScope.launch {
-            val currentPage = _state.value.currentPage
-            val totalPages = _state.value.totalPages
-            saveCurrentPage {
-                when {
-                    direction == SaveDirection.NEXT && currentPage < totalPages -> {
-                        loadPage(currentPage + 1)
+            withContext(Dispatchers.Default) {
+                watApi.reviewWord(
+                    batchId = _state.value.batchId!!,
+                    word = word.word,
+                    correct = correct,
+                    accessToken = user.token.accessToken
+                ).onSuccess {
+                    _state.update { it.copy(savingWord = null) }
+                }.onError { error ->
+                    setCorrect(word.word, previous)
+                    _state.update { state ->
+                        state.copy(
+                            savingWord = null,
+                            toast = ToastInfo(
+                                type = ToastType.Error,
+                                message = error.description ?: "An error occurred",
+                                onClose = { _state.update { it.copy(toast = null) } }
+                            )
+                        )
                     }
-                    direction == SaveDirection.PREV && currentPage > 1 -> {
-                        loadPage(currentPage - 1)
-                    }
-                    else -> loadPage(currentPage)
                 }
             }
-            resetChannel()
         }
     }
+
+    private fun setCorrect(word: String, correct: Boolean?) {
+        _state.update { state ->
+            state.copy(
+                words = state.words.map {
+                    if (it.word == word) it.copy(correct = correct) else it
+                }
+            )
+        }
+    }
+
+    /** Moves to [index], never past the last unlocked (reviewed) card. */
+    fun goTo(index: Int) {
+        _state.update { state ->
+            val target = index.coerceIn(0, maxOf(0, state.frontierIndex))
+            state.copy(currentIndex = target)
+        }
+    }
+
+    fun goNext() = goTo(_state.value.currentIndex + 1)
+
+    fun goPrev() = goTo(_state.value.currentIndex - 1)
+
+    fun goFirst() = goTo(0)
+
+    fun goLast() = goTo(_state.value.frontierIndex)
 
     private fun loadLanguage(ietfCode: String) {
         screenModelScope.launch {
             _state.update {
                 it.copy(language = bielGraphQlApi.getLanguageInfo(ietfCode))
             }
-        }
-    }
-
-    private fun resetChannel() {
-        screenModelScope.launch {
-            _event.send(ReviewEvent.Idle)
         }
     }
 }

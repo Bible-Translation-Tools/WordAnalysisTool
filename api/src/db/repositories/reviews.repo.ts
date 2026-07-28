@@ -4,13 +4,12 @@ import { wordReviewsTable, wordsTable } from "../schema";
 
 export function createReviewsRepo(db: Database) {
   return {
-    async upsertMany(
-      reviews: { wordId: number; userId: number; correct: boolean }[],
+    async upsert(
+      review: { wordId: number; userId: number; correct: boolean },
     ): Promise<void> {
-      if (reviews.length === 0) return;
       await db
         .insert(wordReviewsTable)
-        .values(reviews)
+        .values(review)
         .onConflictDoUpdate({
           target: [wordReviewsTable.wordId, wordReviewsTable.userId],
           set: { correct: sql`excluded.correct` },
