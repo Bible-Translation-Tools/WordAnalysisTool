@@ -22,12 +22,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
@@ -441,7 +439,7 @@ private val BoldSpan = SpanStyle(fontWeight = FontWeight.Bold)
 
 /** Side cards keep a fixed height; the center card is always taller than them. */
 private val PEEK_CARD_HEIGHT = 435.dp
-private val CENTER_CARD_MIN_HEIGHT = 500.dp
+private val CENTER_CARD_HEIGHT = 500.dp
 
 @Composable
 private fun Instructions(modifier: Modifier = Modifier) {
@@ -532,15 +530,7 @@ private fun WordCarousel(
                 onNext = onNext,
                 modifier = Modifier.align(Alignment.Center)
                     .width(cardWidth)
-                    .then(
-                        if (isCurrent) {
-                            // Measured with unbounded height so the verse gets
-                            // all the lines it is allowed, not just the ones
-                            // that fit the carousel.
-                            Modifier.wrapContentHeight(unbounded = true)
-                                .heightIn(min = CENTER_CARD_MIN_HEIGHT)
-                        } else Modifier.height(PEEK_CARD_HEIGHT)
-                    )
+                    .height(if (isCurrent) CENTER_CARD_HEIGHT else PEEK_CARD_HEIGHT)
                     .offset(x = step * distance)
                     .alpha(lerp(1f, 0.4f, min(1f, abs(distance))))
                     .then(

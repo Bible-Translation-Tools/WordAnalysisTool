@@ -128,6 +128,11 @@ kotlin {
         wasmJsMain.dependencies {
             implementation(npm("usfmtools", "1.0.6"))
         }
+
+        getByName("desktopTest").dependencies {
+            implementation(kotlin("test"))
+            implementation(compose.desktop.currentOs)
+        }
     }
 }
 

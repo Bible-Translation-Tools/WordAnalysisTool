@@ -17,8 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -50,10 +50,11 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -292,13 +293,17 @@ private fun VerseText(
         lineHeight = 20.sp,
         fontWeight = FontWeight.W600
     )
-    val viewMoreWidth = chipWidthFor(viewMoreLabel, viewMoreStyle, textMeasurer, density)
+    val viewMorePlaceholder = Placeholder(
+        width = chipWidthFor(viewMoreLabel, viewMoreStyle, textMeasurer, density),
+        height = 26.sp,
+        placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+    )
 
     // The plan needs the laid out width, which the first pass reports. It is the
     // card width, so it does not depend on what the plan decides to show.
     var widthPx by remember(word) { mutableStateOf(0) }
 
-    val plan = remember(fullVerse, wordRegex, reference, style, chipPlaceholder, widthPx, expanded) {
+    val plan = remember(fullVerse, wordRegex, reference, style, chipPlaceholder, viewMorePlaceholder, widthPx, expanded) {
         if (expanded || widthPx == 0) {
             VersePlan()
         } else planVerse(
@@ -307,7 +312,8 @@ private fun VerseText(
             reference = reference,
             style = style,
             chipPlaceholder = chipPlaceholder,
-            reservedChars = viewMoreLabel.length + ELLIPSIS.length,
+            viewMorePlaceholder = viewMorePlaceholder,
+            viewMoreLabel = viewMoreLabel,
             widthPx = widthPx,
             textMeasurer = textMeasurer
         )
@@ -339,13 +345,7 @@ private fun VerseText(
         }
     }
 
-    val viewMore = InlineTextContent(
-        placeholder = Placeholder(
-            width = viewMoreWidth,
-            height = 26.sp,
-            placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-        )
-    ) {
+    val viewMore = InlineTextContent(placeholder = viewMorePlaceholder) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize()
@@ -395,7 +395,7 @@ private fun VerseText(
 }
 
 /** How much of a verse to leave out, and whether anything was left out at all. */
-private data class VersePlan(
+internal data class VersePlan(
     /** Characters dropped from the head of the verse. */
     val headTrim: Int = 0,
     /** Offset in the annotated text to cut the tail at, or null to keep it. */
@@ -405,87 +405,201 @@ private data class VersePlan(
 
 /**
  * Measures the whole verse at [widthPx] to decide what fits in
- * [VERSE_MAX_LINES]. The reviewed word is placed on the second to last visible
- * line at the latest, and the head is never dropped past the word itself.
+ * [VERSE_MAX_LINES]. As much of the head is kept as those lines hold while both
+ * the reviewed word and the "view more" button stay visible; the head is never
+ * dropped past the word itself.
  */
-private fun planVerse(
+internal fun planVerse(
     fullVerse: String,
     wordRegex: Regex,
     reference: String,
     style: TextStyle,
     chipPlaceholder: Placeholder,
-    reservedChars: Int,
+    viewMorePlaceholder: Placeholder,
+    viewMoreLabel: String,
     widthPx: Int,
     textMeasurer: TextMeasurer
 ): VersePlan {
     val constraints = Constraints(maxWidth = widthPx)
     val referenceLength = reference.length + REFERENCE_SEPARATOR.length
 
-    fun annotate(headTrim: Int): Pair<AnnotatedString, MatchResult?> {
+    fun placeholders(
+        match: MatchResult?,
+        link: IntRange? = null
+    ) = buildList {
+        match?.let {
+            add(
+                AnnotatedString.Range(
+                    item = chipPlaceholder,
+                    start = referenceLength + it.range.first,
+                    end = referenceLength + it.range.last + 1
+                )
+            )
+        }
+        link?.let {
+            add(
+                AnnotatedString.Range(
+                    item = viewMorePlaceholder,
+                    start = it.first,
+                    end = it.last + 1
+                )
+            )
+        }
+    }
+
+    /** The verse followed by the button, as the card shows it when truncated. */
+    fun withButton(body: AnnotatedString) = buildAnnotatedString {
+        append(body)
+        appendInlineContent(VIEW_MORE_TAG, viewMoreLabel)
+    }
+
+    /**
+     * Line layout, measured unclamped: the true line count and line indices,
+     * with none of the ellipsis semantics of a maxLines limited layout.
+     */
+    fun layoutOf(text: AnnotatedString, match: MatchResult?, link: IntRange? = null) =
+        textMeasurer.measure(
+            text = text,
+            style = style,
+            maxLines = Int.MAX_VALUE,
+            placeholders = placeholders(match, link),
+            constraints = constraints
+        )
+
+    fun linkRangeOf(text: AnnotatedString) =
+        (text.length - viewMoreLabel.length)..text.lastIndex
+
+    fun verseFrom(headTrim: Int) = if (headTrim == 0) {
+        fullVerse
+    } else "$ELLIPSIS${fullVerse.substring(headTrim)}"
+
+    /** Line of the reviewed word, and how many lines verse plus button take. */
+    fun measureHead(headTrim: Int): Triple<TextLayoutResult, MatchResult?, Int> {
+        val verse = verseFrom(headTrim)
+        val match = wordRegex.find(verse)
+        val body = verseAnnotated(reference, verse, match, Color.Unspecified)
+        val linked = withButton(body)
+        return Triple(
+            layoutOf(linked, match, linkRangeOf(linked)),
+            match,
+            match?.let { referenceLength + it.range.last + 1 } ?: 0
+        )
+    }
+
+    fun fitsWith(headTrim: Int): Boolean {
+        val (layout, _, wordEnd) = measureHead(headTrim)
+        val wordLineThere = layout.getLineForOffset((wordEnd - 1).coerceAtLeast(0))
+        return layout.lineCount <= VERSE_MAX_LINES && wordLineThere <= VERSE_MAX_LINES - 1
+    }
+
+    /**
+     * The head is dropped a line at a time, which overshoots by up to a line:
+     * give whole words back while everything still fits.
+     */
+    fun grownHead(headTrim: Int): Int {
+        var kept = headTrim
+        while (kept > 0) {
+            val richer = fullVerse.wordStartBefore(kept)
+            if (richer == kept || !fitsWith(richer)) return kept
+            kept = richer
+        }
+        return kept
+    }
+
+    // The button belongs to every measurement from here on: a verse is only left
+    // whole when it fits without one.
+    val wholeMatch = wordRegex.find(fullVerse)
+    val whole = verseAnnotated(reference, fullVerse, wholeMatch, Color.Unspecified)
+    val wholeLayout = layoutOf(whole, wholeMatch)
+
+    if (wholeLayout.lineCount <= VERSE_MAX_LINES) return VersePlan()
+
+    val wordStart = wholeMatch?.range?.first ?: 0
+    val wordLine = wholeMatch?.let {
+        wholeLayout.getLineForOffset(referenceLength + it.range.first)
+    } ?: 0
+
+    // Start from the line that would put the word on the last visible line and
+    // give up head only while it does not fit.
+    var candidateLine = (wordLine - (VERSE_MAX_LINES - 1)).coerceAtLeast(0)
+
+    while (true) {
+        val headTrim = if (candidateLine == 0) {
+            0
+        } else fullVerse.wordStartAfter(
+            offset = wholeLayout.getLineStart(candidateLine) - referenceLength,
+            limit = wordStart
+        )
+
         val verse = if (headTrim == 0) {
             fullVerse
         } else "$ELLIPSIS${fullVerse.substring(headTrim)}"
         val match = wordRegex.find(verse)
-        return verseAnnotated(reference, verse, match, Color.Unspecified) to match
-    }
+        val body = verseAnnotated(reference, verse, match, Color.Unspecified)
 
-    fun placeholders(match: MatchResult?) = match?.let {
-        listOf(
-            AnnotatedString.Range(
-                item = chipPlaceholder,
-                start = referenceLength + it.range.first,
-                end = referenceLength + it.range.last + 1
-            )
-        )
-    } ?: emptyList()
+        val linked = withButton(body)
+        val layout = layoutOf(linked, match, linkRangeOf(linked))
 
-    val (whole, wholeMatch) = annotate(0)
-    val wholeLayout = textMeasurer.measure(
-        text = whole,
-        style = style,
-        maxLines = Int.MAX_VALUE,
-        placeholders = placeholders(wholeMatch),
-        constraints = constraints
-    )
+        val wordEnd = match?.let { referenceLength + it.range.last + 1 } ?: 0
+        val lastLine = VERSE_MAX_LINES - 1
 
-    if (wholeLayout.lineCount <= VERSE_MAX_LINES) return VersePlan()
-
-    val headTrim = wholeMatch?.let { match ->
-        val wordLine = wholeLayout.getLineForOffset(referenceLength + match.range.first)
-        val firstKeptLine = wordLine - (VERSE_MAX_LINES - 2)
-        if (firstKeptLine <= 0) {
-            0
-        } else {
-            val lineStart = wholeLayout.getLineStart(firstKeptLine) - referenceLength
-            fullVerse.wordStartAfter(offset = lineStart, limit = match.range.first)
+        // Verse and button both fit: the button stays, nothing else to leave out.
+        if (layout.lineCount <= VERSE_MAX_LINES) {
+            return VersePlan(headTrim = grownHead(headTrim), cutAt = null, truncated = true)
         }
-    } ?: 0
 
-    val (trimmed, trimmedMatch) = annotate(headTrim)
-    val trimmedLayout = textMeasurer.measure(
-        text = trimmed,
-        style = style,
-        overflow = TextOverflow.Ellipsis,
-        maxLines = VERSE_MAX_LINES,
-        placeholders = placeholders(trimmedMatch),
-        constraints = constraints
-    )
+        val wordVisible = layout.getLineForOffset((wordEnd - 1).coerceAtLeast(0)) <= lastLine
+        val lastResort = candidateLine >= wordLine || headTrim >= wordStart
 
-    val cutAt = if (!trimmedLayout.hasVisualOverflow) {
-        null
-    } else {
-        val lastLine = minOf(VERSE_MAX_LINES, trimmedLayout.lineCount) - 1
-        trimmed.cutBefore(
-            offset = trimmedLayout.getLineEnd(lastLine, visibleEnd = true) - reservedChars,
-            keepAtLeast = trimmedMatch?.let { referenceLength + it.range.last + 1 } ?: 0
-        )
+        if (wordVisible || lastResort) {
+            return VersePlan(
+                headTrim = headTrim,
+                cutAt = largestCutThatFits(
+                    body = body,
+                    from = layout.getLineEnd(lastLine).coerceAtMost(body.length),
+                    keepAtLeast = wordEnd,
+                    withButton = ::withButton,
+                    layoutOf = { text -> layoutOf(text, match, linkRangeOf(text)) }
+                ),
+                truncated = true
+            )
+        }
+
+        candidateLine++
     }
+}
 
-    return VersePlan(headTrim = headTrim, cutAt = cutAt, truncated = true)
+/**
+ * Walks back from [from], a word at a time, to the longest cut of [body] whose
+ * text, ellipsis and button still fit [VERSE_MAX_LINES] lines. Never cuts before
+ * [keepAtLeast], which is where the reviewed word ends.
+ */
+private fun largestCutThatFits(
+    body: AnnotatedString,
+    from: Int,
+    keepAtLeast: Int,
+    withButton: (AnnotatedString) -> AnnotatedString,
+    layoutOf: (AnnotatedString) -> TextLayoutResult
+): Int {
+    val floor = keepAtLeast.coerceIn(0, body.length)
+    var cut = from.coerceIn(floor, body.length)
+
+    while (true) {
+        val candidate = withButton(
+            buildAnnotatedString {
+                append(body.subSequence(0, cut))
+                append(ELLIPSIS)
+            }
+        )
+        if (layoutOf(candidate).lineCount <= VERSE_MAX_LINES || cut <= floor) return cut
+
+        val boundary = body.text.lastIndexOf(' ', cut - 1)
+        cut = if (boundary <= floor) floor else boundary
+    }
 }
 
 /** The reference, then the verse with the reviewed word replaced by its chip. */
-private fun verseAnnotated(
+internal fun verseAnnotated(
     reference: String,
     verseText: String,
     match: MatchResult?,
@@ -534,6 +648,12 @@ private fun ChipLabel(text: String, style: TextStyle) {
         overflow = TextOverflow.Visible,
         modifier = Modifier.wrapContentWidth(unbounded = true)
     )
+}
+
+/** Start of the word before [offset], or 0 when there is none. */
+private fun String.wordStartBefore(offset: Int): Int {
+    if (offset <= 0) return 0
+    return lastIndexOf(' ', (offset - 2).coerceAtLeast(0)) + 1
 }
 
 /** Start of the first whole word at or after [offset], never beyond [limit]. */
@@ -608,7 +728,7 @@ private fun ThumbButton(
     Surface(
         onClick = onClick,
         enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.extraLarge,
         color = background,
         border = BorderStroke(1.dp, border),
         modifier = Modifier.size(96.dp)
@@ -662,11 +782,11 @@ private fun CardStatus(
     }
 }
 
-private const val WORD_CHIP_TAG = "reviewedWord"
+internal const val WORD_CHIP_TAG = "reviewedWord"
 private const val VIEW_MORE_TAG = "viewMore"
-private const val ELLIPSIS = "... "
-private const val REFERENCE_SEPARATOR = " - "
+internal const val ELLIPSIS = "... "
+internal const val REFERENCE_SEPARATOR = " - "
 private const val MIN_TRIM_STEP = 12
 private const val CHIP_WIDTH_SLACK = 1.08f
-private const val VERSE_MAX_LINES = 5
+internal const val VERSE_MAX_LINES = 3
 private val CHIP_HORIZONTAL_PADDING = 8.dp
