@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
@@ -533,7 +534,11 @@ private fun WordCarousel(
                     .width(cardWidth)
                     .then(
                         if (isCurrent) {
-                            Modifier.heightIn(min = CENTER_CARD_MIN_HEIGHT)
+                            // Measured with unbounded height so the verse gets
+                            // all the lines it is allowed, not just the ones
+                            // that fit the carousel.
+                            Modifier.wrapContentHeight(unbounded = true)
+                                .heightIn(min = CENTER_CARD_MIN_HEIGHT)
                         } else Modifier.height(PEEK_CARD_HEIGHT)
                     )
                     .offset(x = step * distance)
