@@ -65,6 +65,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -233,14 +234,19 @@ class ReviewScreen(
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface
             ) { paddingValues ->
-                Box(
+                BoxWithConstraints(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.fillMaxSize()
                         .padding(paddingValues)
                 ) {
+                    // Narrow windows give the content almost the whole width.
+                    val wide = maxWidth >= WIDE_WINDOW_WIDTH
+                    val contentWidth = if (wide) 0.55f else 0.94f
+
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp)
+                        modifier = Modifier.fillMaxSize()
+                            .padding(vertical = if (wide) 24.dp else 12.dp)
                     ) {
                         ReviewHeader(
                             language = state.language?.name ?: "",
@@ -248,7 +254,8 @@ class ReviewScreen(
                             total = state.total,
                             reviewed = state.reviewedCount,
                             progress = state.completeProgress,
-                            onMenuClicked = { scope.launch { drawerState.open() } }
+                            onMenuClicked = { scope.launch { drawerState.open() } },
+                            modifier = Modifier.fillMaxWidth(contentWidth)
                         )
 
                         if (state.words.isEmpty()) return@Column
@@ -256,12 +263,15 @@ class ReviewScreen(
                         if (state.isComplete) {
                             ReviewComplete()
                         } else {
-                            Spacer(modifier = Modifier.height(32.dp))
+                            Spacer(modifier = Modifier.height(if (wide) 32.dp else 16.dp))
 
-                            Instructions(modifier = Modifier.fillMaxWidth(0.55f))
+                            Instructions(modifier = Modifier.fillMaxWidth(contentWidth))
+
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             WordCarousel(
                                 state = state,
+                                cardWidthFraction = if (wide) 0.44f else 0.7f,
                                 onVote = viewModel::onVote,
                                 onNext = viewModel::goNext,
                                 onPrev = viewModel::goPrev,
@@ -332,14 +342,24 @@ private fun ReviewHeader(
     total: Int,
     reviewed: Int,
     progress: Float,
-    onMenuClicked: () -> Unit
+    onMenuClicked: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(modifier = Modifier.fillMaxWidth(0.55f)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            IconButton(
-                onClick = onMenuClicked,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
+    val wordOfTotalParts = stringResource(
+        Res.string.word_of_total,
+        PLACEHOLDER, PLACEHOLDER
+    ).split(PLACEHOLDER)
+    val checkedParts = stringResource(
+        Res.string.words_checked,
+        PLACEHOLDER
+    ).split(PLACEHOLDER)
+
+    Column(modifier = modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onMenuClicked) {
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = null,
@@ -350,7 +370,7 @@ private fun ReviewHeader(
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.align(Alignment.Center)
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -366,7 +386,9 @@ private fun ReviewHeader(
                         text = stringResource(Res.string.app_name),
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Text(
@@ -377,23 +399,13 @@ private fun ReviewHeader(
                         fontWeight = FontWeight.W500,
                         fontFamily = getFontFamilyForText(language),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            val wordOfTotalParts = stringResource(
-                Res.string.word_of_total,
-                PLACEHOLDER, PLACEHOLDER
-            ).split(PLACEHOLDER)
-            val checkedParts = stringResource(
-                Res.string.words_checked,
-                PLACEHOLDER
-            ).split(PLACEHOLDER)
-
-            Column(
-                horizontalAlignment = Alignment.End,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = buildAnnotatedString {
                         append(wordOfTotalParts.getOrElse(0) { "" })
@@ -403,6 +415,7 @@ private fun ReviewHeader(
                         append(wordOfTotalParts.getOrElse(2) { "" })
                     },
                     fontSize = 16.sp,
+                    maxLines = 1,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
@@ -412,6 +425,7 @@ private fun ReviewHeader(
                         append(checkedParts.getOrElse(1) { "" })
                     },
                     fontSize = 15.sp,
+                    maxLines = 1,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -438,6 +452,8 @@ private const val PLACEHOLDER = "\u0000"
 private val BoldSpan = SpanStyle(fontWeight = FontWeight.Bold)
 
 /** Side cards keep a fixed height; the center card is always taller than them. */
+/** Below this the review screen switches to its narrow layout. */
+private val WIDE_WINDOW_WIDTH = 900.dp
 private val PEEK_CARD_HEIGHT = 435.dp
 private val CENTER_CARD_HEIGHT = 500.dp
 
@@ -476,6 +492,7 @@ private fun Instructions(modifier: Modifier = Modifier) {
 @Composable
 private fun WordCarousel(
     state: ReviewState,
+    cardWidthFraction: Float,
     onVote: (Boolean) -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
@@ -495,15 +512,19 @@ private fun WordCarousel(
         contentAlignment = Alignment.Center,
         modifier = modifier.clipToBounds()
     ) {
-        val cardWidth = maxWidth * 0.44f
+        val cardWidth = maxWidth * cardWidthFraction
         val step = cardWidth + maxWidth * 0.05f
         val arrowOffset = cardWidth / 2 + 40.dp
+
+        // A card never outgrows the carousel, or its lower half would be cut off.
+        val centerHeight = minOf(CENTER_CARD_HEIGHT, maxHeight)
+        val peekHeight = centerHeight * (PEEK_CARD_HEIGHT / CENTER_CARD_HEIGHT)
 
         // Nothing may move while the current review is in flight.
         val unlocked = state.savingWord == null && !state.isLoading
 
         // Only cards near the track position are on screen; the current one goes
-        // last so it paints on top of its neighbours.
+        // last so it paints on top of its neighbors.
         val visible = (state.currentIndex - 2..state.currentIndex + 2)
             .filter { it in state.words.indices }
             .filter { abs(it - trackPosition) <= 1.6f }
@@ -530,7 +551,7 @@ private fun WordCarousel(
                 onNext = onNext,
                 modifier = Modifier.align(Alignment.Center)
                     .width(cardWidth)
-                    .height(if (isCurrent) CENTER_CARD_HEIGHT else PEEK_CARD_HEIGHT)
+                    .height(if (isCurrent) centerHeight else peekHeight)
                     .offset(x = step * distance)
                     .alpha(lerp(1f, 0.4f, min(1f, abs(distance))))
                     .then(

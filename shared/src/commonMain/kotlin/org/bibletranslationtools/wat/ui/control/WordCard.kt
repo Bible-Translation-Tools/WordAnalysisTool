@@ -10,12 +10,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -111,121 +112,192 @@ fun WordCard(
         border = BorderStroke(2.dp, borderColor),
         modifier = modifier
     ) {
-        if (readingVerse) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
-                modifier = Modifier.padding(24.dp)
-            ) {
-                VerseText(word = word, expanded = true)
+        // Everything is sized off the card, which shrinks with the window.
+        BoxWithConstraints {
+            val scale = minOf(
+                maxWidth / CARD_REFERENCE_WIDTH,
+                maxHeight / CARD_REFERENCE_HEIGHT
+            ).coerceIn(MIN_CARD_SCALE, 1f)
+            val padding = CARD_PADDING * scale
+            val spacing = CARD_SPACING * scale
 
-                Button(
-                    onClick = { readingVerse = false },
-                    shape = MaterialTheme.shapes.small,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+            if (readingVerse) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(
+                        space = spacing,
+                        alignment = Alignment.CenterVertically
                     ),
-                    contentPadding = PaddingValues(end = 16.dp),
-                    modifier = Modifier.align(Alignment.End)
+                    modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null,
-                        modifier = Modifier.padding(horizontal = 8.dp).size(18.dp)
-                    )
-                    Text(stringResource(Res.string.back))
-                }
-            }
-            return@Surface
-        }
+                    BoxWithConstraints(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        VerseText(
+                            word = word,
+                            availableHeightPx = with(LocalDensity.current) {
+                                maxHeight.toPx()
+                            },
+                            expanded = true,
+                            scale = scale
+                        )
+                    }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.padding(24.dp)
-        ) {
-            Box(
-                contentAlignment = Alignment.CenterEnd,
-                modifier = Modifier.fillMaxWidth().height(32.dp)
-            ) {
-                correct?.let { StatusBadge(it) }
-            }
-
-            SelectionContainer {
-                Text(
-                    text = word.word,
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        textDirection = TextDirection.ContentOrLtr,
-                        fontFamily = getFontFamilyForText(word.word),
-                        fontSize = 70.sp,
-                        fontWeight = FontWeight.W700,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                )
-            }
-
-            VerseText(
-                word = word,
-                canExpand = enabled,
-                onExpand = { readingVerse = true }
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                ThumbButton(
-                    up = true,
-                    selected = correct == true,
-                    enabled = enabled,
-                    onClick = { onVote(true) }
-                )
-                ThumbButton(
-                    up = false,
-                    selected = correct == false,
-                    enabled = enabled,
-                    onClick = { onVote(false) }
-                )
-            }
-
-            Box(
-                contentAlignment = Alignment.CenterEnd,
-                modifier = Modifier.fillMaxWidth().height(40.dp)
-            ) {
-                when (footer) {
-                    CardFooter.SAVING -> CardStatus(
-                        text = stringResource(Res.string.saving),
-                        color = MaterialTheme.colorScheme.primary,
-                        icon = Icons.Default.Sync,
-                        spinning = true
-                    )
-                    CardFooter.SAVED -> CardStatus(
-                        text = stringResource(Res.string.saved),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        icon = Icons.Default.CloudDone
-                    )
-                    CardFooter.NEXT -> Button(
-                        onClick = onNext,
-                        enabled = enabled,
+                    Button(
+                        onClick = { readingVerse = false },
                         shape = MaterialTheme.shapes.small,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        contentPadding = PaddingValues(horizontal = 16.dp)
+                        contentPadding = PaddingValues(end = 16.dp),
+                        modifier = Modifier.align(Alignment.End)
                     ) {
-                        Text(stringResource(Res.string.next))
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = null,
-                            modifier = Modifier.padding(start = 8.dp).size(18.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp).size(18.dp)
                         )
+                        Text(stringResource(Res.string.back))
                     }
-                    CardFooter.NONE -> Unit
+                }
+                return@BoxWithConstraints
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(spacing),
+                modifier = Modifier.fillMaxSize().padding(padding)
+            ) {
+                Box(
+                    contentAlignment = Alignment.CenterEnd,
+                    // A minimum, not a fixed height: on a small card the badge is
+                    // taller than the row it reserves and would be clipped.
+                    modifier = Modifier.fillMaxWidth()
+                        .heightIn(min = BADGE_ROW_HEIGHT * scale)
+                ) {
+                    correct?.let { StatusBadge(it, scale) }
+                }
+
+                WordTitle(word = word.word, scale = scale)
+
+                // The verse is the only part that gives up room, so the thumbs and
+                // the footer always keep their size.
+                BoxWithConstraints(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                ) {
+                    VerseText(
+                        word = word,
+                        availableHeightPx = with(LocalDensity.current) {
+                            maxHeight.toPx()
+                        },
+                        canExpand = enabled,
+                        onExpand = { readingVerse = true },
+                        scale = scale
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp * scale)) {
+                    ThumbButton(
+                        up = true,
+                        selected = correct == true,
+                        enabled = enabled,
+                        scale = scale,
+                        onClick = { onVote(true) }
+                    )
+                    ThumbButton(
+                        up = false,
+                        selected = correct == false,
+                        enabled = enabled,
+                        scale = scale,
+                        onClick = { onVote(false) }
+                    )
+                }
+
+                Box(
+                    contentAlignment = Alignment.CenterEnd,
+                    modifier = Modifier.fillMaxWidth()
+                        .heightIn(min = FOOTER_HEIGHT * scale)
+                ) {
+                    when (footer) {
+                        CardFooter.SAVING -> CardStatus(
+                            text = stringResource(Res.string.saving),
+                            color = MaterialTheme.colorScheme.primary,
+                            icon = Icons.Default.Sync,
+                            scale = scale,
+                            spinning = true
+                        )
+                        CardFooter.SAVED -> CardStatus(
+                            text = stringResource(Res.string.saved),
+                            color = MaterialTheme.colorScheme.tertiary,
+                            icon = Icons.Default.CloudDone,
+                            scale = scale
+                        )
+                        CardFooter.NEXT -> Button(
+                            onClick = onNext,
+                            enabled = enabled,
+                            shape = MaterialTheme.shapes.small,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp)
+                        ) {
+                            Text(stringResource(Res.string.next))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = 8.dp).size(18.dp)
+                            )
+                        }
+                        CardFooter.NONE -> Unit
+                    }
                 }
             }
+        }
+    }
+}
+
+/** The reviewed word, as large as it can be on one line of this card. */
+@Composable
+private fun WordTitle(word: String, scale: Float) {
+    val style = MaterialTheme.typography.headlineLarge.copy(
+        textDirection = TextDirection.ContentOrLtr,
+        fontFamily = getFontFamilyForText(word),
+        fontWeight = FontWeight.W700,
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val availableWidth = with(density) { maxWidth.roundToPx() }
+        val fontSize = remember(word, style, availableWidth, textMeasurer, scale) {
+            var size = WORD_FONT_SIZE * scale
+            while (size > WORD_MIN_FONT_SIZE) {
+                val measured = textMeasurer.measure(
+                    text = word,
+                    style = style.copy(fontSize = size),
+                    maxLines = 1,
+                    softWrap = false
+                ).size.width
+                if (measured <= availableWidth) break
+                size = (size.value - 2f).sp
+            }
+            size
+        }
+
+        SelectionContainer {
+            Text(
+                text = word,
+                style = style.copy(fontSize = fontSize),
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -233,7 +305,8 @@ fun WordCard(
 /**
  * The verse of [word] with its reference and the reviewed word as a chip.
  *
- * Collapsed it shows at most [VERSE_MAX_LINES] lines, chosen by [planVerse] from
+ * Collapsed it shows as many lines as [availableHeightPx] holds, up to
+ * [VERSE_MAX_LINES], with the content chosen by [planVerse] from
  * a real measurement of the whole verse: the head is dropped when needed to keep
  * the reviewed word visible, the tail is cut to the last line, and whatever was
  * left out is reachable through a "view more" button.
@@ -241,9 +314,11 @@ fun WordCard(
 @Composable
 private fun VerseText(
     word: ReviewWord,
+    availableHeightPx: Float,
     expanded: Boolean = false,
     canExpand: Boolean = false,
-    onExpand: () -> Unit = {}
+    onExpand: () -> Unit = {},
+    scale: Float = 1f
 ) {
     val reference = "${word.ref.book.uppercase()} ${word.ref.chapter}:${word.ref.verse}"
     val highlight = MaterialTheme.colorScheme.primary
@@ -261,8 +336,8 @@ private fun VerseText(
 
     val style = TextStyle.Default.copy(
         color = onSurfaceVariant,
-        fontSize = 24.sp,
-        lineHeight = 46.sp,
+        fontSize = VERSE_FONT_SIZE * scale,
+        lineHeight = VERSE_LINE_HEIGHT * scale,
         textAlign = TextAlign.Center,
         textDirection = TextDirection.ContentOrLtr,
         fontFamily = getFontFamilyForText(fullVerse)
@@ -282,15 +357,15 @@ private fun VerseText(
     val chipWidth = chipWidthFor(matchedWord, chipStyle, textMeasurer, density)
     val chipPlaceholder = Placeholder(
         width = chipWidth,
-        height = 40.sp,
+        height = VERSE_LINE_HEIGHT * scale * 0.85f,
         placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
 
     val viewMoreLabel = stringResource(Res.string.view_more)
     val viewMoreStyle = style.copy(
         color = MaterialTheme.colorScheme.onPrimary,
-        fontSize = 16.sp,
-        lineHeight = 20.sp,
+        fontSize = VIEW_MORE_FONT_SIZE * scale,
+        lineHeight = VIEW_MORE_FONT_SIZE * scale * 1.25f,
         fontWeight = FontWeight.W600
     )
     val viewMorePlaceholder = Placeholder(
@@ -303,17 +378,32 @@ private fun VerseText(
     // card width, so it does not depend on what the plan decides to show.
     var widthPx by remember(word) { mutableStateOf(0) }
 
-    val plan = remember(fullVerse, wordRegex, reference, style, chipPlaceholder, viewMorePlaceholder, widthPx, expanded) {
-        if (expanded || widthPx == 0) {
+    // Lines are capped by [VERSE_MAX_LINES], but a short card holds fewer, and a
+    // plan made for more lines than the card shows would hide its own tail.
+    val lineHeightPx = with(density) { style.lineHeight.toPx() }
+    val lines = if (expanded) {
+        Int.MAX_VALUE
+    } else {
+        val room = (availableHeightPx / lineHeightPx).toInt()
+        room.coerceIn(1, VERSE_MAX_LINES)
+    }
+
+    val expandable = canExpand && viewMoreLabel.isNotEmpty()
+
+    val plan = remember(
+        fullVerse, wordRegex, reference, style, chipPlaceholder,
+        viewMorePlaceholder, widthPx, lines, expanded, expandable
+    ) {
+        if (expanded || widthPx == 0 || !expandable) {
             VersePlan()
         } else planVerse(
             fullVerse = fullVerse,
             wordRegex = wordRegex,
             reference = reference,
+            maxLines = lines,
             style = style,
             chipPlaceholder = chipPlaceholder,
             viewMorePlaceholder = viewMorePlaceholder,
-            viewMoreLabel = viewMoreLabel,
             widthPx = widthPx,
             textMeasurer = textMeasurer
         )
@@ -360,7 +450,7 @@ private fun VerseText(
         }
     }
 
-    val linked = !expanded && canExpand && plan.truncated
+    val linked = !expanded && expandable && plan.truncated
     val displayed = remember(text, linked, plan, viewMoreLabel) {
         if (!linked) {
             text
@@ -372,7 +462,7 @@ private fun VerseText(
                 append(text)
                 append(" ")
             }
-            appendInlineContent(VIEW_MORE_TAG, viewMoreLabel)
+            appendInlineContent(VIEW_MORE_TAG, VIEW_MORE_ALT)
         }
     }
 
@@ -380,7 +470,7 @@ private fun VerseText(
         Text(
             text = displayed,
             style = style,
-            maxLines = if (expanded) Int.MAX_VALUE else VERSE_MAX_LINES,
+            maxLines = lines,
             overflow = TextOverflow.Ellipsis,
             inlineContent = mapOf(
                 WORD_CHIP_TAG to chip,
@@ -413,10 +503,10 @@ internal fun planVerse(
     fullVerse: String,
     wordRegex: Regex,
     reference: String,
+    maxLines: Int,
     style: TextStyle,
     chipPlaceholder: Placeholder,
     viewMorePlaceholder: Placeholder,
-    viewMoreLabel: String,
     widthPx: Int,
     textMeasurer: TextMeasurer
 ): VersePlan {
@@ -450,7 +540,7 @@ internal fun planVerse(
     /** The verse followed by the button, as the card shows it when truncated. */
     fun withButton(body: AnnotatedString) = buildAnnotatedString {
         append(body)
-        appendInlineContent(VIEW_MORE_TAG, viewMoreLabel)
+        appendInlineContent(VIEW_MORE_TAG, VIEW_MORE_ALT)
     }
 
     /**
@@ -467,7 +557,7 @@ internal fun planVerse(
         )
 
     fun linkRangeOf(text: AnnotatedString) =
-        (text.length - viewMoreLabel.length)..text.lastIndex
+        (text.length - VIEW_MORE_ALT.length)..text.lastIndex
 
     fun verseFrom(headTrim: Int) = if (headTrim == 0) {
         fullVerse
@@ -489,7 +579,7 @@ internal fun planVerse(
     fun fitsWith(headTrim: Int): Boolean {
         val (layout, _, wordEnd) = measureHead(headTrim)
         val wordLineThere = layout.getLineForOffset((wordEnd - 1).coerceAtLeast(0))
-        return layout.lineCount <= VERSE_MAX_LINES && wordLineThere <= VERSE_MAX_LINES - 1
+        return layout.lineCount <= maxLines && wordLineThere <= maxLines - 1
     }
 
     /**
@@ -512,7 +602,7 @@ internal fun planVerse(
     val whole = verseAnnotated(reference, fullVerse, wholeMatch, Color.Unspecified)
     val wholeLayout = layoutOf(whole, wholeMatch)
 
-    if (wholeLayout.lineCount <= VERSE_MAX_LINES) return VersePlan()
+    if (wholeLayout.lineCount <= maxLines) return VersePlan()
 
     val wordStart = wholeMatch?.range?.first ?: 0
     val wordLine = wholeMatch?.let {
@@ -521,7 +611,7 @@ internal fun planVerse(
 
     // Start from the line that would put the word on the last visible line and
     // give up head only while it does not fit.
-    var candidateLine = (wordLine - (VERSE_MAX_LINES - 1)).coerceAtLeast(0)
+    var candidateLine = (wordLine - (maxLines - 1)).coerceAtLeast(0)
 
     while (true) {
         val headTrim = if (candidateLine == 0) {
@@ -541,10 +631,10 @@ internal fun planVerse(
         val layout = layoutOf(linked, match, linkRangeOf(linked))
 
         val wordEnd = match?.let { referenceLength + it.range.last + 1 } ?: 0
-        val lastLine = VERSE_MAX_LINES - 1
+        val lastLine = maxLines - 1
 
         // Verse and button both fit: the button stays, nothing else to leave out.
-        if (layout.lineCount <= VERSE_MAX_LINES) {
+        if (layout.lineCount <= maxLines) {
             return VersePlan(headTrim = grownHead(headTrim), cutAt = null, truncated = true)
         }
 
@@ -557,6 +647,7 @@ internal fun planVerse(
                 cutAt = largestCutThatFits(
                     body = body,
                     from = layout.getLineEnd(lastLine).coerceAtMost(body.length),
+                    maxLines = maxLines,
                     keepAtLeast = wordEnd,
                     withButton = ::withButton,
                     layoutOf = { text -> layoutOf(text, match, linkRangeOf(text)) }
@@ -571,12 +662,13 @@ internal fun planVerse(
 
 /**
  * Walks back from [from], a word at a time, to the longest cut of [body] whose
- * text, ellipsis and button still fit [VERSE_MAX_LINES] lines. Never cuts before
+ * text, ellipsis and button still fit [maxLines] lines. Never cuts before
  * [keepAtLeast], which is where the reviewed word ends.
  */
 private fun largestCutThatFits(
     body: AnnotatedString,
     from: Int,
+    maxLines: Int,
     keepAtLeast: Int,
     withButton: (AnnotatedString) -> AnnotatedString,
     layoutOf: (AnnotatedString) -> TextLayoutResult
@@ -591,7 +683,7 @@ private fun largestCutThatFits(
                 append(ELLIPSIS)
             }
         )
-        if (layoutOf(candidate).lineCount <= VERSE_MAX_LINES || cut <= floor) return cut
+        if (layoutOf(candidate).lineCount <= maxLines || cut <= floor) return cut
 
         val boundary = body.text.lastIndexOf(' ', cut - 1)
         cut = if (boundary <= floor) floor else boundary
@@ -610,7 +702,7 @@ internal fun verseAnnotated(
     }
     append(REFERENCE_SEPARATOR)
 
-    if (match != null) {
+    if (match != null && match.value.isNotEmpty()) {
         append(verseText.take(match.range.first))
         appendInlineContent(WORD_CHIP_TAG, match.value)
         append(verseText.substring(match.range.last + 1))
@@ -674,7 +766,7 @@ private fun AnnotatedString.cutBefore(offset: Int, keepAtLeast: Int): Int {
 }
 
 @Composable
-private fun StatusBadge(correct: Boolean) {
+private fun StatusBadge(correct: Boolean, scale: Float) {
     val color = if (correct) {
         MaterialTheme.colorScheme.tertiary
     } else MaterialTheme.colorScheme.error
@@ -686,20 +778,23 @@ private fun StatusBadge(correct: Boolean) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            modifier = Modifier.padding(
+                horizontal = 12.dp * scale,
+                vertical = 6.dp * scale
+            )
         ) {
             Icon(
                 imageVector = if (correct) Icons.Default.ThumbUp else Icons.Default.ThumbDown,
                 contentDescription = null,
                 tint = color,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp * scale)
             )
             Text(
                 text = stringResource(
                     if (correct) Res.string.correct else Res.string.incorrect
                 ),
                 color = color,
-                fontSize = 15.sp,
+                fontSize = 15.sp * scale,
                 fontWeight = FontWeight.W600
             )
         }
@@ -711,6 +806,7 @@ private fun ThumbButton(
     up: Boolean,
     selected: Boolean,
     enabled: Boolean,
+    scale: Float,
     onClick: () -> Unit
 ) {
     val accent = if (up) {
@@ -731,7 +827,7 @@ private fun ThumbButton(
         shape = MaterialTheme.shapes.extraLarge,
         color = background,
         border = BorderStroke(1.dp, border),
-        modifier = Modifier.size(96.dp)
+        modifier = Modifier.size(THUMB_SIZE * scale)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -740,7 +836,7 @@ private fun ThumbButton(
                     if (up) Res.string.correct else Res.string.incorrect
                 ),
                 tint = tint,
-                modifier = Modifier.size(45.dp)
+                modifier = Modifier.size(THUMB_ICON_SIZE * scale)
             )
         }
     }
@@ -751,6 +847,7 @@ private fun CardStatus(
     text: String,
     color: Color,
     icon: ImageVector,
+    scale: Float,
     spinning: Boolean = false
 ) {
     val rotation = if (spinning) {
@@ -771,12 +868,12 @@ private fun CardStatus(
             imageVector = icon,
             contentDescription = null,
             tint = color,
-            modifier = Modifier.size(20.dp).rotate(rotation)
+            modifier = Modifier.size(20.dp * scale).rotate(rotation)
         )
         Text(
             text = text,
             color = color,
-            fontSize = 17.sp,
+            fontSize = 17.sp * scale,
             fontWeight = FontWeight.W500
         )
     }
@@ -784,9 +881,31 @@ private fun CardStatus(
 
 internal const val WORD_CHIP_TAG = "reviewedWord"
 private const val VIEW_MORE_TAG = "viewMore"
+
+/**
+ * Stands in for the button while text is measured. A constant, because the label
+ * is a string resource, and an unloaded resource is empty — which inline content
+ * does not allow.
+ */
+private const val VIEW_MORE_ALT = "\u2026"
 internal const val ELLIPSIS = "... "
 internal const val REFERENCE_SEPARATOR = " - "
-private const val MIN_TRIM_STEP = 12
 private const val CHIP_WIDTH_SLACK = 1.08f
+
+/** Card width the sizes below are meant for; smaller cards scale down to fit. */
+private val CARD_REFERENCE_WIDTH = 600.dp
+private val CARD_REFERENCE_HEIGHT = 500.dp
+private const val MIN_CARD_SCALE = 0.55f
+private val CARD_PADDING = 24.dp
+private val CARD_SPACING = 20.dp
+private val BADGE_ROW_HEIGHT = 32.dp
+private val FOOTER_HEIGHT = 40.dp
+private val THUMB_SIZE = 96.dp
+private val THUMB_ICON_SIZE = 45.dp
+private val WORD_FONT_SIZE = 70.sp
+private val WORD_MIN_FONT_SIZE = 24.sp
+private val VERSE_FONT_SIZE = 24.sp
+private val VERSE_LINE_HEIGHT = 46.sp
+private val VIEW_MORE_FONT_SIZE = 16.sp
 internal const val VERSE_MAX_LINES = 3
 private val CHIP_HORIZONTAL_PADDING = 8.dp

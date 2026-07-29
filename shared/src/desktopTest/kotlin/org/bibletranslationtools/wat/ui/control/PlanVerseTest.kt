@@ -140,10 +140,10 @@ class PlanVerseTest {
         fullVerse = verse,
         wordRegex = regexFor(word),
         reference = reference,
+        maxLines = VERSE_MAX_LINES,
         style = style,
         chipPlaceholder = placeholderFor(word, style),
         viewMorePlaceholder = viewMorePlaceholder,
-        viewMoreLabel = viewMoreLabel,
         widthPx = cardWidthPx,
         textMeasurer = measurer
     )
