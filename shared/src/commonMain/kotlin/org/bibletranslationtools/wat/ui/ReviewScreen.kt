@@ -266,9 +266,22 @@ class ReviewScreen(
                         } else {
                             Spacer(modifier = Modifier.height(if (wide) 32.dp else 16.dp))
 
-                            Instructions(modifier = Modifier.fillMaxWidth(contentWidth))
+                            // Only the first card needs telling how to review.
+                            AnimatedVisibility(visible = state.currentIndex == 0) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Instructions(
+                                        modifier = Modifier.fillMaxWidth(contentWidth)
+                                    )
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                    // The carousel takes whatever is left, so a
+                                    // short window would otherwise put a card
+                                    // right against the banner.
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+                            }
 
                             WordCarousel(
                                 state = state,
