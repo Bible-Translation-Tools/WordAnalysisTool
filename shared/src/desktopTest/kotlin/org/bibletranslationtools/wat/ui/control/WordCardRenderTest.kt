@@ -88,6 +88,37 @@ class WordCardRenderTest {
         }
     }
 
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `renders the review slider`() {
+        val scene = ImageComposeScene(width = 700, height = 60, density = Density(1f))
+        try {
+            scene.setContent {
+                MainAppTheme {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)
+                    ) {
+                        ReviewSlider(
+                            position = 120,
+                            reachable = 300,
+                            total = 400,
+                            onSeek = {}
+                        )
+                    }
+                }
+            }
+            scene.render()
+            val image = scene.render(nanoTime = 16_000_000L)
+            outputDir.mkdirs()
+            val file = File(outputDir, "slider.png")
+            image.encodeToData(EncodedImageFormat.PNG)?.bytes?.let(file::writeBytes)
+            assertTrue(file.length() > 0, "no slider image written")
+        } finally {
+            scene.close()
+        }
+    }
+
     @Test
     fun `renders at the sizes the carousel uses`() {
         render(name = "card-wide", widthDp = 620, heightDp = 500)

@@ -40,7 +40,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -59,7 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -86,6 +84,7 @@ import org.bibletranslationtools.wat.ui.control.CardFooter
 import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.NextCardNavigation
 import org.bibletranslationtools.wat.ui.control.PrevCardNavigation
+import org.bibletranslationtools.wat.ui.control.ReviewSlider
 import org.bibletranslationtools.wat.ui.control.WordCard
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
@@ -253,7 +252,9 @@ class ReviewScreen(
                             currentIndex = state.currentIndex,
                             total = state.total,
                             reviewed = state.reviewedCount,
-                            progress = state.completeProgress,
+                            reachableIndex = state.frontierIndex,
+                            canSeek = state.savingWord == null && !state.isLoading,
+                            onSeek = viewModel::goTo,
                             onMenuClicked = { scope.launch { drawerState.open() } },
                             modifier = Modifier.fillMaxWidth(contentWidth)
                         )
@@ -341,7 +342,9 @@ private fun ReviewHeader(
     currentIndex: Int,
     total: Int,
     reviewed: Int,
-    progress: Float,
+    reachableIndex: Int,
+    canSeek: Boolean,
+    onSeek: (Int) -> Unit,
     onMenuClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -433,15 +436,13 @@ private fun ReviewHeader(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        LinearProgressIndicator(
-            progress = { progress },
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.primaryContainer,
-            gapSize = 0.dp,
-            drawStopIndicator = {},
+        ReviewSlider(
+            position = currentIndex,
+            reachable = reachableIndex,
+            total = total,
+            onSeek = onSeek,
+            enabled = canSeek,
             modifier = Modifier.fillMaxWidth()
-                .height(6.dp)
-                .clip(MaterialTheme.shapes.small)
         )
     }
 }
