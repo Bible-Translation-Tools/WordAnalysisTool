@@ -548,6 +548,7 @@ private fun WordCarousel(
                     else -> CardFooter.SAVED
                 },
                 enabled = isCurrent && unlocked,
+                expandable = isCurrent,
                 onVote = onVote,
                 onNext = onNext,
                 modifier = Modifier.align(Alignment.Center)

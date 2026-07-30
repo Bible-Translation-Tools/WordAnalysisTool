@@ -14,14 +14,17 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
@@ -91,6 +96,8 @@ fun WordCard(
     word: ReviewWord,
     footer: CardFooter = CardFooter.NONE,
     enabled: Boolean = true,
+    /** Reading the whole verse is allowed even while a review is being saved. */
+    expandable: Boolean = enabled,
     onVote: (Boolean) -> Unit = {},
     onNext: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -170,12 +177,12 @@ fun WordCard(
                 verticalArrangement = Arrangement.spacedBy(spacing),
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
+                // Both this row and the footer keep their height whether or not
+                // they have anything in them, so the verse below always has the
+                // same room and a reviewed card reads like an unreviewed one.
                 Box(
                     contentAlignment = Alignment.CenterEnd,
-                    // A minimum, not a fixed height: on a small card the badge is
-                    // taller than the row it reserves and would be clipped.
-                    modifier = Modifier.fillMaxWidth()
-                        .heightIn(min = BADGE_ROW_HEIGHT * scale)
+                    modifier = Modifier.fillMaxWidth().height(BADGE_ROW_HEIGHT * scale)
                 ) {
                     correct?.let { StatusBadge(it, scale) }
                 }
@@ -193,7 +200,7 @@ fun WordCard(
                         availableHeightPx = with(LocalDensity.current) {
                             maxHeight.toPx()
                         },
-                        canExpand = enabled,
+                        canExpand = expandable,
                         onExpand = { readingVerse = true },
                         scale = scale
                     )
@@ -218,8 +225,7 @@ fun WordCard(
 
                 Box(
                     contentAlignment = Alignment.CenterEnd,
-                    modifier = Modifier.fillMaxWidth()
-                        .heightIn(min = FOOTER_HEIGHT * scale)
+                    modifier = Modifier.fillMaxWidth().height(FOOTER_HEIGHT * scale)
                 ) {
                     when (footer) {
                         CardFooter.SAVING -> CardStatus(
@@ -243,7 +249,8 @@ fun WordCard(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
-                            contentPadding = PaddingValues(horizontal = 16.dp)
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxHeight()
                         ) {
                             Text(stringResource(Res.string.next))
                             Icon(
@@ -370,7 +377,7 @@ private fun VerseText(
     )
     val viewMorePlaceholder = Placeholder(
         width = chipWidthFor(viewMoreLabel, viewMoreStyle, textMeasurer, density),
-        height = 26.sp,
+        height = chipPlaceholder.height,
         placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
 
@@ -443,10 +450,15 @@ private fun VerseText(
                     color = highlight,
                     shape = MaterialTheme.shapes.small
                 )
+                // The label sits inside the verse's selection container, which
+                // would otherwise give it a text cursor and let it be selected.
+                .pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)
                 .clickable(onClick = onExpand)
                 .padding(horizontal = CHIP_HORIZONTAL_PADDING)
         ) {
-            ChipLabel(text = viewMoreLabel, style = viewMoreStyle)
+            DisableSelection {
+                ChipLabel(text = viewMoreLabel, style = viewMoreStyle)
+            }
         }
     }
 
@@ -773,15 +785,13 @@ private fun StatusBadge(correct: Boolean, scale: Float) {
 
     Surface(
         shape = MaterialTheme.shapes.small,
-        color = color.copy(alpha = 0.15f)
+        color = color.copy(alpha = 0.15f),
+        modifier = Modifier.fillMaxHeight()
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(
-                horizontal = 12.dp * scale,
-                vertical = 6.dp * scale
-            )
+            modifier = Modifier.padding(horizontal = 12.dp * scale)
         ) {
             Icon(
                 imageVector = if (correct) Icons.Default.ThumbUp else Icons.Default.ThumbDown,

@@ -44,7 +44,12 @@ class WordCardRenderTest {
     )
 
     @OptIn(ExperimentalComposeUiApi::class)
-    private fun render(name: String, widthDp: Int, heightDp: Int) {
+    private fun render(
+        name: String,
+        widthDp: Int,
+        heightDp: Int,
+        reviewed: Boolean = true
+    ) {
         val density = Density(1f)
         val scene = ImageComposeScene(
             width = widthDp + 40,
@@ -60,8 +65,8 @@ class WordCardRenderTest {
                         modifier = Modifier.fillMaxSize().padding(20.dp)
                     ) {
                         WordCard(
-                            word = word,
-                            footer = CardFooter.NEXT,
+                            word = if (reviewed) word else word.copy(correct = null),
+                            footer = if (reviewed) CardFooter.NEXT else CardFooter.NONE,
                             enabled = true,
                             modifier = Modifier
                                 .width(widthDp.dp)
@@ -122,6 +127,8 @@ class WordCardRenderTest {
     @Test
     fun `renders at the sizes the carousel uses`() {
         render(name = "card-wide", widthDp = 620, heightDp = 500)
+        // A reviewed card gains a badge and a button: the verse must not shrink.
+        render(name = "card-unreviewed", widthDp = 620, heightDp = 500, reviewed = false)
         render(name = "card-medium", widthDp = 460, heightDp = 420)
         render(name = "card-narrow", widthDp = 300, heightDp = 300)
     }
