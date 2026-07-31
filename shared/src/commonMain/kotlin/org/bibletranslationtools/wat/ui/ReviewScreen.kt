@@ -80,11 +80,14 @@ import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.navigation.UrlManager
+import org.bibletranslationtools.wat.ui.control.AppDrawer
 import org.bibletranslationtools.wat.ui.control.CardFooter
+import org.bibletranslationtools.wat.ui.control.MenuButton
 import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.NextCardNavigation
 import org.bibletranslationtools.wat.ui.control.PrevCardNavigation
 import org.bibletranslationtools.wat.ui.control.ReviewSlider
+import org.bibletranslationtools.wat.ui.control.rememberAppDrawerState
 import org.bibletranslationtools.wat.ui.control.WordCard
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
@@ -125,7 +128,7 @@ class ReviewScreen(
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
-        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val drawerState = rememberAppDrawerState()
         val scope = rememberCoroutineScope()
 
         LaunchedEffect(event) {
@@ -138,96 +141,18 @@ class ReviewScreen(
             }
         }
 
-        ModalNavigationDrawer(
+        AppDrawer(
+            user = user,
             drawerState = drawerState,
-            drawerContent = {
-                ModalDrawerSheet(
-                    drawerContainerColor = MaterialTheme.colorScheme.surface
-                ) {
-                    Text(
-                        text = stringResource(Res.string.app_name),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.W600,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(16.dp)
+            onHome = UrlManager::pop,
+            onAdmin = {
+                navigator.push(
+                    AdminScreen(
+                        ietfCode = ietfCode,
+                        resourceType = resourceType,
+                        user = user
                     )
-
-                    HorizontalDivider()
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    NavigationDrawerItem(
-                        label = { Text(stringResource(Res.string.home)) },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Home,
-                                contentDescription = null
-                            )
-                        },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            UrlManager.pop()
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(stringResource(Res.string.settings)) },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = null
-                            )
-                        },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            navigator.push(SettingsScreen(user))
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-                    if (user.admin) {
-                        NavigationDrawerItem(
-                            label = { Text(stringResource(Res.string.admin)) },
-                            icon = {
-                                Icon(
-                                    painter = painterResource(Res.drawable.admin),
-                                    contentDescription = null
-                                )
-                            },
-                            selected = false,
-                            onClick = {
-                                scope.launch { drawerState.close() }
-                                navigator.push(
-                                    AdminScreen(
-                                        ietfCode = ietfCode,
-                                        resourceType = resourceType,
-                                        user = user
-                                    )
-                                )
-                            },
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
-                    }
-                    NavigationDrawerItem(
-                        label = {
-                            Text(stringResource(Res.string.sign_out, user.username))
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null
-                            )
-                        },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            accessToken = null
-                            UrlManager.replaceAll(LoginScreen())
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-                }
+                )
             }
         ) {
             Scaffold(
@@ -375,14 +300,7 @@ private fun ReviewHeader(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            IconButton(onClick = onMenuClicked) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+            MenuButton(onClick = onMenuClicked)
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,

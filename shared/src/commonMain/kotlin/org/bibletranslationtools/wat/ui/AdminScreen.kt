@@ -5,14 +5,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,12 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.outlined.Delete
@@ -45,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -60,18 +57,22 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
+import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.BatchError
 import org.bibletranslationtools.wat.domain.Model
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.navigation.UrlManager
+import org.bibletranslationtools.wat.ui.control.AppDrawer
 import org.bibletranslationtools.wat.ui.control.BatchInfo
 import org.bibletranslationtools.wat.ui.control.BatchProgress
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
+import org.bibletranslationtools.wat.ui.control.MenuButton
 import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.Status
 import org.bibletranslationtools.wat.ui.control.StatusBar
 import org.bibletranslationtools.wat.ui.control.StatusBox
+import org.bibletranslationtools.wat.ui.control.rememberAppDrawerState
 import org.bibletranslationtools.wat.ui.dialogs.BatchErrorDialog
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
@@ -82,7 +83,6 @@ import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.admin
 import wordanalysistool.shared.generated.resources.back
 import wordanalysistool.shared.generated.resources.delete_batch
-import wordanalysistool.shared.generated.resources.home
 import wordanalysistool.shared.generated.resources.pause_batch
 import wordanalysistool.shared.generated.resources.process_words
 import wordanalysistool.shared.generated.resources.reference_resource
@@ -90,8 +90,6 @@ import wordanalysistool.shared.generated.resources.reset_review_progress
 import wordanalysistool.shared.generated.resources.save
 import wordanalysistool.shared.generated.resources.save_report
 import wordanalysistool.shared.generated.resources.select_reference
-import wordanalysistool.shared.generated.resources.settings
-import wordanalysistool.shared.generated.resources.sign_out
 import wordanalysistool.shared.generated.resources.use_apostrophe_regex
 
 class AdminScreen(
@@ -120,6 +118,9 @@ class AdminScreen(
         var showReferenceDialog by remember { mutableStateOf(false) }
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
+
+        val drawerState = rememberAppDrawerState()
+        val scope = rememberCoroutineScope()
 
         val statuses = remember { mutableStateListOf<Status>() }
         var showStatuses by remember { mutableStateOf(false) }
@@ -150,231 +151,72 @@ class AdminScreen(
             }
         }
 
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier.fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+        AppDrawer(
+            user = user,
+            drawerState = drawerState,
+            onHome = { UrlManager.replaceAll(HomeScreen(user)) },
+            actions = {
+                BatchActions(
+                    state = state,
+                    referenceOpen = showReferenceDialog,
+                    onOpenReference = {
+                        viewModel.onEvent(AdminEvent.FetchRefLanguages)
+                        showReferenceDialog = true
+                    },
+                    onEvent = viewModel::onEvent
+                )
+            }
+        ) {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.surface
+            ) { paddingValues ->
+                Box(
                     modifier = Modifier.fillMaxSize()
-                        .padding(16.dp)
-                        .padding(bottom = 32.dp)
+                        .padding(paddingValues)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline,
-                                shape = MaterialTheme.shapes.medium
-                            )
-                            .weight(0.3f)
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .padding(16.dp)
+                            .padding(bottom = 32.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
+                            MenuButton(
+                                onClick = { scope.launch { drawerState.open() } }
+                            )
+
+                            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(
+                                    text = stringResource(Res.string.admin),
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.W500
+                                )
+                                Text(
+                                    text = state.language?.name ?: "",
+                                    style = LocalTextStyle.current.copy(
+                                        textDirection = TextDirection.ContentOrLtr,
+                                        fontFamily = getFontFamilyForText(
+                                            state.language?.name ?: ""
+                                        )
+                                    )
+                                )
+                            }
+
                             CustomTextButton(
                                 onClick = navigator::pop,
                                 icon = Icons.AutoMirrored.Filled.ArrowBack,
-                                text = stringResource(Res.string.back),
-                                modifier = Modifier.align(Alignment.End)
+                                text = stringResource(Res.string.back)
                             )
-
-                            Text(
-                                text = stringResource(Res.string.admin),
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.W500
-                            )
-                            Text(
-                                text = state.language?.name ?: "",
-                                style = LocalTextStyle.current.copy(
-                                    textDirection = TextDirection.ContentOrLtr,
-                                    fontFamily = getFontFamilyForText(state.language?.name ?: "")
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Column(
-                                horizontalAlignment = Alignment.Start,
-                                verticalArrangement = Arrangement.spacedBy(
-                                    space = 4.dp,
-                                    alignment = Alignment.Bottom
-                                )
-                            ) {
-                                CustomTextButton(
-                                    onClick = {
-                                        viewModel.onEvent(AdminEvent.BatchWords)
-                                    },
-                                    icon = Icons.Default.Sync,
-                                    text = stringResource(Res.string.process_words)
-                                )
-                                CustomTextButton(
-                                    onClick = {
-                                        viewModel.onEvent(AdminEvent.PauseBatch)
-                                    },
-                                    icon = Icons.Default.Pause,
-                                    text = stringResource(Res.string.pause_batch)
-                                )
-                                CustomTextButton(
-                                    onClick = {
-                                        viewModel.onEvent(AdminEvent.DeleteBatch)
-                                    },
-                                    icon = Icons.Outlined.Delete,
-                                    text = stringResource(Res.string.delete_batch)
-                                )
-
-                                HorizontalDivider()
-
-                                Box {
-                                    OutlinedTextField(
-                                        value = if (state.refIetf.isNullOrBlank()) {
-                                            ""
-                                        } else {
-                                            val name = state.refLanguageName
-                                                ?: state.refIetf
-                                            val type = state.refResourceType
-                                                ?.uppercase() ?: ""
-                                            "$name ($type)"
-                                        },
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        singleLine = true,
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Translate,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        trailingIcon = {
-                                            Icon(
-                                                imageVector = if (showReferenceDialog) {
-                                                    Icons.Default.KeyboardArrowUp
-                                                } else {
-                                                    Icons.Default.KeyboardArrowDown
-                                                },
-                                                contentDescription = null
-                                            )
-                                        },
-                                        label = {
-                                            Text(stringResource(Res.string.reference_resource))
-                                        },
-                                        placeholder = {
-                                            Text(
-                                                stringResource(
-                                                    Res.string.select_reference
-                                                )
-                                            )
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .matchParentSize()
-                                            .clickable {
-                                                viewModel.onEvent(
-                                                    AdminEvent.FetchRefLanguages
-                                                )
-                                                showReferenceDialog = true
-                                            }
-                                    )
-                                }
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.use_apostrophe_regex
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Switch(
-                                        checked = state.apostropheIsSeparator,
-                                        onCheckedChange = {
-                                            viewModel.onEvent(
-                                                AdminEvent.SetApostrophe(it)
-                                            )
-                                        }
-                                    )
-                                }
-
-                                HorizontalDivider()
-
-                                state.batch?.let { batch ->
-                                    CustomTextButton(
-                                        onClick = {
-                                            viewModel.onEvent(
-                                                AdminEvent.ResetReview(batch.id)
-                                            )
-                                        },
-                                        icon = Icons.Default.History,
-                                        text = stringResource(
-                                            Res.string.reset_review_progress
-                                        )
-                                    )
-                                }
-
-                                CustomTextButton(
-                                    onClick = {
-                                        viewModel.onEvent(AdminEvent.SaveReport)
-                                    },
-                                    icon = Icons.Outlined.Save,
-                                    text = stringResource(Res.string.save_report)
-                                )
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.Start,
-                                verticalArrangement = Arrangement.spacedBy(
-                                    space = 4.dp,
-                                    alignment = Alignment.Bottom
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                CustomTextButton(
-                                    onClick = { UrlManager.replaceAll(HomeScreen(user)) },
-                                    icon = Icons.Default.Home,
-                                    text = stringResource(Res.string.home)
-                                )
-                                CustomTextButton(
-                                    onClick = {
-                                        navigator.push(SettingsScreen(user))
-                                    },
-                                    icon = Icons.Default.Settings,
-                                    text = stringResource(Res.string.settings)
-                                )
-                                CustomTextButton(
-                                    onClick = {
-                                        accessToken = null
-                                        UrlManager.replaceAll(LoginScreen())
-                                    },
-                                    icon = Icons.Default.Person,
-                                    text = stringResource(
-                                        Res.string.sign_out,
-                                        user.username
-                                    )
-                                )
-                            }
                         }
-                    }
 
-                    Box(
-                        modifier = Modifier
-                            .weight(0.7f)
-                            .fillMaxHeight()
-                            .padding(start = 48.dp),
-                    ) {
+                        Spacer(modifier = Modifier.height(32.dp))
+
                         Column(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier
-                                .padding(top = 8.dp)
-                                .width(500.dp)
+                            modifier = Modifier.width(500.dp)
+                                .align(Alignment.CenterHorizontally)
                         ) {
                             BatchInfo(
                                 info = state.batch?.details?.progress,
@@ -389,73 +231,175 @@ class AdminScreen(
                             }
                         }
                     }
+
+                    StatusBar(
+                        status = state.status ?: Status("", ""),
+                        onToggleStatusBox = { showStatuses = !showStatuses },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+
+                    if (showStatuses) {
+                        StatusBox(
+                            statuses = statuses,
+                            onShowError = { batchError = it },
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = state.toast != null,
+                        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 64.dp)
+                    ) {
+                        state.toast?.let { data ->
+                            MessageToast(
+                                type = data.type,
+                                message = data.message,
+                                onDismiss = data.onClose
+                            )
+                        }
+                    }
                 }
 
-                StatusBar(
-                    status = state.status ?: Status("", ""),
-                    onToggleStatusBox = { showStatuses = !showStatuses },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-
-                if (showStatuses) {
-                    StatusBox(
-                        statuses = statuses,
-                        onShowError = { batchError = it },
-                        modifier = Modifier.align(Alignment.BottomEnd)
+                batchError?.let {
+                    BatchErrorDialog(
+                        error = it,
+                        onDismiss = { batchError = null }
                     )
                 }
 
-                AnimatedVisibility(
-                    visible = state.toast != null,
-                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 64.dp)
-                ) {
-                    state.toast?.let { data ->
-                        MessageToast(
-                            type = data.type,
-                            message = data.message,
-                            onDismiss = data.onClose
-                        )
-                    }
+                state.progress?.let {
+                    ProgressDialog(it)
+                }
+
+                if (showReferenceDialog) {
+                    LanguagesDialog(
+                        languages = state.refLanguages,
+                        resourceTypes = state.refResourceTypes,
+                        onLanguageSelected = {
+                            viewModel.onEvent(
+                                AdminEvent.FetchRefResourceTypes(it.ietfCode)
+                            )
+                        },
+                        onResourceTypeSelected = { language, resourceType ->
+                            viewModel.onEvent(
+                                AdminEvent.SetReference(
+                                    language.ietfCode,
+                                    resourceType
+                                )
+                            )
+                        },
+                        onDismiss = { showReferenceDialog = false },
+                        confirmLabel = stringResource(Res.string.save),
+                        disallowed = ietfCode to resourceType
+                    )
                 }
             }
-
-            batchError?.let {
-                BatchErrorDialog(
-                    error = it,
-                    onDismiss = { batchError = null }
-                )
-            }
-
-            state.progress?.let {
-                ProgressDialog(it)
-            }
-
-            if (showReferenceDialog) {
-                LanguagesDialog(
-                    languages = state.refLanguages,
-                    resourceTypes = state.refResourceTypes,
-                    onLanguageSelected = {
-                        viewModel.onEvent(
-                            AdminEvent.FetchRefResourceTypes(it.ietfCode)
-                        )
-                    },
-                    onResourceTypeSelected = { language, resourceType ->
-                        viewModel.onEvent(
-                            AdminEvent.SetReference(
-                                language.ietfCode,
-                                resourceType
-                            )
-                        )
-                    },
-                    onDismiss = { showReferenceDialog = false },
-                    confirmLabel = stringResource(Res.string.save),
-                    disallowed = ietfCode to resourceType
-                )
-            }
         }
+    }
+}
+
+/** The batch controls for this language, as offered by the app menu. */
+@Composable
+private fun ColumnScope.BatchActions(
+    state: AdminState,
+    referenceOpen: Boolean,
+    onOpenReference: () -> Unit,
+    onEvent: (AdminEvent) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(horizontal = 16.dp)
+    ) {
+        CustomTextButton(
+            onClick = { onEvent(AdminEvent.BatchWords) },
+            icon = Icons.Default.Sync,
+            text = stringResource(Res.string.process_words)
+        )
+        CustomTextButton(
+            onClick = { onEvent(AdminEvent.PauseBatch) },
+            icon = Icons.Default.Pause,
+            text = stringResource(Res.string.pause_batch)
+        )
+        CustomTextButton(
+            onClick = { onEvent(AdminEvent.DeleteBatch) },
+            icon = Icons.Outlined.Delete,
+            text = stringResource(Res.string.delete_batch)
+        )
+
+        HorizontalDivider()
+
+        Box {
+            OutlinedTextField(
+                value = if (state.refIetf.isNullOrBlank()) {
+                    ""
+                } else {
+                    val name = state.refLanguageName ?: state.refIetf
+                    val type = state.refResourceType?.uppercase() ?: ""
+                    "$name ($type)"
+                },
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Translate,
+                        contentDescription = null
+                    )
+                },
+                trailingIcon = {
+                    Icon(
+                        imageVector = if (referenceOpen) {
+                            Icons.Default.KeyboardArrowUp
+                        } else {
+                            Icons.Default.KeyboardArrowDown
+                        },
+                        contentDescription = null
+                    )
+                },
+                label = { Text(stringResource(Res.string.reference_resource)) },
+                placeholder = { Text(stringResource(Res.string.select_reference)) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(onClick = onOpenReference)
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = stringResource(Res.string.use_apostrophe_regex),
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = state.apostropheIsSeparator,
+                onCheckedChange = { onEvent(AdminEvent.SetApostrophe(it)) }
+            )
+        }
+
+        HorizontalDivider()
+
+        state.batch?.let { batch ->
+            CustomTextButton(
+                onClick = { onEvent(AdminEvent.ResetReview(batch.id)) },
+                icon = Icons.Default.History,
+                text = stringResource(Res.string.reset_review_progress)
+            )
+        }
+
+        CustomTextButton(
+            onClick = { onEvent(AdminEvent.SaveReport) },
+            icon = Icons.Outlined.Save,
+            text = stringResource(Res.string.save_report)
+        )
     }
 }
