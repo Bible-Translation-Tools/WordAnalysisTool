@@ -33,3 +33,30 @@ export const isChatError = (obj: any): obj is BatchError => {
     (typeof obj.response === "string" || obj.response === null)
   );
 };
+
+/**
+ * The models a batch was configured with. Written as a JSON array, but rows
+ * predating that are plain comma separated names, so both are read.
+ */
+export const parseModels = (stored: string | null): string[] => {
+  if (!stored) return [];
+
+  const trimmed = stored.trim();
+  if (!trimmed) return [];
+
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((m): m is string => typeof m === "string");
+      }
+    } catch {
+      // fall through to the comma separated reading
+    }
+  }
+
+  return trimmed
+    .split(",")
+    .map((model) => model.trim().replace(/^"|"$/g, ""))
+    .filter((model) => model.length > 0);
+};

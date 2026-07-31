@@ -106,7 +106,9 @@ data class Batch(
     val creator: PublicUser,
     val reference: BatchReference? = null,
     @SerialName("apostrophe_is_separator")
-    val apostropheIsSeparator: Boolean = true
+    val apostropheIsSeparator: Boolean = true,
+    /** Models this project was last analyzed with, as stored on the server. */
+    val models: List<String> = emptyList()
 )
 
 @Serializable

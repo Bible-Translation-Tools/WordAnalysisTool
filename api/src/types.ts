@@ -25,6 +25,7 @@ export type Batch = {
   creator: PublicUser;
   reference?: BatchReference | null;
   apostrophe_is_separator?: boolean;
+  models?: string[];
 };
 
 export type BatchProgress = {

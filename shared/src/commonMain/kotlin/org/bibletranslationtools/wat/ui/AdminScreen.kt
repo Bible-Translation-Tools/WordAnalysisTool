@@ -43,7 +43,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -55,7 +54,6 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.BatchError
@@ -69,6 +67,7 @@ import org.bibletranslationtools.wat.ui.control.BatchProgress
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
 import org.bibletranslationtools.wat.ui.control.MenuButton
 import org.bibletranslationtools.wat.ui.control.MessageToast
+import org.bibletranslationtools.wat.ui.control.MultiSelectComboBox
 import org.bibletranslationtools.wat.ui.control.Status
 import org.bibletranslationtools.wat.ui.control.StatusBar
 import org.bibletranslationtools.wat.ui.control.StatusBox
@@ -81,6 +80,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.admin
+import wordanalysistool.shared.generated.resources.models
+import wordanalysistool.shared.generated.resources.select_models
 import wordanalysistool.shared.generated.resources.back
 import wordanalysistool.shared.generated.resources.delete_batch
 import wordanalysistool.shared.generated.resources.pause_batch
@@ -109,12 +110,6 @@ class AdminScreen(
         val state by viewModel.state.collectAsStateWithLifecycle()
         val event by viewModel.event.collectAsStateWithLifecycle(AdminEvent.Idle)
 
-        val modelsState = Model.entries.mapNotNull {
-            val active = rememberBooleanSetting(it.value, false).value
-            if (active) it.value else null
-        }.toMutableStateList()
-        val models = remember { modelsState }
-
         var showReferenceDialog by remember { mutableStateOf(false) }
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
@@ -133,12 +128,6 @@ class AdminScreen(
                     navigator.popUntilRoot()
                 }
                 else -> Unit
-            }
-        }
-
-        LaunchedEffect(models) {
-            if (models.isNotEmpty()) {
-                viewModel.onEvent(AdminEvent.UpdateModels(models))
             }
         }
 
@@ -371,6 +360,19 @@ private fun ColumnScope.BatchActions(
             )
         }
 
+        ModelSelection(
+            selected = state.models,
+            onToggle = { model ->
+                onEvent(
+                    AdminEvent.UpdateModels(
+                        if (model in state.models) {
+                            state.models - model
+                        } else state.models + model
+                    )
+                )
+            }
+        )
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -402,4 +404,20 @@ private fun ColumnScope.BatchActions(
             text = stringResource(Res.string.save_report)
         )
     }
+}
+
+/** Which models analyze this project. Kept per project, on the server. */
+@Composable
+private fun ModelSelection(
+    selected: List<String>,
+    onToggle: (String) -> Unit
+) {
+    MultiSelectComboBox(
+        options = Model.entries.map { it.value },
+        selected = selected,
+        onToggle = onToggle,
+        label = stringResource(Res.string.models),
+        placeholder = stringResource(Res.string.select_models),
+        modifier = Modifier.fillMaxWidth()
+    )
 }

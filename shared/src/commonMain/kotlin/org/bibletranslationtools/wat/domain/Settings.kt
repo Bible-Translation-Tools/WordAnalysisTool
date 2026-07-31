@@ -1,6 +1,5 @@
 package org.bibletranslationtools.wat.domain
 
-import androidx.compose.runtime.MutableState
 
 enum class Settings {
     THEME,
@@ -30,9 +29,4 @@ enum class Locales(val value: String) {
     EN("English"),
     RU("Русский")
 }
-
-data class ModelStatus(
-    val model: String,
-    val active: MutableState<Boolean>
-)
 

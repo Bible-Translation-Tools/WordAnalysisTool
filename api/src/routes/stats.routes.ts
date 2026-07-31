@@ -5,6 +5,7 @@ import {
   computeBatchProgress,
   deriveStatus,
 } from "../services/stats.service";
+import { parseModels } from "../lib/utils";
 import { Batch, BatchDetails, BatchError, PublicUser } from "../types";
 
 const router = new Hono<AppEnv>();
@@ -65,6 +66,7 @@ router.get("/api/stats/:ietf_code/:resource_type", async (c) => {
       details,
       creator,
       apostrophe_is_separator: dbBatch.apostropheIsSeparator,
+      models: parseModels(dbBatch.models),
       reference: reference
         ? {
             ietf: reference.ietf,

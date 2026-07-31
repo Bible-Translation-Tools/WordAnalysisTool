@@ -107,6 +107,9 @@ class AdminViewModel(
     // overwriting it from the polled server value.
     private var apostropheTouched = false
 
+    // Same for the models: the server's selection stands until it is changed here.
+    private var modelsTouched = false
+
     private var _state = MutableStateFlow(AdminState())
     val state: StateFlow<AdminState> = _state
         .onStart {
@@ -245,6 +248,10 @@ class AdminViewModel(
                                 apostropheIsSeparator = batch.apostropheIsSeparator
                             )
                         }
+                    }
+
+                    if (!modelsTouched) {
+                        _state.update { it.copy(models = batch.models) }
                     }
 
                     val current = batch.details.progress.completed
@@ -576,6 +583,7 @@ class AdminViewModel(
     }
 
     private fun updateModels(models: List<String>) {
+        modelsTouched = true
         _state.update {
             it.copy(models = models)
         }
