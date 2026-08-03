@@ -27,38 +27,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -68,8 +63,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
-import kotlin.math.abs
-import kotlin.math.min
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
@@ -87,26 +80,24 @@ import org.bibletranslationtools.wat.ui.control.MessageToast
 import org.bibletranslationtools.wat.ui.control.NextCardNavigation
 import org.bibletranslationtools.wat.ui.control.PrevCardNavigation
 import org.bibletranslationtools.wat.ui.control.ReviewSlider
-import org.bibletranslationtools.wat.ui.control.rememberAppDrawerState
 import org.bibletranslationtools.wat.ui.control.WordCard
+import org.bibletranslationtools.wat.ui.control.rememberAppDrawerState
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import wordanalysistool.shared.generated.resources.Res
-import wordanalysistool.shared.generated.resources.admin
 import wordanalysistool.shared.generated.resources.app_name
 import wordanalysistool.shared.generated.resources.complete_success
 import wordanalysistool.shared.generated.resources.complete_success_description
-import wordanalysistool.shared.generated.resources.home
+import wordanalysistool.shared.generated.resources.dismiss
 import wordanalysistool.shared.generated.resources.loading
 import wordanalysistool.shared.generated.resources.return_home
 import wordanalysistool.shared.generated.resources.review_instructions
-import wordanalysistool.shared.generated.resources.settings
-import wordanalysistool.shared.generated.resources.sign_out
 import wordanalysistool.shared.generated.resources.word_of_total
 import wordanalysistool.shared.generated.resources.words_checked
+import kotlin.math.abs
+import kotlin.math.min
 
 class ReviewScreen(
     val ietfCode: String,
@@ -129,6 +120,7 @@ class ReviewScreen(
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val drawerState = rememberAppDrawerState()
+        var instructionsExpanded by remember { mutableStateOf(true) }
         val scope = rememberCoroutineScope()
 
         LaunchedEffect(event) {
@@ -191,22 +183,13 @@ class ReviewScreen(
                         } else {
                             Spacer(modifier = Modifier.height(if (wide) 32.dp else 16.dp))
 
-                            // Only the first card needs telling how to review.
-                            AnimatedVisibility(visible = state.currentIndex == 0) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Instructions(
-                                        modifier = Modifier.fillMaxWidth(contentWidth)
-                                    )
+                            Instructions(
+                                expanded = instructionsExpanded,
+                                onExpandedChange = { instructionsExpanded = it },
+                                modifier = Modifier.fillMaxWidth(contentWidth)
+                            )
 
-                                    // The carousel takes whatever is left, so a
-                                    // short window would otherwise put a card
-                                    // right against the banner.
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                }
-                            }
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             WordCarousel(
                                 state = state,
@@ -386,39 +369,85 @@ private val BoldSpan = SpanStyle(fontWeight = FontWeight.Bold)
 /** Side cards keep a fixed height; the center card is always taller than them. */
 /** Below this the review screen switches to its narrow layout. */
 private val WIDE_WINDOW_WIDTH = 900.dp
+private val COLLAPSED_BANNER_SIZE = 48.dp
 private val PEEK_CARD_HEIGHT = 435.dp
 private val CENTER_CARD_HEIGHT = 500.dp
 
 @Composable
-private fun Instructions(modifier: Modifier = Modifier) {
+private fun Instructions(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = MaterialTheme.shapes.medium
+    val border = BorderStroke(
+        width = 2.dp,
+        color = MaterialTheme.colorScheme.secondary
+    )
+
+    if (!expanded) {
+        Box(modifier = modifier) {
+            Surface(
+                onClick = { onExpandedChange(true) },
+                shape = shape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                border = border,
+                modifier = Modifier.size(COLLAPSED_BANNER_SIZE)
+                    .pointerHoverIcon(PointerIcon.Hand)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    InfoIcon()
+                }
+            }
+        }
+        return
+    }
+
     Surface(
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         color = MaterialTheme.colorScheme.secondaryContainer,
-        border = BorderStroke(
-            width = 2.dp,
-            color = MaterialTheme.colorScheme.secondary
-        ),
+        border = border,
         modifier = modifier
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(22.dp)
-            )
+            InfoIcon()
+
             Text(
                 text = stringResource(Res.string.review_instructions),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.W400,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
             )
+
+            IconButton(
+                onClick = { onExpandedChange(false) },
+                modifier = Modifier.align(Alignment.Top)
+                    .pointerHoverIcon(PointerIcon.Hand)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(Res.string.dismiss),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun InfoIcon() {
+    Icon(
+        imageVector = Icons.Default.Info,
+        contentDescription = stringResource(Res.string.review_instructions),
+        tint = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.size(22.dp)
+    )
 }
 
 @Composable
