@@ -132,6 +132,13 @@ class WordCardRenderTest {
         render(name = "card-wide", widthDp = 620, heightDp = 500)
         // A reviewed card gains a badge and a button: the verse must not shrink.
         render(name = "card-unreviewed", widthDp = 620, heightDp = 500, reviewed = false)
+        // A word that wraps onto a later line: its highlight has to sit on it.
+        render(
+            name = "card-word-second-line",
+            widthDp = 620,
+            heightDp = 500,
+            card = secondLineWord
+        )
         render(name = "card-medium", widthDp = 460, heightDp = 420)
         render(name = "card-narrow", widthDp = 300, heightDp = 300)
 
@@ -182,6 +189,20 @@ class WordCardRenderTest {
             chapter = 2,
             verse = "7",
             text = List(4) { longWord.ref.text }.joinToString(" ")
+        ),
+        correct = true
+    )
+
+    /** The reviewed word sits on the second line of the verse. */
+    private val secondLineWord = ReviewWord(
+        word = "pamono",
+        ref = Verse(
+            book = "gen",
+            chapter = 46,
+            verse = "15",
+            text = "Aba bali bana baume bakwa Leya abo aboishile ku fyala kuli " +
+                    "Yakobo mu Padani Aramu, pamono mwana mwanakashi Dina. Abana " +
+                    "baume nabanakashi bonse baali makumi atatu na batatu."
         ),
         correct = true
     )

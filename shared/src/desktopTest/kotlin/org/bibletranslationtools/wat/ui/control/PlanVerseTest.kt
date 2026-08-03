@@ -12,6 +12,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,10 +44,12 @@ class PlanVerseTest {
 
     private val viewMoreLabel = "view more"
 
-    /** The button is inline content, sized like the card sizes it. */
-    private val viewMorePlaceholder by lazy {
-        placeholderFor(viewMoreLabel, style.copy(fontSize = 16.sp))
-    }
+    /** The button is inline content, square and sized in em, as the card has it. */
+    private val viewMorePlaceholder = Placeholder(
+        width = CHIP_HEIGHT_EM.em,
+        height = CHIP_HEIGHT_EM.em,
+        placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+    )
 
     /** Card widths the review screen produces on the sizes people use it at. */
     private val cardWidths = listOf(380, 480, 600, 720, 900)
@@ -54,14 +57,6 @@ class PlanVerseTest {
     private fun regexFor(word: String) = Regex(
         pattern = "(?<!\\p{L})${Regex.escape(word)}(?!\\p{L})",
         option = RegexOption.IGNORE_CASE
-    )
-
-    private fun placeholderFor(label: String, size: TextStyle) = Placeholder(
-        width = with(density) {
-            (measurer.measure(label, size).size.width + 16).toSp()
-        },
-        height = 40.sp,
-        placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
 
     /** The text the card ends up showing, and how it lays out. */
@@ -102,15 +97,6 @@ class PlanVerseTest {
             style = style,
             maxLines = Int.MAX_VALUE,
             placeholders = buildList {
-                match?.let {
-                    add(
-                        AnnotatedString.Range(
-                            item = placeholderFor(it.value, style),
-                            start = it.range.first,
-                            end = it.range.last + 1
-                        )
-                    )
-                }
                 if (plan.truncated) {
                     add(
                         AnnotatedString.Range(
@@ -137,7 +123,6 @@ class PlanVerseTest {
         wordRegex = regexFor(word),
         maxLines = VERSE_MAX_LINES,
         style = style,
-        chipPlaceholder = placeholderFor(word, style),
         viewMorePlaceholder = viewMorePlaceholder,
         widthPx = cardWidthPx,
         textMeasurer = measurer

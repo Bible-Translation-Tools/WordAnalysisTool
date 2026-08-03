@@ -47,8 +47,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -56,6 +61,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -65,6 +71,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -428,7 +435,6 @@ private fun VerseText(
 ) {
     val highlight = MaterialTheme.colorScheme.primary
     val highlightBackground = MaterialTheme.colorScheme.primaryContainer
-    val onSurface = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     val fullVerse = word.ref.text
@@ -443,27 +449,8 @@ private fun VerseText(
         fontFamily = getFontFamilyForText(fullVerse)
     )
 
-    val matchedWord = remember(fullVerse, wordRegex) {
-        wordRegex.find(fullVerse)?.value ?: word.word
-    }
-    val chipStyle = style.copy(
-        color = highlight,
-        fontWeight = FontWeight.W600,
-        fontFamily = getFontFamilyForText(matchedWord)
-    )
-
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
-
-    // Measured in em, as multiples of the font size, so the chips keep their
-    // proportions when the text is set smaller to fit.
-    val chipWidth = chipWidthFor(matchedWord, chipStyle, textMeasurer, density)
-    val chipWidthEm = chipWidth.value / (VERSE_FONT_SIZE * scale).value
-    val chipPlaceholder = Placeholder(
-        width = chipWidthEm.em,
-        height = CHIP_HEIGHT_EM.em,
-        placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-    )
 
     val viewMoreLabel = stringResource(Res.string.view_more)
     val viewMoreStyle = style.copy(
@@ -482,6 +469,12 @@ private fun VerseText(
     // card width, so it does not depend on what the plan decides to show.
     var widthPx by remember(word) { mutableStateOf(0) }
 
+    // The same layout tells the highlight where the word ended up.
+    var textLayout by remember(word) { mutableStateOf<TextLayoutResult?>(null) }
+    val fontSizePx = with(density) { style.fontSize.toPx() }
+    val cornerPx = with(density) { HIGHLIGHT_CORNER.toPx() }
+    val highlightPadPx = with(density) { (HIGHLIGHT_PADDING * scale).toPx() }
+
     // Lines are capped by [VERSE_MAX_LINES], but a short card holds fewer, and a
     // plan made for more lines than the card shows would hide its own tail.
     val lineHeightPx = with(density) { style.lineHeight.toPx() }
@@ -495,8 +488,8 @@ private fun VerseText(
     val expandable = canExpand && viewMoreLabel.isNotEmpty()
 
     val plan = remember(
-        fullVerse, wordRegex, style, chipPlaceholder,
-        viewMorePlaceholder, widthPx, lines, expanded, expandable
+        fullVerse, wordRegex, style, viewMorePlaceholder,
+        widthPx, lines, expanded, expandable
     ) {
         if (expanded || widthPx == 0 || !expandable) {
             VersePlan()
@@ -505,7 +498,6 @@ private fun VerseText(
             wordRegex = wordRegex,
             maxLines = lines,
             style = style,
-            chipPlaceholder = chipPlaceholder,
             viewMorePlaceholder = viewMorePlaceholder,
             widthPx = widthPx,
             textMeasurer = textMeasurer
@@ -517,24 +509,14 @@ private fun VerseText(
     } else "$ELLIPSIS${fullVerse.substring(plan.headTrim)}"
     val match = remember(verseText, wordRegex) { wordRegex.find(verseText) }
 
-    val text = verseAnnotated(verseText = verseText, match = match)
-
-    val chip = InlineTextContent(placeholder = chipPlaceholder) {
-        BoxWithConstraints(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-                .background(
-                    color = highlightBackground,
-                    shape = MaterialTheme.shapes.small
-                )
-                .padding(horizontal = CHIP_HORIZONTAL_PADDING)
-        ) {
-            ChipLabel(
-                text = match?.value ?: matchedWord,
-                style = chipStyle.copy(fontSize = resolvedFontSize(maxHeight))
-            )
-        }
-    }
+    // The word keeps its own characters, styled in place: a selection over
+    // inline content does not copy out whole. Its rounded background is painted
+    // behind the text instead, by [drawWordHighlight].
+    val text = verseAnnotated(
+        verseText = verseText,
+        match = match,
+        highlight = SpanStyle(color = highlight, fontWeight = FontWeight.W600)
+    )
 
     val viewMore = InlineTextContent(placeholder = viewMorePlaceholder) {
         Box(
@@ -574,14 +556,21 @@ private fun VerseText(
             style = style,
             maxLines = lines,
             overflow = TextOverflow.Ellipsis,
-            inlineContent = mapOf(
-                WORD_CHIP_TAG to chip,
-                VIEW_MORE_TAG to viewMore
-            ),
+            inlineContent = mapOf(VIEW_MORE_TAG to viewMore),
             onTextLayout = { layout ->
                 if (layout.size.width != widthPx) widthPx = layout.size.width
+                textLayout = layout
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().drawBehind {
+                drawWordHighlight(
+                    layout = textLayout,
+                    range = match?.range,
+                    color = highlightBackground,
+                    fontSizePx = fontSizePx,
+                    cornerRadius = cornerPx,
+                    horizontalPadding = highlightPadPx
+                )
+            }
         )
     }
 }
@@ -606,62 +595,35 @@ private fun verseFitScale(
     val verse = word.ref.text
     val match = remember(verse, word.word) { wordRegexFor(word.word).find(verse) }
     val verseFont = getFontFamilyForText(verse)
-    val chipFont = getFontFamilyForText(match?.value ?: word.word)
     val referenceFont = getFontFamilyForText(reference)
 
     return remember(
         verse, match, reference, available, spacing, scale,
-        verseFont, chipFont, referenceFont, density, textMeasurer
+        verseFont, referenceFont, density, textMeasurer
     ) {
         with(density) {
-            val text = verseAnnotated(verse, match)
+            // Measured the way read mode draws it: the word styled in place, so
+            // there is no placeholder to account for.
+            val text = verseAnnotated(
+                verseText = verse,
+                match = match,
+                highlight = SpanStyle(fontWeight = FontWeight.W600)
+            )
             val constraints = Constraints(maxWidth = available.width.roundToPx())
             val room = available.height.toPx() - spacing.toPx()
 
-            // Chip proportions do not change with the size, so one measurement
-            // of the word at the base size gives the em width for every candidate.
-            val chipWidthEm = match?.let {
-                val measured = textMeasurer.measure(
-                    text = it.value,
-                    style = TextStyle(
-                        fontSize = VERSE_FONT_SIZE,
-                        fontWeight = FontWeight.W600,
-                        fontFamily = chipFont
-                    )
-                ).size.width
-                val padded = measured * CHIP_WIDTH_SLACK +
-                        (CHIP_HORIZONTAL_PADDING * 2).toPx()
-                padded / VERSE_FONT_SIZE.toPx()
-            }
-
             var candidate = scale
             while (candidate > MIN_VERSE_FIT_SCALE) {
-                val verseStyle = TextStyle(
-                    fontSize = VERSE_FONT_SIZE * candidate,
-                    lineHeight = VERSE_LINE_HEIGHT * candidate,
-                    textAlign = TextAlign.Center,
-                    textDirection = TextDirection.ContentOrLtr,
-                    fontFamily = verseFont
-                )
-                val placeholders = match?.let {
-                    listOf(
-                        AnnotatedString.Range(
-                            item = Placeholder(
-                                width = (chipWidthEm ?: 1f).em,
-                                height = CHIP_HEIGHT_EM.em,
-                                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-                            ),
-                            start = it.range.first,
-                            end = it.range.last + 1
-                        )
-                    )
-                } ?: emptyList()
-
                 val verseHeight = textMeasurer.measure(
                     text = text,
-                    style = verseStyle,
+                    style = TextStyle(
+                        fontSize = VERSE_FONT_SIZE * candidate,
+                        lineHeight = VERSE_LINE_HEIGHT * candidate,
+                        textAlign = TextAlign.Center,
+                        textDirection = TextDirection.ContentOrLtr,
+                        fontFamily = verseFont
+                    ),
                     maxLines = Int.MAX_VALUE,
-                    placeholders = placeholders,
                     constraints = constraints
                 ).size.height
                 val referenceHeight = textMeasurer.measure(
@@ -687,12 +649,14 @@ private fun verseFitScale(
 private fun VerseReference(word: ReviewWord, scale: Float) {
     val reference = referenceOf(word)
 
-    Text(
-        text = reference,
-        style = referenceStyle(reference, scale),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-    )
+    SelectionContainer {
+        Text(
+            text = reference,
+            style = referenceStyle(reference, scale),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 /** Matches the reviewed word on its own, not inside a longer word. */
@@ -734,36 +698,21 @@ internal fun planVerse(
     wordRegex: Regex,
     maxLines: Int,
     style: TextStyle,
-    chipPlaceholder: Placeholder,
     viewMorePlaceholder: Placeholder,
     widthPx: Int,
     textMeasurer: TextMeasurer
 ): VersePlan {
     val constraints = Constraints(maxWidth = widthPx)
 
-    fun placeholders(
-        match: MatchResult?,
-        link: IntRange? = null
-    ) = buildList {
-        match?.let {
-            add(
-                AnnotatedString.Range(
-                    item = chipPlaceholder,
-                    start = it.range.first,
-                    end = it.range.last + 1
-                )
+    fun placeholders(link: IntRange? = null) = link?.let {
+        listOf(
+            AnnotatedString.Range(
+                item = viewMorePlaceholder,
+                start = it.first,
+                end = it.last + 1
             )
-        }
-        link?.let {
-            add(
-                AnnotatedString.Range(
-                    item = viewMorePlaceholder,
-                    start = it.first,
-                    end = it.last + 1
-                )
-            )
-        }
-    }
+        )
+    } ?: emptyList()
 
     /** The verse followed by the button, as the card shows it when truncated. */
     fun withButton(body: AnnotatedString) = buildAnnotatedString {
@@ -776,12 +725,12 @@ internal fun planVerse(
      * Line layout, measured unclamped: the true line count and line indices,
      * with none of the ellipsis semantics of a maxLines limited layout.
      */
-    fun layoutOf(text: AnnotatedString, match: MatchResult?, link: IntRange? = null) =
+    fun layoutOf(text: AnnotatedString, link: IntRange? = null) =
         textMeasurer.measure(
             text = text,
             style = style,
             maxLines = Int.MAX_VALUE,
-            placeholders = placeholders(match, link),
+            placeholders = placeholders(link),
             constraints = constraints
         )
 
@@ -799,7 +748,7 @@ internal fun planVerse(
         val body = verseAnnotated(verse, match)
         val linked = withButton(body)
         return Triple(
-            layoutOf(linked, match, linkRangeOf(linked)),
+            layoutOf(linked, linkRangeOf(linked)),
             match,
             match?.let { it.range.last + 1 } ?: 0
         )
@@ -829,7 +778,7 @@ internal fun planVerse(
     // whole when it fits without one.
     val wholeMatch = wordRegex.find(fullVerse)
     val whole = verseAnnotated(fullVerse, wholeMatch)
-    val wholeLayout = layoutOf(whole, wholeMatch)
+    val wholeLayout = layoutOf(whole)
 
     if (wholeLayout.lineCount <= maxLines) return VersePlan()
 
@@ -857,7 +806,7 @@ internal fun planVerse(
         val body = verseAnnotated(verse, match)
 
         val linked = withButton(body)
-        val layout = layoutOf(linked, match, linkRangeOf(linked))
+        val layout = layoutOf(linked, linkRangeOf(linked))
 
         val wordEnd = match?.let { it.range.last + 1 } ?: 0
         val lastLine = maxLines - 1
@@ -879,7 +828,7 @@ internal fun planVerse(
                     maxLines = maxLines,
                     keepAtLeast = wordEnd,
                     withButton = ::withButton,
-                    layoutOf = { text -> layoutOf(text, match, linkRangeOf(text)) }
+                    layoutOf = { text -> layoutOf(text, linkRangeOf(text)) }
                 ),
                 truncated = true
             )
@@ -919,18 +868,74 @@ private fun largestCutThatFits(
     }
 }
 
-/** The verse, with the reviewed word replaced by its chip. */
+/**
+ * Paints [color] behind the characters in [range], one rounded box per line the
+ * word falls on. Drawn rather than laid out, so the word stays ordinary text
+ * that a selection can carry off whole.
+ */
+private fun DrawScope.drawWordHighlight(
+    layout: TextLayoutResult?,
+    range: IntRange?,
+    color: Color,
+    fontSizePx: Float,
+    cornerRadius: Float,
+    horizontalPadding: Float
+) {
+    if (layout == null || range == null) return
+    if (range.last >= layout.layoutInput.text.length) return
+
+    val height = fontSizePx * HIGHLIGHT_HEIGHT_EM
+    val firstLine = layout.getLineForOffset(range.first)
+    val lastLine = layout.getLineForOffset(range.last)
+
+    for (line in firstLine..lastLine) {
+        if (line >= layout.lineCount) break
+
+        val start = if (line == firstLine) {
+            layout.getHorizontalPosition(range.first, usePrimaryDirection = true)
+        } else layout.getLineLeft(line)
+        val end = if (line == lastLine) {
+            layout.getHorizontalPosition(range.last + 1, usePrimaryDirection = true)
+        } else layout.getLineRight(line)
+
+        // Centred on the baseline, not on the line box: the extra line height is
+        // added above a wrapped line, so its box sits higher than its glyphs.
+        val middle = layout.getLineBaseline(line) -
+                fontSizePx * HIGHLIGHT_BASELINE_EM
+
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(start - horizontalPadding, middle - height / 2),
+            size = Size(end - start + horizontalPadding * 2, height),
+            cornerRadius = CornerRadius(cornerRadius)
+        )
+    }
+}
+
+/**
+ * The verse, with the reviewed word marked out.
+ *
+ * With a [highlight] the word is styled in place, which keeps the verse one
+ * continuous string — text copied out of a selection is then whole. Without one
+ * the word becomes inline content, which can be given a shape and padding.
+ */
 internal fun verseAnnotated(
     verseText: String,
-    match: MatchResult?
+    match: MatchResult?,
+    highlight: SpanStyle? = null
 ) = buildAnnotatedString {
-    if (match != null && match.value.isNotEmpty()) {
-        append(verseText.take(match.range.first))
-        appendInlineContent(WORD_CHIP_TAG, match.value)
-        append(verseText.substring(match.range.last + 1))
-    } else {
+    if (match == null || match.value.isEmpty()) {
         append(verseText)
+        return@buildAnnotatedString
     }
+
+    append(verseText.take(match.range.first))
+    if (highlight != null) {
+        withStyle(highlight) { append(match.value) }
+    } else {
+        appendInlineContent(WORD_CHIP_TAG, match.value)
+    }
+    append(verseText.substring(match.range.last + 1))
 }
 
 /**
@@ -1135,7 +1140,18 @@ private const val VERSE_FIT_STEP = 0.05f
 private val VERSE_ROOM_SLACK = 2.dp
 
 /** Chip height as a multiple of the verse font size, so chips scale with it. */
-private const val CHIP_HEIGHT_EM = 46f * 0.85f / 24f
+internal const val CHIP_HEIGHT_EM = 46f * 0.85f / 24f
+
+/**
+ * The word's painted background. It adds no advance to the line, so its padding
+ * has to stay inside the spaces around the word rather than push them apart.
+ */
+private const val HIGHLIGHT_HEIGHT_EM = 1.5f
+private val HIGHLIGHT_CORNER = 6.dp
+private val HIGHLIGHT_PADDING = 3.dp
+
+/** How far above the baseline the middle of the glyphs sits, in em. */
+private const val HIGHLIGHT_BASELINE_EM = 0.34f
 private const val REFERENCE_FONT_RATIO = 0.85f
 private val VIEW_MORE_FONT_SIZE = 16.sp
 internal const val VERSE_MAX_LINES = 3
