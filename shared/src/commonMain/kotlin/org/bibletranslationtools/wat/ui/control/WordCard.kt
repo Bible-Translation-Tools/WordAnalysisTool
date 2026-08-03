@@ -375,8 +375,9 @@ private fun VerseText(
         lineHeight = VIEW_MORE_FONT_SIZE * scale * 1.25f,
         fontWeight = FontWeight.W600
     )
+    // Strictly square, so the button reads as one mark rather than a word.
     val viewMorePlaceholder = Placeholder(
-        width = chipWidthFor(viewMoreLabel, viewMoreStyle, textMeasurer, density),
+        width = chipPlaceholder.height,
         height = chipPlaceholder.height,
         placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
@@ -454,7 +455,6 @@ private fun VerseText(
                 // would otherwise give it a text cursor and let it be selected.
                 .pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)
                 .clickable(onClick = onExpand)
-                .padding(horizontal = CHIP_HORIZONTAL_PADDING)
         ) {
             DisableSelection {
                 ChipLabel(text = viewMoreLabel, style = viewMoreStyle)
@@ -469,11 +469,8 @@ private fun VerseText(
         } else buildAnnotatedString {
             plan.cutAt?.let { cut ->
                 append(text.subSequence(0, cut.coerceIn(0, text.length)))
-                append(ELLIPSIS)
-            } ?: run {
-                append(text)
-                append(" ")
-            }
+            } ?: append(text)
+            append(BUTTON_GAP)
             appendInlineContent(VIEW_MORE_TAG, VIEW_MORE_ALT)
         }
     }
@@ -552,6 +549,7 @@ internal fun planVerse(
     /** The verse followed by the button, as the card shows it when truncated. */
     fun withButton(body: AnnotatedString) = buildAnnotatedString {
         append(body)
+        if (!body.text.endsWith(BUTTON_GAP)) append(BUTTON_GAP)
         appendInlineContent(VIEW_MORE_TAG, VIEW_MORE_ALT)
     }
 
@@ -692,7 +690,7 @@ private fun largestCutThatFits(
         val candidate = withButton(
             buildAnnotatedString {
                 append(body.subSequence(0, cut))
-                append(ELLIPSIS)
+                append(BUTTON_GAP)
             }
         )
         if (layoutOf(candidate).lineCount <= maxLines || cut <= floor) return cut
@@ -899,6 +897,9 @@ private const val VIEW_MORE_TAG = "viewMore"
  */
 private const val VIEW_MORE_ALT = "\u2026"
 internal const val ELLIPSIS = "... "
+
+/** Keeps the button off the last word of the verse. */
+private const val BUTTON_GAP = " "
 internal const val REFERENCE_SEPARATOR = " - "
 private const val CHIP_WIDTH_SLACK = 1.08f
 

@@ -89,7 +89,7 @@
     <string name="next_word">Next word</string>
     <string name="previous_word">Previous word</string>
     <string name="back">Back</string>
-    <string name="view_more">view more</string>
+    <string name="view_more">…</string>
     <string name="save">Save</string>
     <string name="loading">Loading... Please wait.</string>
     <string name="admin">Admin</string>

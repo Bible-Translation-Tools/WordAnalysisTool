@@ -91,10 +91,8 @@ class PlanVerseTest {
         } else buildAnnotatedString {
             plan.cutAt?.let {
                 append(body.subSequence(0, it))
-                append(ELLIPSIS)
-            } ?: run {
-                append(body)
-            }
+            } ?: append(body)
+            append(" ")
             append(viewMoreLabel)
         }
 

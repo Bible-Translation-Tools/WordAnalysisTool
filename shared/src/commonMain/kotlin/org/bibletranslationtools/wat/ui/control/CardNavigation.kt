@@ -39,13 +39,13 @@ fun PrevCardNavigation(
         modifier = modifier
     ) {
         CardNavButton(
-            icon = Icons.Default.ChevronLeft,
+            icon = Icons.Default.KeyboardDoubleArrowLeft,
             description = stringResource(Res.string.first_word),
             enabled = enabled,
             onClick = onFirst
         )
         CardNavButton(
-            icon = Icons.Default.KeyboardDoubleArrowLeft,
+            icon = Icons.Default.ChevronLeft,
             description = stringResource(Res.string.previous_word),
             enabled = enabled,
             onClick = onPrev
@@ -67,13 +67,13 @@ fun NextCardNavigation(
         modifier = modifier
     ) {
         CardNavButton(
-            icon = Icons.Default.KeyboardDoubleArrowRight,
+            icon = Icons.Default.ChevronRight,
             description = stringResource(Res.string.next_word),
             enabled = enabled,
             onClick = onNext
         )
         CardNavButton(
-            icon = Icons.Default.ChevronRight,
+            icon = Icons.Default.KeyboardDoubleArrowRight,
             description = stringResource(Res.string.last_word),
             enabled = enabled,
             onClick = onLast
