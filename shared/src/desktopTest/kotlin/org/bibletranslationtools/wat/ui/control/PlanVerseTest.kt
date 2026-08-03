@@ -1,6 +1,5 @@
 package org.bibletranslationtools.wat.ui.control
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -84,7 +83,7 @@ class PlanVerseTest {
             verse
         } else "$ELLIPSIS${verse.substring(plan.headTrim)}"
         val match = regexFor(word).find(trimmed)
-        val body = verseAnnotated(reference, trimmed, match, Color.Unspecified)
+        val body = verseAnnotated(trimmed, match)
 
         val text = if (!plan.truncated) {
             body
@@ -96,8 +95,7 @@ class PlanVerseTest {
             append(viewMoreLabel)
         }
 
-        val referenceLength = reference.length + REFERENCE_SEPARATOR.length
-        val chipEnd = match?.let { referenceLength + it.range.last + 1 }
+        val chipEnd = match?.let { it.range.last + 1 }
 
         val layout = measurer.measure(
             text = text,
@@ -108,8 +106,8 @@ class PlanVerseTest {
                     add(
                         AnnotatedString.Range(
                             item = placeholderFor(it.value, style),
-                            start = referenceLength + it.range.first,
-                            end = referenceLength + it.range.last + 1
+                            start = it.range.first,
+                            end = it.range.last + 1
                         )
                     )
                 }
@@ -137,7 +135,6 @@ class PlanVerseTest {
     private fun plan(verse: String, reference: String, word: String, cardWidthPx: Int) = planVerse(
         fullVerse = verse,
         wordRegex = regexFor(word),
-        reference = reference,
         maxLines = VERSE_MAX_LINES,
         style = style,
         chipPlaceholder = placeholderFor(word, style),

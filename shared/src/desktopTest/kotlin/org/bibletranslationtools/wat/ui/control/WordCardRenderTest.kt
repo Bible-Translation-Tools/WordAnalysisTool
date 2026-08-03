@@ -48,7 +48,9 @@ class WordCardRenderTest {
         name: String,
         widthDp: Int,
         heightDp: Int,
-        reviewed: Boolean = true
+        reviewed: Boolean = true,
+        reading: Boolean = false,
+        card: ReviewWord = word
     ) {
         val density = Density(1f)
         val scene = ImageComposeScene(
@@ -65,9 +67,10 @@ class WordCardRenderTest {
                         modifier = Modifier.fillMaxSize().padding(20.dp)
                     ) {
                         WordCard(
-                            word = if (reviewed) word else word.copy(correct = null),
+                            word = if (reviewed) card else card.copy(correct = null),
                             footer = if (reviewed) CardFooter.NEXT else CardFooter.NONE,
                             enabled = true,
+                            initiallyReading = reading,
                             modifier = Modifier
                                 .width(widthDp.dp)
                                 .height(heightDp.dp)
@@ -131,5 +134,55 @@ class WordCardRenderTest {
         render(name = "card-unreviewed", widthDp = 620, heightDp = 500, reviewed = false)
         render(name = "card-medium", widthDp = 460, heightDp = 420)
         render(name = "card-narrow", widthDp = 300, heightDp = 300)
+
+        // Reading a verse far too long for the card: it is set smaller to fit.
+        render(
+            name = "card-reading-long",
+            widthDp = 620,
+            heightDp = 500,
+            reading = true,
+            card = longWord
+        )
+        render(
+            name = "card-reading-huge",
+            widthDp = 620,
+            heightDp = 500,
+            reading = true,
+            card = hugeWord
+        )
+        render(
+            name = "card-reading-short",
+            widthDp = 620,
+            heightDp = 500,
+            reading = true
+        )
     }
+
+    /** A verse that does not fit the card at the verse's usual size. */
+    private val longWord = ReviewWord(
+        word = "ntumineni",
+        ref = Verse(
+            book = "2ch",
+            chapter = 2,
+            verse = "7",
+            text = "Eico ntumineni umuntu uukwetepo ubwishibilo pamibombele ya " +
+                    "golide, silufele, umukuba, ifyela ,mukufitulukila, " +
+                    "mukukashikila,kabili na kotoni wamakumbi makumbi umuntu " +
+                    "waishiba ifyakupanga fyonse ifyanutundu ya kulenga pa fya " +
+                    "miti. Akaba nabantu bakwatilapo ubwishibilo abali naine mu " +
+                    "Jude ya namu yelusalemu, umo taata Davidi wandi apekanya."
+        ),
+        correct = true
+    )
+    /** Far more verse than the card can hold, even set small. */
+    private val hugeWord = ReviewWord(
+        word = "ntumineni",
+        ref = Verse(
+            book = "2ch",
+            chapter = 2,
+            verse = "7",
+            text = List(4) { longWord.ref.text }.joinToString(" ")
+        ),
+        correct = true
+    )
 }

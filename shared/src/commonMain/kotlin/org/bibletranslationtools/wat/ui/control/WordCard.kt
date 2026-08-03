@@ -18,14 +18,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -55,7 +56,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -65,11 +65,13 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import org.bibletranslationtools.wat.data.ReviewWord
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
@@ -96,10 +98,11 @@ fun WordCard(
     word: ReviewWord,
     footer: CardFooter = CardFooter.NONE,
     enabled: Boolean = true,
-    /** Reading the whole verse is allowed even while a review is being saved. */
     expandable: Boolean = enabled,
     onVote: (Boolean) -> Unit = {},
     onNext: () -> Unit = {},
+    /** Starts on the whole-verse view. For previews and rendering tests. */
+    initiallyReading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val correct = word.correct
@@ -111,10 +114,10 @@ fun WordCard(
     }
 
     // Reading the whole verse replaces the card content until the user goes back.
-    var readingVerse by remember(word.word) { mutableStateOf(false) }
+    var readingVerse by remember(word.word) { mutableStateOf(initiallyReading) }
 
     Surface(
-        shape = MaterialTheme.shapes.large,
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(2.dp, borderColor),
         modifier = modifier
@@ -126,29 +129,53 @@ fun WordCard(
                 maxHeight / CARD_REFERENCE_HEIGHT
             ).coerceIn(MIN_CARD_SCALE, 1f)
             val padding = CARD_PADDING * scale
-            val spacing = CARD_SPACING * scale
+            val metrics = cardMetrics(
+                cardWidth = maxWidth,
+                cardHeight = maxHeight,
+                padding = padding,
+                scale = scale,
+                word = word.word,
+                reference = referenceOf(word)
+            )
+            val spacing = metrics.spacing
 
             if (readingVerse) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(
-                        space = spacing,
-                        alignment = Alignment.CenterVertically
-                    ),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
                     modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
+                    // Reference and verse center together, or the verse would sit
+                    // in the middle of the card with the reference left at the top.
                     BoxWithConstraints(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.weight(1f)
                     ) {
-                        VerseText(
+                        val height = with(LocalDensity.current) { maxHeight.toPx() }
+                        // The whole verse is on show here, so it is set at the
+                        // largest size that fits; past the floor it scrolls.
+                        val fitted = verseFitScale(
                             word = word,
-                            availableHeightPx = with(LocalDensity.current) {
-                                maxHeight.toPx()
-                            },
-                            expanded = true,
+                            reference = referenceOf(word),
+                            available = DpSize(maxWidth, maxHeight),
+                            spacing = spacing,
                             scale = scale
                         )
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(spacing),
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        ) {
+                            VerseReference(word = word, scale = fitted)
+
+                            VerseText(
+                                word = word,
+                                availableHeightPx = height,
+                                expanded = true,
+                                scale = fitted
+                            )
+                        }
                     }
 
                     Button(
@@ -175,19 +202,23 @@ fun WordCard(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(spacing),
-                modifier = Modifier.fillMaxSize().padding(padding)
+                modifier = Modifier.fillMaxSize()
+                    .padding(padding)
+                    .padding(bottom = CARD_BOTTOM_PADDING * scale)
             ) {
                 // Both this row and the footer keep their height whether or not
                 // they have anything in them, so the verse below always has the
                 // same room and a reviewed card reads like an unreviewed one.
                 Box(
                     contentAlignment = Alignment.CenterEnd,
-                    modifier = Modifier.fillMaxWidth().height(BADGE_ROW_HEIGHT * scale)
+                    modifier = Modifier.fillMaxWidth().height(BADGE_ROW_HEIGHT)
                 ) {
                     correct?.let { StatusBadge(it, scale) }
                 }
 
-                WordTitle(word = word.word, scale = scale)
+                WordTitle(word = word.word, fontSize = metrics.wordFontSize)
+
+                VerseReference(word = word, scale = scale)
 
                 // The verse is the only part that gives up room, so the thumbs and
                 // the footer always keep their size.
@@ -223,54 +254,68 @@ fun WordCard(
                     )
                 }
 
-                Box(
-                    contentAlignment = Alignment.CenterEnd,
-                    modifier = Modifier.fillMaxWidth().height(FOOTER_HEIGHT * scale)
-                ) {
-                    when (footer) {
-                        CardFooter.SAVING -> CardStatus(
-                            text = stringResource(Res.string.saving),
-                            color = MaterialTheme.colorScheme.primary,
-                            icon = Icons.Default.Sync,
-                            scale = scale,
-                            spinning = true
+            }
+
+            Box(
+                contentAlignment = Alignment.CenterEnd,
+                modifier = Modifier.align(Alignment.BottomEnd)
+                    .padding(end = padding, bottom = padding)
+                    .height(FOOTER_HEIGHT)
+            ) {
+                when (footer) {
+                    CardFooter.SAVING -> CardStatus(
+                        text = stringResource(Res.string.saving),
+                        color = MaterialTheme.colorScheme.primary,
+                        icon = Icons.Default.Sync,
+                        scale = scale,
+                        spinning = true
+                    )
+                    CardFooter.SAVED -> CardStatus(
+                        text = stringResource(Res.string.saved),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        icon = Icons.Default.CloudDone,
+                        scale = scale
+                    )
+                    CardFooter.NEXT -> Button(
+                        onClick = onNext,
+                        enabled = enabled,
+                        shape = MaterialTheme.shapes.small,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxHeight()
+                    ) {
+                        Text(stringResource(Res.string.next))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 8.dp).size(18.dp)
                         )
-                        CardFooter.SAVED -> CardStatus(
-                            text = stringResource(Res.string.saved),
-                            color = MaterialTheme.colorScheme.tertiary,
-                            icon = Icons.Default.CloudDone,
-                            scale = scale
-                        )
-                        CardFooter.NEXT -> Button(
-                            onClick = onNext,
-                            enabled = enabled,
-                            shape = MaterialTheme.shapes.small,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            modifier = Modifier.fillMaxHeight()
-                        ) {
-                            Text(stringResource(Res.string.next))
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                modifier = Modifier.padding(start = 8.dp).size(18.dp)
-                            )
-                        }
-                        CardFooter.NONE -> Unit
                     }
+                    CardFooter.NONE -> Unit
                 }
             }
         }
     }
 }
 
-/** The reviewed word, as large as it can be on one line of this card. */
 @Composable
-private fun WordTitle(word: String, scale: Float) {
-    val style = MaterialTheme.typography.headlineLarge.copy(
+private fun WordTitle(word: String, fontSize: TextUnit) {
+    SelectionContainer {
+        Text(
+            text = word,
+            style = wordTitleStyle(word).copy(fontSize = fontSize),
+            maxLines = 1,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun wordTitleStyle(word: String) =
+    MaterialTheme.typography.headlineLarge.copy(
         textDirection = TextDirection.ContentOrLtr,
         fontFamily = getFontFamilyForText(word),
         fontWeight = FontWeight.W700,
@@ -278,39 +323,93 @@ private fun WordTitle(word: String, scale: Float) {
         color = MaterialTheme.colorScheme.onSurface
     )
 
+/** Sizes the card decides on, so that a full verse fits without a taller card. */
+private data class CardMetrics(
+    val spacing: Dp,
+    val wordFontSize: TextUnit
+)
+
+/**
+ * Works out the row spacing and word size this card can afford.
+ *
+ * The verse is the point of the card, so [VERSE_MAX_LINES] lines of it are booked
+ * first and the rows around it give up the difference: spacing tightens, and if
+ * that is not enough the word is set smaller. Both stop at a floor, below which
+ * the verse simply shows fewer lines.
+ */
+@Composable
+private fun cardMetrics(
+    cardWidth: Dp,
+    cardHeight: Dp,
+    padding: Dp,
+    scale: Float,
+    word: String,
+    reference: String
+): CardMetrics {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
+    val titleStyle = wordTitleStyle(word)
+    val referenceStyle = referenceStyle(reference, scale)
+    val verseLineHeight = VERSE_LINE_HEIGHT * scale
 
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val availableWidth = with(density) { maxWidth.roundToPx() }
-        val fontSize = remember(word, style, availableWidth, textMeasurer, scale) {
-            var size = WORD_FONT_SIZE * scale
-            while (size > WORD_MIN_FONT_SIZE) {
+    return remember(
+        cardWidth, cardHeight, padding, scale, word, reference,
+        titleStyle, referenceStyle, density, textMeasurer
+    ) {
+        with(density) {
+            val availableWidth = cardWidth.roundToPx() - (padding * 2).roundToPx()
+            // A hair over the lines themselves: booking them exactly leaves the
+            // verse a fraction short after rounding, which costs it a whole line.
+            val verse = verseLineHeight.toDp() * VERSE_MAX_LINES + VERSE_ROOM_SLACK
+            val referenceHeight = textMeasurer
+                .measure(reference, referenceStyle)
+                .size.height.toDp()
+            // The badge and the button keep their size on a small card, so they
+            // stay legible; the footer floats, so the column does not book it.
+            val fixedRows = BADGE_ROW_HEIGHT + THUMB_SIZE * scale
+            val room = cardHeight - padding * 2 - CARD_BOTTOM_PADDING * scale -
+                    fixedRows - referenceHeight - verse
+
+            var wordFontSize = WORD_FONT_SIZE * scale
+            var spacing = CARD_SPACING * scale
+
+            while (true) {
                 val measured = textMeasurer.measure(
                     text = word,
-                    style = style.copy(fontSize = size),
+                    style = titleStyle.copy(fontSize = wordFontSize),
                     maxLines = 1,
                     softWrap = false
-                ).size.width
-                if (measured <= availableWidth) break
-                size = (size.value - 2f).sp
-            }
-            size
-        }
+                ).size
 
-        SelectionContainer {
-            Text(
-                text = word,
-                style = style.copy(fontSize = fontSize),
-                maxLines = 1,
-                modifier = Modifier.fillMaxWidth()
+                // One line only: a word too wide for the card is set smaller.
+                if (measured.width > availableWidth &&
+                    wordFontSize > WORD_MIN_FONT_SIZE
+                ) {
+                    wordFontSize = (wordFontSize.value - 2f).sp
+                    continue
+                }
+
+                spacing = ((room - measured.height.toDp()) / CARD_ROW_GAPS)
+                    .coerceAtMost(CARD_SPACING * scale)
+
+                if (spacing >= MIN_CARD_SPACING ||
+                    wordFontSize <= WORD_MIN_FONT_SIZE
+                ) {
+                    break
+                }
+                wordFontSize = (wordFontSize.value - 2f).sp
+            }
+
+            CardMetrics(
+                spacing = spacing.coerceAtLeast(MIN_CARD_SPACING),
+                wordFontSize = wordFontSize
             )
         }
     }
 }
 
 /**
- * The verse of [word] with its reference and the reviewed word as a chip.
+ * The verse of [word], with the reviewed word as a chip.
  *
  * Collapsed it shows as many lines as [availableHeightPx] holds, up to
  * [VERSE_MAX_LINES], with the content chosen by [planVerse] from
@@ -327,19 +426,13 @@ private fun VerseText(
     onExpand: () -> Unit = {},
     scale: Float = 1f
 ) {
-    val reference = "${word.ref.book.uppercase()} ${word.ref.chapter}:${word.ref.verse}"
     val highlight = MaterialTheme.colorScheme.primary
     val highlightBackground = MaterialTheme.colorScheme.primaryContainer
     val onSurface = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     val fullVerse = word.ref.text
-    val wordRegex = remember(word.word) {
-        Regex(
-            pattern = "(?<!\\p{L})${Regex.escape(word.word)}(?!\\p{L})",
-            option = RegexOption.IGNORE_CASE
-        )
-    }
+    val wordRegex = remember(word.word) { wordRegexFor(word.word) }
 
     val style = TextStyle.Default.copy(
         color = onSurfaceVariant,
@@ -361,10 +454,14 @@ private fun VerseText(
 
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
+
+    // Measured in em, as multiples of the font size, so the chips keep their
+    // proportions when the text is set smaller to fit.
     val chipWidth = chipWidthFor(matchedWord, chipStyle, textMeasurer, density)
+    val chipWidthEm = chipWidth.value / (VERSE_FONT_SIZE * scale).value
     val chipPlaceholder = Placeholder(
-        width = chipWidth,
-        height = VERSE_LINE_HEIGHT * scale * 0.85f,
+        width = chipWidthEm.em,
+        height = CHIP_HEIGHT_EM.em,
         placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
 
@@ -375,10 +472,9 @@ private fun VerseText(
         lineHeight = VIEW_MORE_FONT_SIZE * scale * 1.25f,
         fontWeight = FontWeight.W600
     )
-    // Strictly square, so the button reads as one mark rather than a word.
     val viewMorePlaceholder = Placeholder(
-        width = chipPlaceholder.height,
-        height = chipPlaceholder.height,
+        width = CHIP_HEIGHT_EM.em,
+        height = CHIP_HEIGHT_EM.em,
         placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
 
@@ -399,7 +495,7 @@ private fun VerseText(
     val expandable = canExpand && viewMoreLabel.isNotEmpty()
 
     val plan = remember(
-        fullVerse, wordRegex, reference, style, chipPlaceholder,
+        fullVerse, wordRegex, style, chipPlaceholder,
         viewMorePlaceholder, widthPx, lines, expanded, expandable
     ) {
         if (expanded || widthPx == 0 || !expandable) {
@@ -407,7 +503,6 @@ private fun VerseText(
         } else planVerse(
             fullVerse = fullVerse,
             wordRegex = wordRegex,
-            reference = reference,
             maxLines = lines,
             style = style,
             chipPlaceholder = chipPlaceholder,
@@ -422,15 +517,10 @@ private fun VerseText(
     } else "$ELLIPSIS${fullVerse.substring(plan.headTrim)}"
     val match = remember(verseText, wordRegex) { wordRegex.find(verseText) }
 
-    val text = verseAnnotated(
-        reference = reference,
-        verseText = verseText,
-        match = match,
-        referenceColor = onSurface
-    )
+    val text = verseAnnotated(verseText = verseText, match = match)
 
     val chip = InlineTextContent(placeholder = chipPlaceholder) {
-        Box(
+        BoxWithConstraints(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize()
                 .background(
@@ -439,7 +529,10 @@ private fun VerseText(
                 )
                 .padding(horizontal = CHIP_HORIZONTAL_PADDING)
         ) {
-            ChipLabel(text = match?.value ?: matchedWord, style = chipStyle)
+            ChipLabel(
+                text = match?.value ?: matchedWord,
+                style = chipStyle.copy(fontSize = resolvedFontSize(maxHeight))
+            )
         }
     }
 
@@ -493,6 +586,134 @@ private fun VerseText(
     }
 }
 
+/**
+ * The largest text scale at which the whole verse fits [available].
+ *
+ * Compose's autoSize cannot be used for this: with no line limit it does not
+ * report the height overflow, so it settles on a size and ellipsizes the rest.
+ * Measuring each candidate is what the collapsed card already relies on.
+ */
+@Composable
+private fun verseFitScale(
+    word: ReviewWord,
+    reference: String,
+    available: DpSize,
+    spacing: Dp,
+    scale: Float
+): Float {
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    val verse = word.ref.text
+    val match = remember(verse, word.word) { wordRegexFor(word.word).find(verse) }
+    val verseFont = getFontFamilyForText(verse)
+    val chipFont = getFontFamilyForText(match?.value ?: word.word)
+    val referenceFont = getFontFamilyForText(reference)
+
+    return remember(
+        verse, match, reference, available, spacing, scale,
+        verseFont, chipFont, referenceFont, density, textMeasurer
+    ) {
+        with(density) {
+            val text = verseAnnotated(verse, match)
+            val constraints = Constraints(maxWidth = available.width.roundToPx())
+            val room = available.height.toPx() - spacing.toPx()
+
+            // Chip proportions do not change with the size, so one measurement
+            // of the word at the base size gives the em width for every candidate.
+            val chipWidthEm = match?.let {
+                val measured = textMeasurer.measure(
+                    text = it.value,
+                    style = TextStyle(
+                        fontSize = VERSE_FONT_SIZE,
+                        fontWeight = FontWeight.W600,
+                        fontFamily = chipFont
+                    )
+                ).size.width
+                val padded = measured * CHIP_WIDTH_SLACK +
+                        (CHIP_HORIZONTAL_PADDING * 2).toPx()
+                padded / VERSE_FONT_SIZE.toPx()
+            }
+
+            var candidate = scale
+            while (candidate > MIN_VERSE_FIT_SCALE) {
+                val verseStyle = TextStyle(
+                    fontSize = VERSE_FONT_SIZE * candidate,
+                    lineHeight = VERSE_LINE_HEIGHT * candidate,
+                    textAlign = TextAlign.Center,
+                    textDirection = TextDirection.ContentOrLtr,
+                    fontFamily = verseFont
+                )
+                val placeholders = match?.let {
+                    listOf(
+                        AnnotatedString.Range(
+                            item = Placeholder(
+                                width = (chipWidthEm ?: 1f).em,
+                                height = CHIP_HEIGHT_EM.em,
+                                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                            ),
+                            start = it.range.first,
+                            end = it.range.last + 1
+                        )
+                    )
+                } ?: emptyList()
+
+                val verseHeight = textMeasurer.measure(
+                    text = text,
+                    style = verseStyle,
+                    maxLines = Int.MAX_VALUE,
+                    placeholders = placeholders,
+                    constraints = constraints
+                ).size.height
+                val referenceHeight = textMeasurer.measure(
+                    text = reference,
+                    style = TextStyle(
+                        fontSize = VERSE_FONT_SIZE * candidate * REFERENCE_FONT_RATIO,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = referenceFont
+                    )
+                ).size.height
+
+                if (verseHeight + referenceHeight <= room) break
+                candidate -= VERSE_FIT_STEP
+            }
+
+            candidate.coerceAtLeast(MIN_VERSE_FIT_SCALE)
+        }
+    }
+}
+
+/** Where the verse is from, on its own row above it. */
+@Composable
+private fun VerseReference(word: ReviewWord, scale: Float) {
+    val reference = referenceOf(word)
+
+    Text(
+        text = reference,
+        style = referenceStyle(reference, scale),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+/** Matches the reviewed word on its own, not inside a longer word. */
+private fun wordRegexFor(word: String) = Regex(
+    pattern = "(?<!\\p{L})${Regex.escape(word)}(?!\\p{L})",
+    option = RegexOption.IGNORE_CASE
+)
+
+private fun referenceOf(word: ReviewWord) =
+    "${word.ref.book.uppercase()} ${word.ref.chapter}:${word.ref.verse}"
+
+@Composable
+private fun referenceStyle(reference: String, scale: Float) = TextStyle.Default.copy(
+    color = MaterialTheme.colorScheme.onSurface,
+    fontSize = VERSE_FONT_SIZE * scale * REFERENCE_FONT_RATIO,
+    fontWeight = FontWeight.Bold,
+    textAlign = TextAlign.Center,
+    textDirection = TextDirection.ContentOrLtr,
+    fontFamily = getFontFamilyForText(reference)
+)
+
 /** How much of a verse to leave out, and whether anything was left out at all. */
 internal data class VersePlan(
     /** Characters dropped from the head of the verse. */
@@ -511,7 +732,6 @@ internal data class VersePlan(
 internal fun planVerse(
     fullVerse: String,
     wordRegex: Regex,
-    reference: String,
     maxLines: Int,
     style: TextStyle,
     chipPlaceholder: Placeholder,
@@ -520,7 +740,6 @@ internal fun planVerse(
     textMeasurer: TextMeasurer
 ): VersePlan {
     val constraints = Constraints(maxWidth = widthPx)
-    val referenceLength = reference.length + REFERENCE_SEPARATOR.length
 
     fun placeholders(
         match: MatchResult?,
@@ -530,8 +749,8 @@ internal fun planVerse(
             add(
                 AnnotatedString.Range(
                     item = chipPlaceholder,
-                    start = referenceLength + it.range.first,
-                    end = referenceLength + it.range.last + 1
+                    start = it.range.first,
+                    end = it.range.last + 1
                 )
             )
         }
@@ -577,12 +796,12 @@ internal fun planVerse(
     fun measureHead(headTrim: Int): Triple<TextLayoutResult, MatchResult?, Int> {
         val verse = verseFrom(headTrim)
         val match = wordRegex.find(verse)
-        val body = verseAnnotated(reference, verse, match, Color.Unspecified)
+        val body = verseAnnotated(verse, match)
         val linked = withButton(body)
         return Triple(
             layoutOf(linked, match, linkRangeOf(linked)),
             match,
-            match?.let { referenceLength + it.range.last + 1 } ?: 0
+            match?.let { it.range.last + 1 } ?: 0
         )
     }
 
@@ -609,14 +828,14 @@ internal fun planVerse(
     // The button belongs to every measurement from here on: a verse is only left
     // whole when it fits without one.
     val wholeMatch = wordRegex.find(fullVerse)
-    val whole = verseAnnotated(reference, fullVerse, wholeMatch, Color.Unspecified)
+    val whole = verseAnnotated(fullVerse, wholeMatch)
     val wholeLayout = layoutOf(whole, wholeMatch)
 
     if (wholeLayout.lineCount <= maxLines) return VersePlan()
 
     val wordStart = wholeMatch?.range?.first ?: 0
     val wordLine = wholeMatch?.let {
-        wholeLayout.getLineForOffset(referenceLength + it.range.first)
+        wholeLayout.getLineForOffset(it.range.first)
     } ?: 0
 
     // Start from the line that would put the word on the last visible line and
@@ -627,7 +846,7 @@ internal fun planVerse(
         val headTrim = if (candidateLine == 0) {
             0
         } else fullVerse.wordStartAfter(
-            offset = wholeLayout.getLineStart(candidateLine) - referenceLength,
+            offset = wholeLayout.getLineStart(candidateLine),
             limit = wordStart
         )
 
@@ -635,12 +854,12 @@ internal fun planVerse(
             fullVerse
         } else "$ELLIPSIS${fullVerse.substring(headTrim)}"
         val match = wordRegex.find(verse)
-        val body = verseAnnotated(reference, verse, match, Color.Unspecified)
+        val body = verseAnnotated(verse, match)
 
         val linked = withButton(body)
         val layout = layoutOf(linked, match, linkRangeOf(linked))
 
-        val wordEnd = match?.let { referenceLength + it.range.last + 1 } ?: 0
+        val wordEnd = match?.let { it.range.last + 1 } ?: 0
         val lastLine = maxLines - 1
 
         // Verse and button both fit: the button stays, nothing else to leave out.
@@ -700,18 +919,11 @@ private fun largestCutThatFits(
     }
 }
 
-/** The reference, then the verse with the reviewed word replaced by its chip. */
+/** The verse, with the reviewed word replaced by its chip. */
 internal fun verseAnnotated(
-    reference: String,
     verseText: String,
-    match: MatchResult?,
-    referenceColor: Color
+    match: MatchResult?
 ) = buildAnnotatedString {
-    withStyle(SpanStyle(color = referenceColor, fontWeight = FontWeight.Bold)) {
-        append(reference)
-    }
-    append(REFERENCE_SEPARATOR)
-
     if (match != null && match.value.isNotEmpty()) {
         append(verseText.take(match.range.first))
         appendInlineContent(WORD_CHIP_TAG, match.value)
@@ -739,6 +951,11 @@ private fun chipWidthFor(
     }
 }
 
+/** The font size a chip of [height] was laid out at, from its em proportions. */
+@Composable
+private fun resolvedFontSize(height: Dp): TextUnit =
+    with(LocalDensity.current) { height.toSp() } / CHIP_HEIGHT_EM
+
 /** Chip label that overflows its chip rather than losing characters. */
 @Composable
 private fun ChipLabel(text: String, style: TextStyle) {
@@ -763,16 +980,6 @@ private fun String.wordStartAfter(offset: Int, limit: Int): Int {
     if (offset >= limit) return limit
     val space = indexOf(' ', offset.coerceAtLeast(0))
     return if (space < 0 || space + 1 > limit) limit else space + 1
-}
-
-/** Largest offset at or before [offset] that ends a word, never below [keepAtLeast]. */
-private fun AnnotatedString.cutBefore(offset: Int, keepAtLeast: Int): Int {
-    val target = offset.coerceIn(0, length)
-    val boundary = text.lastIndexOf(' ', target)
-    return (if (boundary > 0) boundary else target).coerceIn(
-        minimumValue = keepAtLeast.coerceAtMost(length),
-        maximumValue = length
-    )
 }
 
 @Composable
@@ -900,7 +1107,6 @@ internal const val ELLIPSIS = "... "
 
 /** Keeps the button off the last word of the verse. */
 private const val BUTTON_GAP = " "
-internal const val REFERENCE_SEPARATOR = " - "
 private const val CHIP_WIDTH_SLACK = 1.08f
 
 /** Card width the sizes below are meant for; smaller cards scale down to fit. */
@@ -908,7 +1114,14 @@ private val CARD_REFERENCE_WIDTH = 600.dp
 private val CARD_REFERENCE_HEIGHT = 500.dp
 private const val MIN_CARD_SCALE = 0.55f
 private val CARD_PADDING = 24.dp
+
+/** Extra room under the thumbs, so they do not sit on the card's edge. */
+private val CARD_BOTTOM_PADDING = 16.dp
 private val CARD_SPACING = 20.dp
+private val MIN_CARD_SPACING = 6.dp
+
+/** Gaps between the card's rows: badge, word, reference, verse, thumbs. */
+private const val CARD_ROW_GAPS = 4
 private val BADGE_ROW_HEIGHT = 32.dp
 private val FOOTER_HEIGHT = 40.dp
 private val THUMB_SIZE = 96.dp
@@ -917,6 +1130,13 @@ private val WORD_FONT_SIZE = 70.sp
 private val WORD_MIN_FONT_SIZE = 24.sp
 private val VERSE_FONT_SIZE = 24.sp
 private val VERSE_LINE_HEIGHT = 46.sp
+private const val MIN_VERSE_FIT_SCALE = 0.55f
+private const val VERSE_FIT_STEP = 0.05f
+private val VERSE_ROOM_SLACK = 2.dp
+
+/** Chip height as a multiple of the verse font size, so chips scale with it. */
+private const val CHIP_HEIGHT_EM = 46f * 0.85f / 24f
+private const val REFERENCE_FONT_RATIO = 0.85f
 private val VIEW_MORE_FONT_SIZE = 16.sp
 internal const val VERSE_MAX_LINES = 3
 private val CHIP_HORIZONTAL_PADDING = 8.dp

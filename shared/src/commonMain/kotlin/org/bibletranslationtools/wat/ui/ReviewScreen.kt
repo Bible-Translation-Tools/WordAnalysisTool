@@ -44,8 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,6 +66,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Settings
@@ -120,7 +119,13 @@ class ReviewScreen(
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val drawerState = rememberAppDrawerState()
-        var instructionsExpanded by remember { mutableStateOf(true) }
+        var instructionsExpanded by rememberBooleanSetting(
+            key = Settings.REVIEW_INSTRUCTIONS_SHOWN.forProject(
+                ietfCode = ietfCode,
+                resourceType = resourceType
+            ),
+            defaultValue = true
+        )
         val scope = rememberCoroutineScope()
 
         LaunchedEffect(event) {
