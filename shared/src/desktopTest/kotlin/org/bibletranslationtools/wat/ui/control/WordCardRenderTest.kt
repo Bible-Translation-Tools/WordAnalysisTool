@@ -68,7 +68,7 @@ class WordCardRenderTest {
                     ) {
                         WordCard(
                             word = if (reviewed) card else card.copy(correct = null),
-                            footer = if (reviewed) CardFooter.NEXT else CardFooter.NONE,
+                            footer = if (reviewed) CardFooter.SAVED else CardFooter.NONE,
                             enabled = true,
                             initiallyReading = reading,
                             modifier = Modifier

@@ -467,18 +467,13 @@ private fun WordCarousel(
             WordCard(
                 word = word,
                 footer = when {
-                    !isCurrent -> {
-                        if (word.correct != null) CardFooter.SAVED else CardFooter.NONE
-                    }
                     state.savingWord == word.word -> CardFooter.SAVING
-                    word.correct == null -> CardFooter.NONE
-                    state.canGoNext -> CardFooter.NEXT
-                    else -> CardFooter.SAVED
+                    word.correct != null -> CardFooter.SAVED
+                    else -> CardFooter.NONE
                 },
                 enabled = isCurrent && unlocked,
                 expandable = isCurrent,
                 onVote = onVote,
-                onNext = onNext,
                 modifier = placement
             )
         }

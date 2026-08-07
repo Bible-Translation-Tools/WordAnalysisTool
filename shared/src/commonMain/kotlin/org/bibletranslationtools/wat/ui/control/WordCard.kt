@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -29,7 +30,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.ThumbDown
@@ -87,7 +87,6 @@ import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.back
 import wordanalysistool.shared.generated.resources.correct
 import wordanalysistool.shared.generated.resources.incorrect
-import wordanalysistool.shared.generated.resources.next
 import wordanalysistool.shared.generated.resources.saved
 import wordanalysistool.shared.generated.resources.saving
 import wordanalysistool.shared.generated.resources.view_more
@@ -96,8 +95,7 @@ import wordanalysistool.shared.generated.resources.view_more
 enum class CardFooter {
     NONE,
     SAVING,
-    SAVED,
-    NEXT
+    SAVED
 }
 
 @Composable
@@ -107,7 +105,6 @@ fun WordCard(
     enabled: Boolean = true,
     expandable: Boolean = enabled,
     onVote: (Boolean) -> Unit = {},
-    onNext: () -> Unit = {},
     /** Starts on the whole-verse view. For previews and rendering tests. */
     initiallyReading: Boolean = false,
     modifier: Modifier = Modifier
@@ -147,73 +144,75 @@ fun WordCard(
             val spacing = metrics.spacing
 
             if (readingVerse) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(spacing),
+                // Reference, verse and the way back are rows of one centred
+                // column, so the gaps between them are the card's own.
+                BoxWithConstraints(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
-                    // Reference and verse center together, or the verse would sit
-                    // in the middle of the card with the reference left at the top.
-                    BoxWithConstraints(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.weight(1f)
+                    val height = with(LocalDensity.current) { maxHeight.toPx() }
+                    // The whole verse is on show here, so it is set at the largest
+                    // size that fits beside the button; past the floor it scrolls.
+                    val fitted = verseFitScale(
+                        word = word,
+                        reference = referenceOf(word),
+                        available = DpSize(
+                            width = maxWidth,
+                            height = maxHeight - FOOTER_HEIGHT - spacing
+                        ),
+                        spacing = spacing,
+                        scale = scale
+                    )
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(spacing),
+                        modifier = Modifier.heightIn(max = maxHeight)
+                            .verticalScroll(rememberScrollState())
                     ) {
-                        val height = with(LocalDensity.current) { maxHeight.toPx() }
-                        // The whole verse is on show here, so it is set at the
-                        // largest size that fits; past the floor it scrolls.
-                        val fitted = verseFitScale(
+                        VerseReference(word = word, scale = fitted)
+
+                        VerseText(
                             word = word,
-                            reference = referenceOf(word),
-                            available = DpSize(maxWidth, maxHeight),
-                            spacing = spacing,
-                            scale = scale
+                            availableHeightPx = height,
+                            expanded = true,
+                            scale = fitted
                         )
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(spacing),
-                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        Button(
+                            onClick = { readingVerse = false },
+                            shape = MaterialTheme.shapes.small,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(end = 16.dp)
                         ) {
-                            VerseReference(word = word, scale = fitted)
-
-                            VerseText(
-                                word = word,
-                                availableHeightPx = height,
-                                expanded = true,
-                                scale = fitted
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                                    .size(18.dp)
                             )
+                            Text(stringResource(Res.string.back))
                         }
                     }
-
-                    Button(
-                        onClick = { readingVerse = false },
-                        shape = MaterialTheme.shapes.small,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        contentPadding = PaddingValues(end = 16.dp),
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null,
-                            modifier = Modifier.padding(horizontal = 8.dp).size(18.dp)
-                        )
-                        Text(stringResource(Res.string.back))
-                    }
                 }
+
                 return@BoxWithConstraints
             }
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(spacing),
+                verticalArrangement = Arrangement.spacedBy(
+                    space = spacing,
+                    alignment = Alignment.CenterVertically
+                ),
                 modifier = Modifier.fillMaxSize()
                     .padding(padding)
                     .padding(bottom = CARD_BOTTOM_PADDING * scale)
             ) {
-                // Both this row and the footer keep their height whether or not
+                // Both this row and the footer keep their height whether
                 // they have anything in them, so the verse below always has the
                 // same room and a reviewed card reads like an unreviewed one.
                 Box(
@@ -229,20 +228,15 @@ fun WordCard(
 
                 // The verse is the only part that gives up room, so the thumbs and
                 // the footer always keep their size.
-                BoxWithConstraints(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                ) {
-                    VerseText(
-                        word = word,
-                        availableHeightPx = with(LocalDensity.current) {
-                            maxHeight.toPx()
-                        },
-                        canExpand = expandable,
-                        onExpand = { readingVerse = true },
-                        scale = scale
-                    )
-                }
+                VerseText(
+                    word = word,
+                    availableHeightPx = with(LocalDensity.current) {
+                        metrics.verseHeight.toPx()
+                    },
+                    canExpand = expandable,
+                    onExpand = { readingVerse = true },
+                    scale = scale
+                )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp * scale)) {
                     ThumbButton(
@@ -283,24 +277,6 @@ fun WordCard(
                         icon = Icons.Default.CloudDone,
                         scale = scale
                     )
-                    CardFooter.NEXT -> Button(
-                        onClick = onNext,
-                        enabled = enabled,
-                        shape = MaterialTheme.shapes.small,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        modifier = Modifier.fillMaxHeight()
-                    ) {
-                        Text(stringResource(Res.string.next))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 8.dp).size(18.dp)
-                        )
-                    }
                     CardFooter.NONE -> Unit
                 }
             }
@@ -333,7 +309,9 @@ private fun wordTitleStyle(word: String) =
 /** Sizes the card decides on, so that a full verse fits without a taller card. */
 private data class CardMetrics(
     val spacing: Dp,
-    val wordFontSize: TextUnit
+    val wordFontSize: TextUnit,
+    /** What is left for the verse once every other row has its place. */
+    val verseHeight: Dp
 )
 
 /**
@@ -407,9 +385,22 @@ private fun cardMetrics(
                 wordFontSize = (wordFontSize.value - 2f).sp
             }
 
+            val settled = spacing.coerceAtLeast(MIN_CARD_SPACING)
+            val wordHeight = textMeasurer.measure(
+                text = word,
+                style = titleStyle.copy(fontSize = wordFontSize),
+                maxLines = 1,
+                softWrap = false
+            ).size.height.toDp()
+            val left = cardHeight - padding * 2 - CARD_BOTTOM_PADDING * scale -
+                    fixedRows - referenceHeight - wordHeight -
+                    settled * CARD_ROW_GAPS
+
             CardMetrics(
-                spacing = spacing.coerceAtLeast(MIN_CARD_SPACING),
-                wordFontSize = wordFontSize
+                spacing = settled,
+                wordFontSize = wordFontSize,
+                // Never less than a line, or the verse would have nowhere to go.
+                verseHeight = left.coerceIn(verseLineHeight.toDp(), verse)
             )
         }
     }
@@ -1133,14 +1124,15 @@ private val THUMB_SIZE = 96.dp
 private val THUMB_ICON_SIZE = 45.dp
 private val WORD_FONT_SIZE = 70.sp
 private val WORD_MIN_FONT_SIZE = 24.sp
-private val VERSE_FONT_SIZE = 24.sp
-private val VERSE_LINE_HEIGHT = 46.sp
+private val VERSE_FONT_SIZE = 20.sp
+private val VERSE_LINE_HEIGHT = 32.sp
 private const val MIN_VERSE_FIT_SCALE = 0.55f
 private const val VERSE_FIT_STEP = 0.05f
 private val VERSE_ROOM_SLACK = 2.dp
 
 /** Chip height as a multiple of the verse font size, so chips scale with it. */
-internal const val CHIP_HEIGHT_EM = 46f * 0.85f / 24f
+internal val CHIP_HEIGHT_EM =
+    VERSE_LINE_HEIGHT.value * 0.85f / VERSE_FONT_SIZE.value
 
 /**
  * The word's painted background. It adds no advance to the line, so its padding
@@ -1154,5 +1146,5 @@ private val HIGHLIGHT_PADDING = 3.dp
 private const val HIGHLIGHT_BASELINE_EM = 0.34f
 private const val REFERENCE_FONT_RATIO = 0.85f
 private val VIEW_MORE_FONT_SIZE = 16.sp
-internal const val VERSE_MAX_LINES = 3
+internal const val VERSE_MAX_LINES = 5
 private val CHIP_HORIZONTAL_PADDING = 8.dp
