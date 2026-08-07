@@ -4,12 +4,7 @@ package org.bibletranslationtools.wat.domain
 enum class Settings {
     THEME,
     LOCALE,
-    ACCESS_TOKEN,
-    REVIEW_INSTRUCTIONS_SHOWN;
-
-    /** Key for a setting kept per project rather than for the whole app. */
-    fun forProject(ietfCode: String, resourceType: String) =
-        "$name/$ietfCode/$resourceType"
+    ACCESS_TOKEN
 }
 
 enum class Theme {

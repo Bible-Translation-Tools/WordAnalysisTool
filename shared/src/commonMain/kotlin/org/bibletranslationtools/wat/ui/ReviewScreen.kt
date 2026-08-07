@@ -13,7 +13,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,12 +28,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,17 +41,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -66,7 +64,6 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
 import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Settings
@@ -89,7 +86,7 @@ import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.app_name
 import wordanalysistool.shared.generated.resources.complete_success
 import wordanalysistool.shared.generated.resources.complete_success_description
-import wordanalysistool.shared.generated.resources.dismiss
+import wordanalysistool.shared.generated.resources.instructions
 import wordanalysistool.shared.generated.resources.loading
 import wordanalysistool.shared.generated.resources.return_home
 import wordanalysistool.shared.generated.resources.review_instructions
@@ -119,13 +116,10 @@ class ReviewScreen(
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
         val drawerState = rememberAppDrawerState()
-        var instructionsExpanded by rememberBooleanSetting(
-            key = Settings.REVIEW_INSTRUCTIONS_SHOWN.forProject(
-                ietfCode = ietfCode,
-                resourceType = resourceType
-            ),
-            defaultValue = true
-        )
+        // A review that has not been started opens on the instructions card.
+        var atInstructions by remember(state.total) {
+            mutableStateOf(state.total > 0 && state.frontierIndex == 0)
+        }
         val scope = rememberCoroutineScope()
 
         LaunchedEffect(event) {
@@ -175,8 +169,12 @@ class ReviewScreen(
                             total = state.total,
                             reviewed = state.reviewedCount,
                             reachableIndex = state.frontierIndex,
+                            atInstructions = atInstructions,
                             canSeek = state.savingWord == null && !state.isLoading,
-                            onSeek = viewModel::goTo,
+                            onSeek = { card ->
+                                atInstructions = card == 0
+                                if (card > 0) viewModel.goTo(card - 1)
+                            },
                             onMenuClicked = { scope.launch { drawerState.open() } },
                             modifier = Modifier.fillMaxWidth(contentWidth)
                         )
@@ -188,22 +186,30 @@ class ReviewScreen(
                         } else {
                             Spacer(modifier = Modifier.height(if (wide) 32.dp else 16.dp))
 
-                            Instructions(
-                                expanded = instructionsExpanded,
-                                onExpandedChange = { instructionsExpanded = it },
-                                modifier = Modifier.fillMaxWidth(contentWidth)
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
                             WordCarousel(
                                 state = state,
+                                atInstructions = atInstructions,
                                 cardWidthFraction = if (wide) 0.44f else 0.7f,
                                 onVote = viewModel::onVote,
-                                onNext = viewModel::goNext,
-                                onPrev = viewModel::goPrev,
-                                onFirst = viewModel::goFirst,
-                                onLast = viewModel::goLast,
+                                onNext = {
+                                    if (atInstructions) {
+                                        atInstructions = false
+                                        viewModel.goTo(0)
+                                    } else viewModel.goNext()
+                                },
+                                onPrev = {
+                                    if (state.currentIndex == 0) {
+                                        atInstructions = true
+                                    } else viewModel.goPrev()
+                                },
+                                onFirst = {
+                                    atInstructions = true
+                                    viewModel.goFirst()
+                                },
+                                onLast = {
+                                    atInstructions = false
+                                    viewModel.goLast()
+                                },
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
                         }
@@ -269,6 +275,7 @@ private fun ReviewHeader(
     total: Int,
     reviewed: Int,
     reachableIndex: Int,
+    atInstructions: Boolean,
     canSeek: Boolean,
     onSeek: (Int) -> Unit,
     onMenuClicked: () -> Unit,
@@ -331,7 +338,10 @@ private fun ReviewHeader(
                 Text(
                     text = buildAnnotatedString {
                         append(wordOfTotalParts.getOrElse(0) { "" })
-                        withStyle(BoldSpan) { append((currentIndex + 1).toString()) }
+                        // No word is under review on the instructions card.
+                        withStyle(BoldSpan) {
+                            append(if (atInstructions) "0" else "${currentIndex + 1}")
+                        }
                         append(wordOfTotalParts.getOrElse(1) { " " })
                         withStyle(BoldSpan) { append(total.toString()) }
                         append(wordOfTotalParts.getOrElse(2) { "" })
@@ -355,10 +365,12 @@ private fun ReviewHeader(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // The slider runs over the carousel's cards, the instructions included:
+        // card 0 is the instructions, word i is card i + 1.
         ReviewSlider(
-            position = currentIndex,
-            reachable = reachableIndex,
-            total = total,
+            position = if (atInstructions) 0 else currentIndex + 1,
+            reachable = reachableIndex + 1,
+            total = total + 1,
             onSeek = onSeek,
             enabled = canSeek,
             modifier = Modifier.fillMaxWidth()
@@ -371,93 +383,17 @@ private const val PLACEHOLDER = "\u0000"
 
 private val BoldSpan = SpanStyle(fontWeight = FontWeight.Bold)
 
-/** Side cards keep a fixed height; the center card is always taller than them. */
 /** Below this the review screen switches to its narrow layout. */
 private val WIDE_WINDOW_WIDTH = 900.dp
-private val COLLAPSED_BANNER_SIZE = 48.dp
+
+/** Both card sizes are fixed; the center card is the taller one. */
 private val PEEK_CARD_HEIGHT = 435.dp
 private val CENTER_CARD_HEIGHT = 500.dp
 
 @Composable
-private fun Instructions(
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = MaterialTheme.shapes.medium
-    val border = BorderStroke(
-        width = 2.dp,
-        color = MaterialTheme.colorScheme.secondary
-    )
-
-    if (!expanded) {
-        Box(modifier = modifier) {
-            Surface(
-                onClick = { onExpandedChange(true) },
-                shape = shape,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                border = border,
-                modifier = Modifier.size(COLLAPSED_BANNER_SIZE)
-                    .pointerHoverIcon(PointerIcon.Hand)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    InfoIcon()
-                }
-            }
-        }
-        return
-    }
-
-    Surface(
-        shape = shape,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        border = border,
-        modifier = modifier
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp)
-        ) {
-            InfoIcon()
-
-            Text(
-                text = stringResource(Res.string.review_instructions),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.W400,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-
-            IconButton(
-                onClick = { onExpandedChange(false) },
-                modifier = Modifier.align(Alignment.Top)
-                    .pointerHoverIcon(PointerIcon.Hand)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(Res.string.dismiss),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoIcon() {
-    Icon(
-        imageVector = Icons.Default.Info,
-        contentDescription = stringResource(Res.string.review_instructions),
-        tint = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.size(22.dp)
-    )
-}
-
-@Composable
 private fun WordCarousel(
     state: ReviewState,
+    atInstructions: Boolean,
     cardWidthFraction: Float,
     onVote: (Boolean) -> Unit,
     onNext: () -> Unit,
@@ -468,9 +404,13 @@ private fun WordCarousel(
 ) {
     if (state.words.isEmpty()) return
 
+    // The instructions are the first card, so a word sits one slot further on.
+    val currentSlot = if (atInstructions) 0 else state.currentIndex + 1
+    val lastSlot = state.total
+
     // Cards are laid out on a track and the track slides to the current one.
     val trackPosition by animateFloatAsState(
-        targetValue = state.currentIndex.toFloat(),
+        targetValue = currentSlot.toFloat(),
         animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
     )
 
@@ -489,17 +429,40 @@ private fun WordCarousel(
         // Nothing may move while the current review is in flight.
         val unlocked = state.savingWord == null && !state.isLoading
 
+        // Stepping forward off the instructions is always allowed; past a word,
+        // only once it has been reviewed.
+        val canGoForward = atInstructions || state.canGoNext
+
         // Only cards near the track position are on screen; the current one goes
         // last so it paints on top of its neighbors.
-        val visible = (state.currentIndex - 2..state.currentIndex + 2)
-            .filter { it in state.words.indices }
+        val visible = (currentSlot - 2..currentSlot + 2)
+            .filter { it in 0..lastSlot }
             .filter { abs(it - trackPosition) <= 1.6f }
             .sortedByDescending { abs(it - trackPosition) }
 
-        visible.forEach { index ->
-            val word = state.words[index]
-            val distance = index - trackPosition
-            val isCurrent = index == state.currentIndex
+        visible.forEach { slot ->
+            val isCurrent = slot == currentSlot
+            val distance = slot - trackPosition
+            val placement = Modifier.align(Alignment.Center)
+                .width(cardWidth)
+                .height(if (isCurrent) centerHeight else peekHeight)
+                .offset(x = step * distance)
+                .alpha(lerp(1f, 0.4f, min(1f, abs(distance))))
+                .then(
+                    if (isCurrent) {
+                        Modifier
+                    } else Modifier.clickable(
+                        enabled = unlocked && (slot < currentSlot || canGoForward),
+                        onClick = if (slot < currentSlot) onPrev else onNext
+                    )
+                )
+
+            if (slot == 0) {
+                InstructionsCard(modifier = placement)
+                return@forEach
+            }
+
+            val word = state.words[slot - 1]
 
             WordCard(
                 word = word,
@@ -516,24 +479,11 @@ private fun WordCarousel(
                 expandable = isCurrent,
                 onVote = onVote,
                 onNext = onNext,
-                modifier = Modifier.align(Alignment.Center)
-                    .width(cardWidth)
-                    .height(if (isCurrent) centerHeight else peekHeight)
-                    .offset(x = step * distance)
-                    .alpha(lerp(1f, 0.4f, min(1f, abs(distance))))
-                    .then(
-                        if (isCurrent) {
-                            Modifier
-                        } else Modifier.clickable(
-                            enabled = unlocked && (index < state.currentIndex ||
-                                    state.canGoNext),
-                            onClick = if (index < state.currentIndex) onPrev else onNext
-                        )
-                    )
+                modifier = placement
             )
         }
 
-        if (state.canGoPrev) {
+        if (currentSlot > 0) {
             PrevCardNavigation(
                 enabled = unlocked,
                 onFirst = onFirst,
@@ -542,9 +492,9 @@ private fun WordCarousel(
             )
         }
 
-        if (state.currentIndex < state.total - 1) {
+        if (currentSlot < lastSlot) {
             NextCardNavigation(
-                enabled = unlocked && state.canGoNext,
+                enabled = unlocked && canGoForward,
                 onNext = onNext,
                 onLast = onLast,
                 modifier = Modifier.align(Alignment.Center).offset(x = arrowOffset)
@@ -552,6 +502,44 @@ private fun WordCarousel(
         }
     }
 }
+
+/** How to review, as the card that comes before the first word. */
+@Composable
+private fun InstructionsCard(modifier: Modifier = Modifier) {
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.secondary),
+        modifier = modifier
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            modifier = Modifier.fillMaxSize().padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(48.dp)
+            )
+            Text(
+                text = stringResource(Res.string.instructions),
+                fontSize = 32.sp,
+                fontWeight = FontWeight.W600,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = stringResource(Res.string.review_instructions),
+                fontSize = 20.sp,
+                lineHeight = 34.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
 
 @Composable
 private fun ReviewComplete() {

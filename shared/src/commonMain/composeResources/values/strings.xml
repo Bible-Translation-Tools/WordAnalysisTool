@@ -78,6 +78,7 @@
     <string name="model_info">Model:</string>
     <string name="response_info">Response:</string>
     <string name="home">Home</string>
+    <string name="instructions">Instructions</string>
     <string name="review_instructions">Please review each word. Use thumbs up to confirm correct spelling or thumbs down for a misspelling.</string>
     <string name="word_of_total">Word %1$s of %2$s</string>
     <string name="words_checked">%1$s checked</string>
