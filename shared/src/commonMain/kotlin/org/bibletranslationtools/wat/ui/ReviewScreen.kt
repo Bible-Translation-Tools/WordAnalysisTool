@@ -73,6 +73,7 @@ import org.bibletranslationtools.wat.ui.control.AppDrawer
 import org.bibletranslationtools.wat.ui.control.CardFooter
 import org.bibletranslationtools.wat.ui.control.MenuButton
 import org.bibletranslationtools.wat.ui.control.MessageToast
+import org.bibletranslationtools.wat.ui.control.NAV_STEP_OFFSET
 import org.bibletranslationtools.wat.ui.control.NextCardNavigation
 import org.bibletranslationtools.wat.ui.control.PrevCardNavigation
 import org.bibletranslationtools.wat.ui.control.ReviewSlider
@@ -383,6 +384,9 @@ private const val PLACEHOLDER = "\u0000"
 
 private val BoldSpan = SpanStyle(fontWeight = FontWeight.Bold)
 
+/** Space between the cards, as a share of the carousel's width. */
+private const val CARD_GAP_FRACTION = 0.05f
+
 /** Below this the review screen switches to its narrow layout. */
 private val WIDE_WINDOW_WIDTH = 900.dp
 
@@ -419,8 +423,13 @@ private fun WordCarousel(
         modifier = modifier.clipToBounds()
     ) {
         val cardWidth = maxWidth * cardWidthFraction
-        val step = cardWidth + maxWidth * 0.05f
-        val arrowOffset = cardWidth / 2 + 40.dp
+        val cardGap = maxWidth * CARD_GAP_FRACTION
+        val step = cardWidth + cardGap
+
+        // The step buttons sit on the edges of the neighbouring cards. Both are
+        // measured from the card geometry, so they hold at any window size.
+        val neighbourEdge = cardWidth / 2 + cardGap
+        val arrowOffset = neighbourEdge + NAV_STEP_OFFSET
 
         // A card never outgrows the carousel, or its lower half would be cut off.
         val centerHeight = minOf(CENTER_CARD_HEIGHT, maxHeight)
@@ -478,9 +487,13 @@ private fun WordCarousel(
             )
         }
 
+        // Jumping is only offered when it would go further than a single step.
+        val reachableSlot = state.frontierIndex + 1
+
         if (currentSlot > 0) {
             PrevCardNavigation(
                 enabled = unlocked,
+                showFirst = unlocked && currentSlot > 1,
                 onFirst = onFirst,
                 onPrev = onPrev,
                 modifier = Modifier.align(Alignment.Center).offset(x = -arrowOffset)
@@ -490,6 +503,7 @@ private fun WordCarousel(
         if (currentSlot < lastSlot) {
             NextCardNavigation(
                 enabled = unlocked && canGoForward,
+                showLast = unlocked && reachableSlot > currentSlot + 1,
                 onNext = onNext,
                 onLast = onLast,
                 modifier = Modifier.align(Alignment.Center).offset(x = arrowOffset)
