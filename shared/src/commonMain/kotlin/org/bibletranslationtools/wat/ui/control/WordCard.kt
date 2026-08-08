@@ -73,7 +73,6 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
@@ -98,6 +97,62 @@ enum class CardFooter {
     SAVED
 }
 
+private const val VIEW_MORE_TAG = "viewMore"
+
+/**
+ * Stands in for the button while text is measured. A constant, because the label
+ * is a string resource, and an unloaded resource is empty — which inline content
+ * does not allow.
+ */
+private const val VIEW_MORE_ALT = "\u2026"
+internal const val ELLIPSIS = "... "
+
+/** Keeps the button off the last word of the verse. */
+private const val BUTTON_GAP = " "
+
+/** Card width the sizes below are meant for; smaller cards scale down to fit. */
+private val CARD_REFERENCE_WIDTH = 600.dp
+private val CARD_REFERENCE_HEIGHT = 500.dp
+private const val MIN_CARD_SCALE = 0.55f
+private val CARD_PADDING = 24.dp
+
+/** Extra room under the thumbs, so they do not sit on the card's edge. */
+private val CARD_BOTTOM_PADDING = 16.dp
+private val CARD_SPACING = 20.dp
+private val MIN_CARD_SPACING = 6.dp
+
+/** Gaps between the card's rows: badge, word, reference, verse, thumbs. */
+private const val CARD_ROW_GAPS = 4
+private val BADGE_ROW_HEIGHT = 32.dp
+private val FOOTER_HEIGHT = 40.dp
+private val THUMB_SIZE = 96.dp
+private val THUMB_ICON_SIZE = 45.dp
+private val WORD_FONT_SIZE = 70.sp
+private val WORD_MIN_FONT_SIZE = 24.sp
+private val VERSE_FONT_SIZE = 20.sp
+private val VERSE_LINE_HEIGHT = 32.sp
+private const val MIN_VERSE_FIT_SCALE = 0.55f
+private const val VERSE_FIT_STEP = 0.05f
+private val VERSE_ROOM_SLACK = 2.dp
+
+/** Chip height as a multiple of the verse font size, so chips scale with it. */
+internal val CHIP_HEIGHT_EM =
+    VERSE_LINE_HEIGHT.value * 0.85f / VERSE_FONT_SIZE.value
+
+/**
+ * The word's painted background. It adds no advance to the line, so its padding
+ * has to stay inside the spaces around the word rather than push them apart.
+ */
+private const val HIGHLIGHT_HEIGHT_EM = 1.5f
+private val HIGHLIGHT_CORNER = 6.dp
+private val HIGHLIGHT_PADDING = 3.dp
+
+/** How far above the baseline the middle of the glyphs sits, in em. */
+private const val HIGHLIGHT_BASELINE_EM = 0.34f
+private const val REFERENCE_FONT_RATIO = 0.85f
+private val VIEW_MORE_FONT_SIZE = 16.sp
+internal const val VERSE_MAX_LINES = 5
+
 @Composable
 fun WordCard(
     word: ReviewWord,
@@ -105,7 +160,6 @@ fun WordCard(
     enabled: Boolean = true,
     expandable: Boolean = enabled,
     onVote: (Boolean) -> Unit = {},
-    /** Starts on the whole-verse view. For previews and rendering tests. */
     initiallyReading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -212,17 +266,11 @@ fun WordCard(
                     .padding(padding)
                     .padding(bottom = CARD_BOTTOM_PADDING * scale)
             ) {
-                // Both this row and the footer keep their height whether
-                // they have anything in them, so the verse below always has the
-                // same room and a reviewed card reads like an unreviewed one.
-                Box(
-                    contentAlignment = Alignment.CenterEnd,
-                    modifier = Modifier.fillMaxWidth().height(BADGE_ROW_HEIGHT)
-                ) {
-                    correct?.let { StatusBadge(it, scale) }
-                }
-
-                WordTitle(word = word.word, fontSize = metrics.wordFontSize)
+                WordTitle(
+                    word = word.word,
+                    fontSize = metrics.wordFontSize,
+                    modifier = Modifier.padding(top = BADGE_ROW_HEIGHT)
+                )
 
                 VerseReference(word = word, scale = scale)
 
@@ -257,6 +305,16 @@ fun WordCard(
 
             }
 
+            // The verdict keeps the top corner whatever the column does.
+            Box(
+                contentAlignment = Alignment.CenterEnd,
+                modifier = Modifier.align(Alignment.TopEnd)
+                    .padding(top = padding, end = padding)
+                    .height(BADGE_ROW_HEIGHT)
+            ) {
+                correct?.let { StatusBadge(it, scale) }
+            }
+
             Box(
                 contentAlignment = Alignment.CenterEnd,
                 modifier = Modifier.align(Alignment.BottomEnd)
@@ -285,8 +343,12 @@ fun WordCard(
 }
 
 @Composable
-private fun WordTitle(word: String, fontSize: TextUnit) {
-    SelectionContainer {
+private fun WordTitle(
+    word: String,
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier
+) {
+    SelectionContainer(modifier = modifier) {
         Text(
             text = word,
             style = wordTitleStyle(word).copy(fontSize = fontSize),
@@ -506,7 +568,7 @@ private fun VerseText(
     val text = verseAnnotated(
         verseText = verseText,
         match = match,
-        highlight = SpanStyle(color = highlight, fontWeight = FontWeight.W600)
+        color = highlight
     )
 
     val viewMore = InlineTextContent(placeholder = viewMorePlaceholder) {
@@ -595,11 +657,7 @@ private fun verseFitScale(
         with(density) {
             // Measured the way read mode draws it: the word styled in place, so
             // there is no placeholder to account for.
-            val text = verseAnnotated(
-                verseText = verse,
-                match = match,
-                highlight = SpanStyle(fontWeight = FontWeight.W600)
-            )
+            val text = verseAnnotated(verseText = verse, match = match)
             val constraints = Constraints(maxWidth = available.width.roundToPx())
             val room = available.height.toPx() - spacing.toPx()
 
@@ -903,17 +961,21 @@ private fun DrawScope.drawWordHighlight(
     }
 }
 
+/** How the reviewed word is set apart from the rest of the verse. */
+private val VERSE_WORD_SPAN = SpanStyle(fontWeight = FontWeight.W600)
+
 /**
- * The verse, with the reviewed word marked out.
+ * The verse, with the reviewed word styled in place.
  *
- * With a [highlight] the word is styled in place, which keeps the verse one
- * continuous string — text copied out of a selection is then whole. Without one
- * the word becomes inline content, which can be given a shape and padding.
+ * In place rather than as inline content, so the verse stays one continuous
+ * string that a selection copies out whole; its rounded background is painted
+ * behind the text by [drawWordHighlight]. The same span serves the measuring in
+ * [planVerse], so what is measured is the width of what is drawn.
  */
 internal fun verseAnnotated(
     verseText: String,
     match: MatchResult?,
-    highlight: SpanStyle? = null
+    color: Color = Color.Unspecified
 ) = buildAnnotatedString {
     if (match == null || match.value.isEmpty()) {
         append(verseText)
@@ -921,38 +983,11 @@ internal fun verseAnnotated(
     }
 
     append(verseText.take(match.range.first))
-    if (highlight != null) {
-        withStyle(highlight) { append(match.value) }
-    } else {
-        appendInlineContent(WORD_CHIP_TAG, match.value)
-    }
+    withStyle(VERSE_WORD_SPAN.copy(color = color)) { append(match.value) }
     append(verseText.substring(match.range.last + 1))
 }
 
-/**
- * Width of an inline chip holding [label]. Measuring is the only way to size an
- * inline placeholder, but the measurement can fall short — the font may still be
- * loading — so it gets some slack, and [ChipLabel] absorbs the rest.
- */
-@Composable
-private fun chipWidthFor(
-    label: String,
-    style: TextStyle,
-    textMeasurer: TextMeasurer,
-    density: Density
-): TextUnit = remember(label, style, textMeasurer, density) {
-    val textWidth = textMeasurer.measure(label, style).size.width
-    with(density) {
-        (textWidth * CHIP_WIDTH_SLACK + (CHIP_HORIZONTAL_PADDING * 2).toPx()).toSp()
-    }
-}
-
-/** The font size a chip of [height] was laid out at, from its em proportions. */
-@Composable
-private fun resolvedFontSize(height: Dp): TextUnit =
-    with(LocalDensity.current) { height.toSp() } / CHIP_HEIGHT_EM
-
-/** Chip label that overflows its chip rather than losing characters. */
+/** The button's label, which overflows its square rather than losing letters. */
 @Composable
 private fun ChipLabel(text: String, style: TextStyle) {
     Text(
@@ -1089,62 +1124,3 @@ private fun CardStatus(
         )
     }
 }
-
-internal const val WORD_CHIP_TAG = "reviewedWord"
-private const val VIEW_MORE_TAG = "viewMore"
-
-/**
- * Stands in for the button while text is measured. A constant, because the label
- * is a string resource, and an unloaded resource is empty — which inline content
- * does not allow.
- */
-private const val VIEW_MORE_ALT = "\u2026"
-internal const val ELLIPSIS = "... "
-
-/** Keeps the button off the last word of the verse. */
-private const val BUTTON_GAP = " "
-private const val CHIP_WIDTH_SLACK = 1.08f
-
-/** Card width the sizes below are meant for; smaller cards scale down to fit. */
-private val CARD_REFERENCE_WIDTH = 600.dp
-private val CARD_REFERENCE_HEIGHT = 500.dp
-private const val MIN_CARD_SCALE = 0.55f
-private val CARD_PADDING = 24.dp
-
-/** Extra room under the thumbs, so they do not sit on the card's edge. */
-private val CARD_BOTTOM_PADDING = 16.dp
-private val CARD_SPACING = 20.dp
-private val MIN_CARD_SPACING = 6.dp
-
-/** Gaps between the card's rows: badge, word, reference, verse, thumbs. */
-private const val CARD_ROW_GAPS = 4
-private val BADGE_ROW_HEIGHT = 32.dp
-private val FOOTER_HEIGHT = 40.dp
-private val THUMB_SIZE = 96.dp
-private val THUMB_ICON_SIZE = 45.dp
-private val WORD_FONT_SIZE = 70.sp
-private val WORD_MIN_FONT_SIZE = 24.sp
-private val VERSE_FONT_SIZE = 20.sp
-private val VERSE_LINE_HEIGHT = 32.sp
-private const val MIN_VERSE_FIT_SCALE = 0.55f
-private const val VERSE_FIT_STEP = 0.05f
-private val VERSE_ROOM_SLACK = 2.dp
-
-/** Chip height as a multiple of the verse font size, so chips scale with it. */
-internal val CHIP_HEIGHT_EM =
-    VERSE_LINE_HEIGHT.value * 0.85f / VERSE_FONT_SIZE.value
-
-/**
- * The word's painted background. It adds no advance to the line, so its padding
- * has to stay inside the spaces around the word rather than push them apart.
- */
-private const val HIGHLIGHT_HEIGHT_EM = 1.5f
-private val HIGHLIGHT_CORNER = 6.dp
-private val HIGHLIGHT_PADDING = 3.dp
-
-/** How far above the baseline the middle of the glyphs sits, in em. */
-private const val HIGHLIGHT_BASELINE_EM = 0.34f
-private const val REFERENCE_FONT_RATIO = 0.85f
-private val VIEW_MORE_FONT_SIZE = 16.sp
-internal const val VERSE_MAX_LINES = 5
-private val CHIP_HORIZONTAL_PADDING = 8.dp

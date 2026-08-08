@@ -163,6 +163,34 @@ class PlanVerseTest {
         assertUsesEveryLine(verse, "NAM 2:5", "abkubasansa")
     }
 
+    @Test
+    fun `a verse one line too long is truncated, not silently cut`() {
+        // The word is set bolder than the rest, so a verse that fits when the
+        // word is measured plain may not fit once it is drawn.
+        val verse = "Nalikuntile insempe ya mwingial wandi nokulanda ati, " +
+                "\"kanshi efyo Lesa akunte ukufuam mu nganda nefikwatwa umuntu " +
+                "onse utakosunga amalayo yakwe efyo onbe uwakukuntwa noku " +
+                "bulwa.\" ulukuta lonse lwalandile ati, \"Amen,\" elo " +
+                "balumbenye Yawe nabantu bacitile ifyo balaile."
+
+        // Swept closely: the word is set bolder than the rest, so a verse can
+        // fit measured plain and not fit as drawn, at just a few widths.
+        (320..900 step 4).forEach { width ->
+            val plan = plan(verse, "NEH 5:13", "akunte", width)
+            val rendered = render(plan, verse, "NEH 5:13", "akunte", width)
+            val where = "at width $width: \"${rendered.text}\""
+
+            // Whatever it decides, what it shows has to fit the lines it has.
+            assertTrue(rendered.lineCount <= VERSE_MAX_LINES, "lines hidden, $where")
+            if (rendered.lineCount == VERSE_MAX_LINES) {
+                assertTrue(
+                    plan.truncated || verse in rendered.text.text,
+                    "cut without a way to read the rest, $where"
+                )
+            }
+        }
+    }
+
     /**
      * At every card width the card either shows the whole verse, or leaves out as
      * little as it can: word and button on a visible line, no hidden lines, and

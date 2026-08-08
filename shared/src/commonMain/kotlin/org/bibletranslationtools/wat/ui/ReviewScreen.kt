@@ -190,7 +190,7 @@ class ReviewScreen(
                             WordCarousel(
                                 state = state,
                                 atInstructions = atInstructions,
-                                cardWidthFraction = if (wide) 0.44f else 0.7f,
+                                maxCardWidthFraction = if (wide) 0.44f else 0.7f,
                                 onVote = viewModel::onVote,
                                 onNext = {
                                     if (atInstructions) {
@@ -385,20 +385,23 @@ private const val PLACEHOLDER = "\u0000"
 private val BoldSpan = SpanStyle(fontWeight = FontWeight.Bold)
 
 /** Space between the cards, as a share of the carousel's width. */
-private const val CARD_GAP_FRACTION = 0.05f
+private const val CARD_GAP_FRACTION = 0.03f
 
 /** Below this the review screen switches to its narrow layout. */
 private val WIDE_WINDOW_WIDTH = 900.dp
 
-/** Both card sizes are fixed; the center card is the taller one. */
-private val PEEK_CARD_HEIGHT = 435.dp
-private val CENTER_CARD_HEIGHT = 500.dp
+/** The centre card's size, kept unless the window is too small to hold it. */
+private val CENTER_CARD_WIDTH = 800.dp
+private val CENTER_CARD_HEIGHT = 580.dp
+
+/** Side cards are the same shape as the centre one, a little smaller. */
+private const val PEEK_CARD_SCALE = 0.87f
 
 @Composable
 private fun WordCarousel(
     state: ReviewState,
     atInstructions: Boolean,
-    cardWidthFraction: Float,
+    maxCardWidthFraction: Float,
     onVote: (Boolean) -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
@@ -422,18 +425,20 @@ private fun WordCarousel(
         contentAlignment = Alignment.Center,
         modifier = modifier.clipToBounds()
     ) {
-        val cardWidth = maxWidth * cardWidthFraction
+        // The card keeps its size until the carousel cannot hold it, so that the
+        // window can be resized without the cards being redrawn at a new size.
+        val cardWidth = minOf(CENTER_CARD_WIDTH, maxWidth * maxCardWidthFraction)
         val cardGap = maxWidth * CARD_GAP_FRACTION
         val step = cardWidth + cardGap
 
-        // The step buttons sit on the edges of the neighbouring cards. Both are
+        // The step buttons sit on the edges of the neighboring cards. Both are
         // measured from the card geometry, so they hold at any window size.
         val neighbourEdge = cardWidth / 2 + cardGap
         val arrowOffset = neighbourEdge + NAV_STEP_OFFSET
 
         // A card never outgrows the carousel, or its lower half would be cut off.
         val centerHeight = minOf(CENTER_CARD_HEIGHT, maxHeight)
-        val peekHeight = centerHeight * (PEEK_CARD_HEIGHT / CENTER_CARD_HEIGHT)
+        val peekHeight = centerHeight * PEEK_CARD_SCALE
 
         // Nothing may move while the current review is in flight.
         val unlocked = state.savingWord == null && !state.isLoading
