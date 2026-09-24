@@ -38,8 +38,6 @@
     <string name="likely_correct">Likely Correct</string>
     <string name="likely_incorrect">Likely Incorrect</string>
     <string name="review_needed">Review Needed</string>
-    <string name="names">Names</string>
-    <string name="name">Name</string>
     <string name="login">Login with WACS</string>
     <string name="login_progress">Authorizing... Please wait.</string>
     <string name="logout">Logout</string>
@@ -50,11 +48,12 @@
     <string name="batch_not_deleted">Could not delete results. Please try again.</string>
     <string name="batch_deleted">Results successfully deleted.</string>
     <string name="process_words">Get Results</string>
+    <string name="select_reference">Select Reference</string>
+    <string name="reference_same_as_source">Reference must differ from the source translation</string>
     <string name="sort_words">Sort words</string>
     <string name="creating_batch">Creating request for results...</string>
     <string name="all_results_received">All results received.</string>
     <string name="is_word_correct">Is this word correct?</string>
-    <string name="is_word_name">Is this word a name?</string>
     <string name="scripture_reference">Scripture Reference</string>
     <string name="correct">Correct</string>
     <string name="incorrect">Incorrect</string>
@@ -99,4 +98,5 @@
     <string name="complete_success">Successfully Completed!</string>
     <string name="complete_success_description">You have successfully completed checking for misspelled words.</string>
     <string name="return_home">Return Home</string>
+    <string name="reference_resource">Reference Resource:</string>
 </resources>

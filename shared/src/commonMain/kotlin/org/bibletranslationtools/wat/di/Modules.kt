@@ -1,18 +1,12 @@
 package org.bibletranslationtools.wat.di
 
-import org.bibletranslationtools.wat.data.VerseRef
 import org.bibletranslationtools.wat.domain.BielGraphQlApi
-import org.bibletranslationtools.wat.domain.DownloadUsfm
 import org.bibletranslationtools.wat.domain.User
-import org.bibletranslationtools.wat.domain.UsfmBookSource
-import org.bibletranslationtools.wat.domain.UsfmBookSourceImpl
 import org.bibletranslationtools.wat.domain.WatApi
 import org.bibletranslationtools.wat.domain.WatApiImpl
 import org.bibletranslationtools.wat.domain.createAiHttpClient
-import org.bibletranslationtools.wat.domain.createSimpleHttpClient
-import org.bibletranslationtools.wat.platform.createFileCache
 import org.bibletranslationtools.wat.platform.httpClientEngine
-import org.bibletranslationtools.wat.ui.AnalyzeViewModel
+import org.bibletranslationtools.wat.ui.AdminViewModel
 import org.bibletranslationtools.wat.ui.HomeViewModel
 import org.bibletranslationtools.wat.ui.LoginViewModel
 import org.bibletranslationtools.wat.ui.ReviewViewModel
@@ -23,11 +17,7 @@ import org.koin.dsl.module
 
 val sharedModule = module {
     singleOf(::BielGraphQlApi)
-    single { DownloadUsfm(createSimpleHttpClient(httpClientEngine)) }
     factory { WatApiImpl(createAiHttpClient(httpClientEngine)) }.bind<WatApi>()
-
-    single { createFileCache() }
-    factoryOf(::UsfmBookSourceImpl).bind<UsfmBookSource>()
 
     // view models
     factoryOf(::LoginViewModel)
@@ -45,16 +35,13 @@ val sharedModule = module {
             user = user,
             batchId = batchId,
             watApi = get(),
-            bielGraphQlApi = get(),
-            downloadUsfm = get(),
-            usfmBookSource = get()
+            bielGraphQlApi = get()
         )
     }
-    factory { (ietfCode: String, resourceType: String, verses: VerseRef, user: User) ->
-        AnalyzeViewModel(
+    factory { (ietfCode: String, resourceType: String, user: User) ->
+        AdminViewModel(
             ietfCode = ietfCode,
             resourceType = resourceType,
-            verses = verses,
             user = user,
             watApi = get(),
             bielGraphQlApi = get()
