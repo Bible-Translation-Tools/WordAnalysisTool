@@ -51,10 +51,9 @@ export const resourcesTable = pgTable(
   },
   (table) => [
     uniqueIndex("idx_unique_resource").on(
-      table.resourceType,
       table.languageId,
+      table.resourceType,
     ),
-    index("idx_resource_language_id").on(table.languageId),
   ],
 );
 
@@ -72,12 +71,11 @@ export const versesTable = pgTable(
   },
   (table) => [
     uniqueIndex("idx_unique_verse").on(
+      table.resourceId,
       table.bookCode,
       table.chapter,
       table.verse,
-      table.resourceId,
     ),
-    index("idx_verse_resource_id").on(table.resourceId),
   ],
 );
 
@@ -114,7 +112,6 @@ export const batchesTable = pgTable(
     uniqueIndex("idx_unique_batch").on(table.resourceId),
     index("idx_batch_user_id").on(table.userId),
     index("idx_batch_language_id").on(table.languageId),
-    index("idx_batch_resource_id").on(table.resourceId),
     index("idx_batch_ref_resource_id").on(table.refResourceId),
   ],
 );
@@ -133,8 +130,7 @@ export const wordsTable = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("idx_unique_word").on(table.word, table.batchId),
-    index("idx_word_batch_id").on(table.batchId),
+    uniqueIndex("idx_unique_word").on(table.batchId, table.word),
     index("idx_word_verse_id").on(table.verseId),
   ],
 );
@@ -152,8 +148,7 @@ export const modelsTable = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("idx_unique_model").on(table.model, table.wordId),
-    index("idx_model_word_id").on(table.wordId),
+    uniqueIndex("idx_unique_model").on(table.wordId, table.model),
   ],
 );
 

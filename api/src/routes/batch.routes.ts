@@ -129,7 +129,7 @@ router.delete("/api/batch/pause/:batch_id", async (c) => {
     const paused = await repos.batches.pause(batchId);
     if (paused) {
       // also delete incomplete models
-      await repos.models.deleteIncomplete();
+      await repos.models.deleteIncomplete(batchId);
     }
     return c.json(paused);
   } catch (error: any) {

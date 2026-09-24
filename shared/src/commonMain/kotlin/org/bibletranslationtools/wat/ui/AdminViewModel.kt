@@ -56,7 +56,7 @@ import wordanalysistool.shared.generated.resources.unknown_error
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-private const val BATCH_REQUEST_DELAY = 10000L
+private const val BATCH_REQUEST_DELAY = 30000L // batch progress only changes on the once-a-minute cron
 
 data class AdminState(
     val batch: Batch? = null,

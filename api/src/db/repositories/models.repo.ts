@@ -80,12 +80,18 @@ export function createModelsRepo(db: Database) {
       return result[0].count;
     },
 
-    /** Delete model rows still unchecked (status -1) — used when pausing a batch. */
-    async deleteIncomplete(): Promise<void> {
+    /**
+     * Delete the models of a batch's words that still have an unchecked
+     * (status -1) vote — used when pausing a batch.
+     */
+    async deleteIncomplete(batchId: string): Promise<void> {
       const badWordIds = db
         .selectDistinct({ wordId: modelsTable.wordId })
         .from(modelsTable)
-        .where(eq(modelsTable.status, -1));
+        .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
+        .where(
+          and(eq(wordsTable.batchId, batchId), eq(modelsTable.status, -1)),
+        );
       await db.delete(modelsTable).where(inArray(modelsTable.wordId, badWordIds));
     },
   };
