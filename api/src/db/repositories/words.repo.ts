@@ -63,18 +63,17 @@ export function createWordsRepo(db: Database) {
       return wordIds;
     },
 
-    /** Resolve (batchId, word[]) to their ids. */
-    async findIdsByWords(
+    /** Resolve (batchId, word) to its id. */
+    async findIdByWord(
       batchId: string,
-      words: string[],
-    ): Promise<Map<string, number>> {
-      const found = await db
-        .select({ id: wordsTable.id, word: wordsTable.word })
+      word: string,
+    ): Promise<number | null> {
+      const [found] = await db
+        .select({ id: wordsTable.id })
         .from(wordsTable)
-        .where(
-          and(eq(wordsTable.batchId, batchId), inArray(wordsTable.word, words)),
-        );
-      return new Map(found.map((row) => [row.word, row.id]));
+        .where(and(eq(wordsTable.batchId, batchId), eq(wordsTable.word, word)))
+        .limit(1);
+      return found ? found.id : null;
     },
 
     /**

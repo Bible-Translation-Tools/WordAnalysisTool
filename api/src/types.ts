@@ -1,9 +1,5 @@
-export type WordsParams = {
+export type WordParams = {
   batchId: string;
-  words: WordRequest[];
-};
-
-export type WordRequest = {
   word: string;
   correct: boolean;
 };
@@ -29,6 +25,7 @@ export type Batch = {
   creator: PublicUser;
   reference?: BatchReference | null;
   apostrophe_is_separator?: boolean;
+  models?: string[];
 };
 
 export type BatchProgress = {

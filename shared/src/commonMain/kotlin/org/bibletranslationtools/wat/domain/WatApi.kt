@@ -48,15 +48,10 @@ enum class WordStatus(val value: Int) {
 }
 
 @Serializable
-data class WordRequest(
+private data class WordRequest(
+    val batchId: String,
     val word: String,
     val correct: Boolean
-)
-
-@Serializable
-data class WordsRequest(
-    val batchId: String,
-    val words: List<WordRequest>
 )
 
 @Serializable
@@ -111,7 +106,9 @@ data class Batch(
     val creator: PublicUser,
     val reference: BatchReference? = null,
     @SerialName("apostrophe_is_separator")
-    val apostropheIsSeparator: Boolean = true
+    val apostropheIsSeparator: Boolean = true,
+    /** Models this project was last analyzed with, as stored on the server. */
+    val models: List<String> = emptyList()
 )
 
 @Serializable
@@ -190,11 +187,9 @@ interface WatApi {
         resourceType: String,
         accessToken: String
     ): ApiResult<ByteArray, NetworkError>
-    suspend fun getReviewPage(
+    suspend fun getReviewWords(
         ietfCode: String,
         resourceType: String,
-        page: Int,
-        limit: Int,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
     suspend fun createBatch(
@@ -211,8 +206,10 @@ interface WatApi {
         batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
-    suspend fun updateWordsCorrect(
-        request: WordsRequest,
+    suspend fun reviewWord(
+        batchId: String,
+        word: String,
+        correct: Boolean,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
     suspend fun getBatchesInProgress(
@@ -359,11 +356,9 @@ class WatApiImpl(
         }
     }
 
-    override suspend fun getReviewPage(
+    override suspend fun getReviewWords(
         ietfCode: String,
         resourceType: String,
-        page: Int,
-        limit: Int,
         accessToken: String
     ): ApiResult<Batch, NetworkError> {
         val response = get(
@@ -372,10 +367,6 @@ class WatApiImpl(
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
-            ),
-            params = mapOf(
-                "page" to page.toString(),
-                "limit" to limit.toString()
             )
         )
 
@@ -505,14 +496,20 @@ class WatApiImpl(
         }
     }
 
-    override suspend fun updateWordsCorrect(
-        request: WordsRequest,
+    override suspend fun reviewWord(
+        batchId: String,
+        word: String,
+        correct: Boolean,
         accessToken: String
     ): ApiResult<Boolean, NetworkError> {
         val response = post(
             httpClient = httpClient,
-            url = "$BASE_URL/api/words",
-            body = request,
+            url = "$BASE_URL/api/word",
+            body = WordRequest(
+                batchId = batchId,
+                word = word,
+                correct = correct
+            ),
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"

@@ -8,7 +8,7 @@ import batchRoutes from "./routes/batch.routes";
 import reportRoutes from "./routes/report.routes";
 import statsRoutes from "./routes/stats.routes";
 import reviewRoutes from "./routes/review.routes";
-import wordsRoutes from "./routes/words.routes";
+import wordRoutes from "./routes/word.routes";
 import staticRoutes from "./routes/static.routes";
 
 export function buildApp() {
@@ -27,7 +27,7 @@ export function buildApp() {
   app.route("/", reportRoutes);
   app.route("/", statsRoutes);
   app.route("/", reviewRoutes);
-  app.route("/", wordsRoutes);
+  app.route("/", wordRoutes);
 
   // SPA static fallback (must be last).
   app.route("/", staticRoutes);

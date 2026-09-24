@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -32,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,14 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
-import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
+import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.navigation.UrlManager
-import org.bibletranslationtools.wat.ui.control.ExtraAction
+import org.bibletranslationtools.wat.ui.control.AppDrawer
 import org.bibletranslationtools.wat.ui.control.MessageToast
-import org.bibletranslationtools.wat.ui.control.TopNavigationBar
+import org.bibletranslationtools.wat.ui.control.MenuButton
+import org.bibletranslationtools.wat.ui.control.rememberAppDrawerState
 import org.bibletranslationtools.wat.ui.dialogs.LanguagesDialog
 import org.bibletranslationtools.wat.ui.dialogs.ProgressDialog
 import org.bibletranslationtools.wat.ui.theme.getFontFamilyForText
@@ -58,7 +58,6 @@ import org.koin.core.parameter.parametersOf
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.creator
 import wordanalysistool.shared.generated.resources.language
-import wordanalysistool.shared.generated.resources.logout
 import wordanalysistool.shared.generated.resources.resource_type
 import kotlin.uuid.ExperimentalUuidApi
 
@@ -73,7 +72,8 @@ class HomeScreen(private val user: User) : Screen {
         }
         val state by viewModel.state.collectAsStateWithLifecycle()
 
-        var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
+        val drawerState = rememberAppDrawerState()
+        val scope = rememberCoroutineScope()
 
         var selectedHeartLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
         var showLanguagesDialog by remember { mutableStateOf(false) }
@@ -84,142 +84,140 @@ class HomeScreen(private val user: User) : Screen {
             }
         }
 
-        Scaffold(
-            topBar = {
-                TopNavigationBar(
-                    title = "",
-                    user = user,
-                    ExtraAction(
-                        title = stringResource(Res.string.logout),
-                        icon = Icons.AutoMirrored.Filled.Logout,
-                        onClick = {
-                            accessToken = null
-                            UrlManager.replaceAll(LoginScreen())
-                        }
-                    )
-                )
-            },
-            floatingActionButton = {
-                Button(
-                    onClick = { showLanguagesDialog = true },
-                    shape = CircleShape,
-                    modifier = Modifier.size(70.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null
-                    )
-                }
-            }
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize()
-                    .padding(32.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(0.7f)
-                        .align(Alignment.Center)
-                ) {
+        AppDrawer(user = user, drawerState = drawerState) {
+            Scaffold(
+                topBar = {
                     Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(8.dp)
                     ) {
-                        Text(stringResource(Res.string.language))
-                        Text(stringResource(Res.string.resource_type))
-                        Text(stringResource(Res.string.creator))
+                        MenuButton(
+                            onClick = { scope.launch { drawerState.open() } }
+                        )
                     }
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier
-                            .shadow(
-                                elevation = 4.dp,
-                                shape = MaterialTheme.shapes.medium
-                            )
+                },
+                floatingActionButton = {
+                    Button(
+                        onClick = { showLanguagesDialog = true },
+                        shape = CircleShape,
+                        modifier = Modifier.size(70.dp)
                     ) {
-                        LazyColumn(
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null
+                        )
+                    }
+                }
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                        .padding(32.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(0.7f)
+                            .align(Alignment.Center)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            items(state.batches) { batch ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                        .height(50.dp)
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .clickable {
-                                            UrlManager.push(
-                                                ReviewScreen(
-                                                    ietfCode = batch.language.ietfCode,
-                                                    resourceType = batch.resourceType,
-                                                    user = user,
-                                                    batchId = batch.id
+                            Text(stringResource(Res.string.language))
+                            Text(stringResource(Res.string.resource_type))
+                            Text(stringResource(Res.string.creator))
+                        }
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier
+                                .shadow(
+                                    elevation = 4.dp,
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(16.dp),
+                            ) {
+                                items(state.batches) { batch ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                            .height(50.dp)
+                                            .clip(MaterialTheme.shapes.medium)
+                                            .clickable {
+                                                UrlManager.push(
+                                                    ReviewScreen(
+                                                        ietfCode = batch.language.ietfCode,
+                                                        resourceType = batch.resourceType,
+                                                        user = user,
+                                                        batchId = batch.id
+                                                    )
                                                 )
+                                            }
+                                            .padding(horizontal = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = batch.language.toString(),
+                                            modifier = Modifier.weight(0.34f),
+                                            fontFamily = getFontFamilyForText(
+                                                batch.language.toString()
                                             )
-                                        }
-                                        .padding(horizontal = 8.dp)
-                                ) {
-                                    Text(
-                                        text = batch.language.toString(),
-                                        modifier = Modifier.weight(0.34f),
-                                        fontFamily = getFontFamilyForText(
-                                            batch.language.toString()
                                         )
-                                    )
-                                    Text(
-                                        text = batch.resourceType,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.weight(0.33f)
-                                    )
-                                    Text(
-                                        text = batch.username,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.weight(0.33f)
-                                    )
+                                        Text(
+                                            text = batch.resourceType,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.weight(0.33f)
+                                        )
+                                        Text(
+                                            text = batch.username,
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.weight(0.33f)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                AnimatedVisibility(
-                    visible = state.toast != null,
-                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 64.dp)
-                ) {
-                    state.toast?.let { data ->
-                        MessageToast(
-                            type = data.type,
-                            message = data.message,
-                            onDismiss = data.onClose
-                        )
+                    AnimatedVisibility(
+                        visible = state.toast != null,
+                        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 64.dp)
+                    ) {
+                        state.toast?.let { data ->
+                            MessageToast(
+                                type = data.type,
+                                message = data.message,
+                                onDismiss = data.onClose
+                            )
+                        }
                     }
                 }
-            }
 
-            if (showLanguagesDialog) {
-                LanguagesDialog(
-                    languages = state.heartLanguages,
-                    resourceTypes = state.resourceTypes,
-                    onLanguageSelected = { selectedHeartLanguage = it },
-                    onResourceTypeSelected = { language, resourceType ->
-                        UrlManager.push(
-                            AdminScreen(
-                                ietfCode = language.ietfCode,
-                                resourceType = resourceType,
-                                user = user
+                if (showLanguagesDialog) {
+                    LanguagesDialog(
+                        languages = state.heartLanguages,
+                        resourceTypes = state.resourceTypes,
+                        onLanguageSelected = { selectedHeartLanguage = it },
+                        onResourceTypeSelected = { language, resourceType ->
+                            UrlManager.push(
+                                AdminScreen(
+                                    ietfCode = language.ietfCode,
+                                    resourceType = resourceType,
+                                    user = user
+                                )
                             )
-                        )
-                    },
-                    onDismiss = { showLanguagesDialog = false }
-                )
-            }
+                        },
+                        onDismiss = { showLanguagesDialog = false }
+                    )
+                }
 
-            state.progress?.let {
-                ProgressDialog(it)
+                state.progress?.let {
+                    ProgressDialog(it)
+                }
             }
         }
     }
