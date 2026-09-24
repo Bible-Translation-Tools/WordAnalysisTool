@@ -207,7 +207,7 @@ class HomeScreen(private val user: User) : Screen {
                     onLanguageSelected = { selectedHeartLanguage = it },
                     onResourceTypeSelected = { language, resourceType ->
                         UrlManager.push(
-                            AdminScreen(
+                            ReviewScreen(
                                 ietfCode = language.ietfCode,
                                 resourceType = resourceType,
                                 user = user

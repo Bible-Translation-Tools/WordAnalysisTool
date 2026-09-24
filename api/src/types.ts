@@ -15,25 +15,18 @@ export type BatchRequest = {
   models: string[];
 };
 
-export type BatchReference = {
-  ietf: string;
-  resource_type: string;
-  name: string;
-};
-
 export type Batch = {
   id: string;
   ietf_code: string;
   resource_type: string;
   details: BatchDetails;
   creator: PublicUser;
-  reference?: BatchReference | null;
-  apostrophe_is_separator?: boolean;
 };
 
 export type BatchProgress = {
   correct: number;
   incorrect: number;
+  name: number;
   review_needed: number;
   reviewed: number;
   completed: number;
@@ -50,7 +43,6 @@ export type BatchDetails = {
 export type WordResponse = {
   word: string;
   ref: string;
-  text?: string;
   correct: boolean | null;
   results: ModelResponse[];
 };
@@ -63,15 +55,6 @@ export type ModelResponse = {
 export type ChatResponse = {
   word: string;
   status: number;
-};
-
-// A word to evaluate, with the verse it occurs in and the aligned verse from a
-// reference translation (a well-known parent/gateway language, currently English).
-export type WordContext = {
-  word: string;
-  reference: string;
-  source: string;
-  referenceVerse: string;
 };
 
 export type BatchError = {
@@ -103,3 +86,7 @@ export type SplitBatchJson = {
   right: string;
 };
 
+export type WordData = {
+  word: string;
+  ref: string;
+};

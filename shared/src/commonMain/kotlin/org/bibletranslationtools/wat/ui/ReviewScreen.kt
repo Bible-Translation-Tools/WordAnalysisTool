@@ -102,7 +102,7 @@ class ReviewScreen(
         val navigator = LocalNavigator.currentOrThrow
 
         val state by viewModel.state.collectAsStateWithLifecycle()
-        val event by viewModel.event.collectAsStateWithLifecycle(AdminEvent.Idle)
+        val event by viewModel.event.collectAsStateWithLifecycle(AnalyzeEvent.Idle)
 
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
 
@@ -189,9 +189,10 @@ class ReviewScreen(
                                 if (user.admin) {
                                     CustomTextButton(
                                         onClick = {
-                                            navigator.push(AdminScreen(
+                                            navigator.push(AnalyzeScreen(
                                                 ietfCode = ietfCode,
                                                 resourceType = resourceType,
+                                                verses = state.verses,
                                                 user = user
                                             ))
                                         },
