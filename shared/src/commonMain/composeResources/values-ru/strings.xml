@@ -38,6 +38,8 @@
     <string name="likely_correct">Возможно правильно</string>
     <string name="likely_incorrect">Возможно ошибка</string>
     <string name="review_needed">Требуется проверка</string>
+    <string name="names">Имена</string>
+    <string name="name">Имя</string>
     <string name="login">Войти с помощью WACS</string>
     <string name="login_progress">Идет авторизация... Пожалуйста, подождите.</string>
     <string name="logout">Выйти</string>
@@ -48,12 +50,11 @@
     <string name="batch_not_deleted">Не удалось удалить результаты. Попробуйте еще раз.</string>
     <string name="batch_deleted">Результаты успешно удалены.</string>
     <string name="process_words">Получить результаты</string>
-    <string name="select_reference">Выбрать справочник</string>
-    <string name="reference_same_as_source">Справочник должен отличаться от исходного перевода</string>
     <string name="sort_words">Сортировать слова</string>
     <string name="creating_batch">Создание запроса на результаты...</string>
     <string name="all_results_received">Все результаты получены.</string>
     <string name="is_word_correct">Верно ли это слово?</string>
+    <string name="is_word_name">Является ли это слово именем?</string>
     <string name="scripture_reference">Ссылка на Писание</string>
     <string name="correct">Верно</string>
     <string name="incorrect">Неверно</string>
@@ -98,5 +99,4 @@
     <string name="complete_success">Успешно завершено!</string>
     <string name="complete_success_description">Вы успешно завершили проверку неправильных слов.</string>
     <string name="return_home">Вернуться домой</string>
-    <string name="reference_resource">Ресурс справочника:</string>
 </resources>

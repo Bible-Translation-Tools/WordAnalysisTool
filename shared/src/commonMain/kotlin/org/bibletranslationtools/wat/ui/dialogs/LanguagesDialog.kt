@@ -32,7 +32,6 @@ import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.analyze
 import wordanalysistool.shared.generated.resources.dismiss
 import wordanalysistool.shared.generated.resources.no_resource_types
-import wordanalysistool.shared.generated.resources.reference_same_as_source
 import wordanalysistool.shared.generated.resources.search_language
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,17 +41,11 @@ fun LanguagesDialog(
     resourceTypes: List<String>,
     onLanguageSelected: (LanguageInfo) -> Unit,
     onResourceTypeSelected: (LanguageInfo, String) -> Unit,
-    onDismiss: () -> Unit,
-    confirmLabel: String? = null,
-    disallowed: Pair<String, String>? = null
+    onDismiss: () -> Unit
 ) {
     var selectedLanguage by remember { mutableStateOf<LanguageInfo?>(null) }
     var selectedResourceType by remember { mutableStateOf<String?>(null) }
     var analyzeEnabled by remember { mutableStateOf(false) }
-
-    val isDisallowed = disallowed != null &&
-        selectedLanguage?.ietfCode == disallowed.first &&
-        selectedResourceType == disallowed.second
 
     LaunchedEffect(resourceTypes, selectedLanguage) {
         when {
@@ -75,7 +68,7 @@ fun LanguagesDialog(
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.4f),
+                .fillMaxWidth(0.7f),
             shape = MaterialTheme.shapes.large,
         ) {
             Column(
@@ -101,14 +94,6 @@ fun LanguagesDialog(
                     onOptionSelected = { selectedResourceType = it },
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                if (isDisallowed) {
-                    Text(
-                        text = stringResource(Res.string.reference_same_as_source),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
 
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -137,10 +122,10 @@ fun LanguagesDialog(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         ),
-                        enabled = analyzeEnabled && !isDisallowed
+                        enabled = analyzeEnabled
                     ) {
                         Text(
-                            text = confirmLabel ?: stringResource(Res.string.analyze),
+                            text = stringResource(Res.string.analyze),
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                     }

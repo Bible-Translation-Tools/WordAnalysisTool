@@ -88,7 +88,10 @@ class HomeViewModel(
                     message = getString(Res.string.fetching_heart_languages)
                 )
             )
-            updateHeartLanguages(bielGraphQlApi.getLanguages(gateway = false))
+            // TODO Remove debug code
+            val en = LanguageInfo("en", "English", "English", Direction.LTR)
+            val ru = LanguageInfo("ru", "Русский", "Russian", Direction.LTR)
+            updateHeartLanguages(bielGraphQlApi.getHeartLanguages() + en + ru)
             updateProgress(null)
 
             fetchBatchesInProgress()
@@ -102,7 +105,7 @@ class HomeViewModel(
             val resourceTypes = if (ietfCode in listOf("en","ru")) {
                 listOf("ulb")
             } else {
-                bielGraphQlApi.getUsfmForLanguage(ietfCode).keys.toList()
+                bielGraphQlApi.getUsfmForHeartLanguage(ietfCode).keys.toList()
             }
             updateResourceTypes(resourceTypes)
             updateProgress(null)

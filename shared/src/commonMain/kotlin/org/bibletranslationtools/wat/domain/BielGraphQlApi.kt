@@ -1,16 +1,14 @@
 package org.bibletranslationtools.wat.domain
 
 import com.apollographql.apollo.ApolloClient
-import com.apollographql.apollo.api.Optional
+import org.bibletranslationtools.wat.GetBooksForTranslationQuery
+import org.bibletranslationtools.wat.GetGatewayLanguagesQuery
+import org.bibletranslationtools.wat.GetHeartLanguagesQuery
 import org.bibletranslationtools.wat.GetLanguageInfoQuery
-import org.bibletranslationtools.wat.GetLanguagesQuery
-import org.bibletranslationtools.wat.GetUsfmForLanguageQuery
+import org.bibletranslationtools.wat.GetUsfmForHeartLanguageQuery
 import org.bibletranslationtools.wat.data.ContentInfo
 import org.bibletranslationtools.wat.data.Direction
 import org.bibletranslationtools.wat.data.LanguageInfo
-import org.bibletranslationtools.wat.type.Boolean_comparison_exp
-import org.bibletranslationtools.wat.type.Language_bool_exp
-import org.bibletranslationtools.wat.type.Wa_language_metadata_bool_exp
 
 class BielGraphQlApi {
     private val graphQlServer = "https://api.bibleineverylanguage.org/v1/graphql"
@@ -19,25 +17,8 @@ class BielGraphQlApi {
         .serverUrl(graphQlServer)
         .build()
 
-    suspend fun getLanguages(gateway: Boolean? = null): List<LanguageInfo> {
-        val whereClause: Optional<Language_bool_exp?> = if (gateway != null) {
-            Optional.Present(
-                Language_bool_exp(
-                    wa_language_metadata = Optional.Present(
-                        Wa_language_metadata_bool_exp(
-                            is_gateway = Optional.Present(
-                                Boolean_comparison_exp(_eq = Optional.Present(gateway))
-                            )
-                        )
-                    )
-                )
-            )
-        } else {
-            Optional.Present(Language_bool_exp())
-        }
-
-        val response = apolloClient.query(GetLanguagesQuery(where = whereClause)).execute()
-
+    suspend fun getHeartLanguages(): List<LanguageInfo> {
+        val response = apolloClient.query(GetHeartLanguagesQuery()).execute()
         return response.data?.let { data ->
             data.language.map {
                 LanguageInfo(
@@ -50,11 +31,25 @@ class BielGraphQlApi {
         } ?: listOf()
     }
 
-    suspend fun getUsfmForLanguage(
+    suspend fun getGatewayLanguages(): List<LanguageInfo> {
+        val response = apolloClient.query(GetGatewayLanguagesQuery()).execute()
+        return response.data?.let { data ->
+            data.language.map {
+                LanguageInfo(
+                    ietfCode = it.ietf_code,
+                    name = it.national_name,
+                    angName = it.english_name,
+                    direction = Direction.of(it.direction)
+                )
+            }
+        } ?: listOf()
+    }
+
+    suspend fun getUsfmForHeartLanguage(
         ietfCode: String
     ): Map<String, List<ContentInfo>> {
         val response = apolloClient
-            .query(GetUsfmForLanguageQuery(ietfCode))
+            .query(GetUsfmForHeartLanguageQuery(ietfCode))
             .execute()
 
         val groupedContent = mutableMapOf<String, MutableList<ContentInfo>>()
@@ -75,6 +70,33 @@ class BielGraphQlApi {
             }
         }
         return groupedContent
+    }
+
+    suspend fun getBooksForTranslation(
+        ietfCode: String,
+        resourceType: String
+    ): List<ContentInfo> {
+        val response = apolloClient
+            .query(GetBooksForTranslationQuery(ietfCode, resourceType))
+            .execute()
+
+        val usfmContent = mutableListOf<ContentInfo>()
+
+        response.data?.let { data ->
+            data.content.forEach { content ->
+                content.rendered_contents.forEach { renderedContent ->
+                    val contentInfo = ContentInfo(
+                        renderedContent.url,
+                        renderedContent.scriptural_rendering_metadata?.book_name,
+                        renderedContent.scriptural_rendering_metadata?.book_slug,
+                        renderedContent.scriptural_rendering_metadata?.chapter
+                    )
+                    usfmContent.add(contentInfo)
+                }
+            }
+        }
+
+        return usfmContent
     }
 
     suspend fun getLanguageInfo(ietfCode: String): LanguageInfo? {
