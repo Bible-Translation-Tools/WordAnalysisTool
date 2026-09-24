@@ -25,6 +25,8 @@ export async function computeBatchProgress(
       isProcessed: isProcessedSql().as("is_processed"),
     })
     .from(modelsTable)
+    .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
+    .where(eq(wordsTable.batchId, batchId))
     .groupBy(modelsTable.wordId)
     .as("consensus_subquery");
 
