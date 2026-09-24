@@ -9,6 +9,7 @@ declare namespace Cloudflare {
 		QWEN_API_KEY: string;
 		CLAUDEAI_API_KEY: string;
 		MISTRAL_API_KEY: string;
+		GEMINI_API_KEY: string;
 		WACS_CLIENT: string;
 		WACS_SECRET: string;
 		WACS_CALLBACK: string;

@@ -27,25 +27,95 @@ export const usersTable = pgTable(
   (table) => [uniqueIndex("idx_unique_user").on(table.email)],
 );
 
+export const languagesTable = pgTable(
+  "languages",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    code: varchar("lc", { length: 255 }).notNull(),
+    name: text("ln").notNull(),
+    angName: text("ang").notNull(),
+    direction: text("ld").notNull(),
+    gateway: boolean("gw").default(false).notNull(),
+  },
+  (table) => [uniqueIndex("idx_unique_language").on(table.code)],
+);
+
+export const resourcesTable = pgTable(
+  "resources",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    resourceType: text("resource_type").notNull(),
+    languageId: integer("language_id")
+      .notNull()
+      .references(() => languagesTable.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("idx_unique_resource").on(
+      table.resourceType,
+      table.languageId,
+    ),
+    index("idx_resource_language_id").on(table.languageId),
+  ],
+);
+
+export const versesTable = pgTable(
+  "verses",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    bookCode: text("book_code").notNull(),
+    chapter: integer("chapter").notNull(),
+    verse: text("verse").notNull(),
+    text: text("text").notNull(),
+    resourceId: integer("resource_id")
+      .notNull()
+      .references(() => resourcesTable.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("idx_unique_verse").on(
+      table.bookCode,
+      table.chapter,
+      table.verse,
+      table.resourceId,
+    ),
+    index("idx_verse_resource_id").on(table.resourceId),
+  ],
+);
+
 export const batchesTable = pgTable(
   "batches",
   {
     id: varchar("id", { length: 255 }).primaryKey().notNull(),
-    ietfCode: varchar("ietf_code", { length: 255 }).notNull(),
-    language: varchar("language", { length: 255 }).default("").notNull(),
-    resourceType: varchar("resource_type", { length: 255 }).notNull(),
-    pending: boolean("pending").default(false).notNull(),
-    error: text("error"),
-    retries: integer("retries").default(0).notNull(),
+    languageId: integer("language_id").references(() => languagesTable.id, {
+      onDelete: "set null",
+    }),
+    resourceId: integer("resource_id").references(() => resourcesTable.id, {
+      onDelete: "set null",
+    }),
+    // Reference translation resource used for AI context, chosen per batch.
+    refResourceId: integer("ref_resource_id").references(
+      () => resourcesTable.id,
+      { onDelete: "set null" },
+    ),
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
+    ingesting: boolean("ingesting").default(false).notNull(),
+    pending: boolean("pending").default(false).notNull(),
+    apostropheIsSeparator: boolean("apostrophe_is_separator")
+      .default(true)
+      .notNull(),
+    models: text("models"),
+    error: text("error"),
+    retries: integer("retries").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("idx_unique_batch").on(table.ietfCode, table.resourceType),
+    uniqueIndex("idx_unique_batch").on(table.resourceId),
     index("idx_batch_user_id").on(table.userId),
+    index("idx_batch_language_id").on(table.languageId),
+    index("idx_batch_resource_id").on(table.resourceId),
+    index("idx_batch_ref_resource_id").on(table.refResourceId),
   ],
 );
 
@@ -57,12 +127,15 @@ export const wordsTable = pgTable(
     batchId: varchar("batch_id", { length: 255 })
       .notNull()
       .references(() => batchesTable.id, { onDelete: "cascade" }),
-    ref: varchar("ref", { length: 20 }).default("").notNull(),
+    verseId: integer("verse_id")
+      .notNull()
+      .references(() => versesTable.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("idx_unique_word").on(table.word, table.batchId),
     index("idx_word_batch_id").on(table.batchId),
+    index("idx_word_verse_id").on(table.verseId),
   ],
 );
 
@@ -105,10 +178,47 @@ export const userRelations = relations(usersTable, ({ many }) => ({
   batches: many(batchesTable),
 }));
 
+export const languageRelations = relations(languagesTable, ({ many }) => ({
+  resources: many(resourcesTable),
+}));
+
+export const resourceRelations = relations(
+  resourcesTable,
+  ({ one, many }) => ({
+    language: one(languagesTable, {
+      fields: [resourcesTable.languageId],
+      references: [languagesTable.id],
+    }),
+    verses: many(versesTable),
+  }),
+);
+
+export const verseRelations = relations(versesTable, ({ one, many }) => ({
+  resource: one(resourcesTable, {
+    fields: [versesTable.resourceId],
+    references: [resourcesTable.id],
+  }),
+  words: many(wordsTable),
+}));
+
 export const batchRelations = relations(batchesTable, ({ one, many }) => ({
   user: one(usersTable, {
     fields: [batchesTable.userId],
     references: [usersTable.id],
+  }),
+  language: one(languagesTable, {
+    fields: [batchesTable.languageId],
+    references: [languagesTable.id],
+  }),
+  resource: one(resourcesTable, {
+    fields: [batchesTable.resourceId],
+    references: [resourcesTable.id],
+    relationName: "batchResource",
+  }),
+  refResource: one(resourcesTable, {
+    fields: [batchesTable.refResourceId],
+    references: [resourcesTable.id],
+    relationName: "batchRefResource",
   }),
   words: many(wordsTable),
 }));
@@ -117,6 +227,10 @@ export const wordRelations = relations(wordsTable, ({ one, many }) => ({
   batch: one(batchesTable, {
     fields: [wordsTable.batchId],
     references: [batchesTable.id],
+  }),
+  verse: one(versesTable, {
+    fields: [wordsTable.verseId],
+    references: [versesTable.id],
   }),
   models: many(modelsTable),
   reviews: many(wordReviewsTable),

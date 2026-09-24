@@ -19,14 +19,12 @@ import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.likely_correct
 import wordanalysistool.shared.generated.resources.likely_incorrect
-import wordanalysistool.shared.generated.resources.names
 import wordanalysistool.shared.generated.resources.review_needed
 import wordanalysistool.shared.generated.resources.total_singletons
 
 @Composable
 fun BatchInfo(
     info: BatchProgress?,
-    totalSingletons: Int,
     modifier: Modifier = Modifier
 ) {
     val reviewedProgress = info?.let {
@@ -65,14 +63,6 @@ fun BatchInfo(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(Res.string.review_needed))
-            Text(text = info?.reviewNeeded?.toString() ?: "0")
-        }
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
             Text(stringResource(Res.string.likely_correct))
             Text(text = info?.correct?.toString() ?: "0")
         }
@@ -81,8 +71,8 @@ fun BatchInfo(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(Res.string.names))
-            Text(text = info?.name?.toString() ?: "0")
+            Text(stringResource(Res.string.review_needed))
+            Text(text = info?.reviewNeeded?.toString() ?: "0")
         }
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outline
@@ -96,7 +86,7 @@ fun BatchInfo(
                 fontSize = 16.sp
             )
             Text(
-                text = info?.let { "${it.completed}/${it.total}" } ?: "0/$totalSingletons",
+                text = info?.let { "${it.completed}/${it.total}" } ?: "0/0",
                 fontWeight = FontWeight.Bold
             )
         }

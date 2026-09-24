@@ -5,3 +5,8 @@ html, body {
     padding: 0;
     overflow: hidden;
 }
+
+/* The canvas fills the viewport, so it never lays out wider than the screen. */
+canvas {
+    display: block;
+}

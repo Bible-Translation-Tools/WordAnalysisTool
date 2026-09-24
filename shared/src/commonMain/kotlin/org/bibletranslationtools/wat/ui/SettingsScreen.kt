@@ -2,7 +2,6 @@ package org.bibletranslationtools.wat.ui
 
 import ComboBox
 import Option
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,10 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -32,9 +28,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -44,36 +38,26 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.russhwolf.settings.ExperimentalSettingsApi
-import dev.burnoo.compose.remembersetting.rememberBooleanSetting
 import dev.burnoo.compose.remembersetting.rememberStringSetting
 import dev.burnoo.compose.remembersetting.rememberStringSettingOrNull
-import kotlinx.coroutines.launch
 import org.bibletranslationtools.wat.domain.Locales
-import org.bibletranslationtools.wat.domain.MODELS_SIZE
-import org.bibletranslationtools.wat.domain.Model
-import org.bibletranslationtools.wat.domain.ModelStatus
 import org.bibletranslationtools.wat.domain.Settings
 import org.bibletranslationtools.wat.domain.Theme
 import org.bibletranslationtools.wat.domain.User
 import org.bibletranslationtools.wat.navigation.UrlManager
 import org.bibletranslationtools.wat.ui.control.CustomTextButton
-import org.bibletranslationtools.wat.ui.control.MultiSelectList
 import org.bibletranslationtools.wat.ui.dialogs.AlertDialog
-import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import wordanalysistool.shared.generated.resources.Res
 import wordanalysistool.shared.generated.resources.back
 import wordanalysistool.shared.generated.resources.color_scheme
 import wordanalysistool.shared.generated.resources.home
-import wordanalysistool.shared.generated.resources.models
-import wordanalysistool.shared.generated.resources.select_models_limit
 import wordanalysistool.shared.generated.resources.settings
 import wordanalysistool.shared.generated.resources.sign_out
 import wordanalysistool.shared.generated.resources.system_language
 import wordanalysistool.shared.generated.resources.theme_dark
 import wordanalysistool.shared.generated.resources.theme_light
 import wordanalysistool.shared.generated.resources.theme_system
-import wordanalysistool.shared.generated.resources.use_apostrophe_regex
 
 class SettingsScreen(private val user: User) : Screen {
 
@@ -94,23 +78,7 @@ class SettingsScreen(private val user: User) : Screen {
 
         var alert by remember { mutableStateOf<String?>(null) }
 
-        val coroutineScope = rememberCoroutineScope()
         var accessToken by rememberStringSettingOrNull(Settings.ACCESS_TOKEN.name)
-
-        val modelsState = Model.entries.map {
-            ModelStatus(
-                it.value,
-                rememberBooleanSetting(it.value, false)
-            )
-        }.toMutableStateList()
-        val models = remember { modelsState }
-
-        var isModelsExpanded by remember { mutableStateOf(false) }
-
-        var apostropheIsSeparator by rememberBooleanSetting(
-            Settings.APOSTROPHE_IS_SEPARATOR.name,
-            true
-        )
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -233,74 +201,6 @@ class SettingsScreen(private val user: User) : Screen {
                                 )
                             }
 
-                            if (user.admin) {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                            .padding(end = 12.dp)
-                                            .clickable(
-                                                interactionSource = null,
-                                                indication = null,
-                                                onClick = { isModelsExpanded = !isModelsExpanded }
-                                            )
-                                    ) {
-                                        Text(text = stringResource(Res.string.models))
-                                        Icon(
-                                            imageVector = if (isModelsExpanded) {
-                                                Icons.Default.KeyboardArrowUp
-                                            } else Icons.Default.KeyboardArrowDown,
-                                            contentDescription = null
-                                        )
-                                    }
-
-                                    AnimatedVisibility(visible = isModelsExpanded) {
-                                        MultiSelectList(
-                                            items = models,
-                                            selected = models.filter { it.active.value },
-                                            valueConverter = { it.model },
-                                            onSelect = { model ->
-                                                val activeModels = models.filter { it.active.value }
-                                                val status = !model.active.value
-
-                                                if (activeModels.size == MODELS_SIZE && status) {
-                                                    coroutineScope.launch {
-                                                        alert = getString(
-                                                            Res.string.select_models_limit,
-                                                            MODELS_SIZE
-                                                        )
-                                                    }
-                                                } else {
-                                                    model.active.value = status
-                                                }
-                                            },
-                                            modifier = Modifier.padding(start = 16.dp)
-                                        )
-                                    }
-                                }
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = stringResource(
-                                            Res.string.use_apostrophe_regex
-                                        )
-                                    )
-                                    Row(modifier = Modifier) {
-                                        Checkbox(
-                                            checked = apostropheIsSeparator,
-                                            onCheckedChange = { apostropheIsSeparator = it }
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
                 }

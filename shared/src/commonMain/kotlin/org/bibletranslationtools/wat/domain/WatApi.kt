@@ -44,27 +44,22 @@ enum class BatchStatus {
 enum class WordStatus(val value: Int) {
     UNCHECKED(-1),
     INCORRECT(0),
-    CORRECT(1),
-    NAME(2)
+    CORRECT(1)
 }
 
 @Serializable
-data class WordRequest(
+private data class WordRequest(
+    val batchId: String,
     val word: String,
     val correct: Boolean
 )
 
 @Serializable
-data class WordsRequest(
-    val batchId: String,
-    val words: List<WordRequest>
-)
-
-@Serializable
 data class BatchRequest(
-    val language: String,
-    val words: List<WordData>,
-    val models: List<String>
+    val models: List<String>,
+    val apostropheIsSeparator: Boolean,
+    val refIetf: String? = null,
+    val refResourceType: String? = null
 )
 
 @Serializable
@@ -77,7 +72,6 @@ data class WordData(
 data class BatchProgress(
     val correct: Int,
     val incorrect: Int,
-    val name: Int,
     @SerialName("review_needed")
     val reviewNeeded: Int,
     val reviewed: Int,
@@ -109,7 +103,20 @@ data class Batch(
     @SerialName("resource_type")
     val resourceType: String,
     val details: BatchDetails,
-    val creator: PublicUser
+    val creator: PublicUser,
+    val reference: BatchReference? = null,
+    @SerialName("apostrophe_is_separator")
+    val apostropheIsSeparator: Boolean = true,
+    /** Models this project was last analyzed with, as stored on the server. */
+    val models: List<String> = emptyList()
+)
+
+@Serializable
+data class BatchReference(
+    val ietf: String,
+    @SerialName("resource_type")
+    val resourceType: String,
+    val name: String
 )
 
 @Serializable
@@ -122,6 +129,7 @@ data class ModelResponse(
 data class WordResponse(
     val word: String,
     val ref: String,
+    val text: String = "",
     val correct: Boolean?,
     val results: List<ModelResponse>
 )
@@ -179,11 +187,9 @@ interface WatApi {
         resourceType: String,
         accessToken: String
     ): ApiResult<ByteArray, NetworkError>
-    suspend fun getReviewPage(
+    suspend fun getReviewWords(
         ietfCode: String,
         resourceType: String,
-        page: Int,
-        limit: Int,
         accessToken: String
     ): ApiResult<Batch, NetworkError>
     suspend fun createBatch(
@@ -200,8 +206,10 @@ interface WatApi {
         batchId: String,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
-    suspend fun updateWordsCorrect(
-        request: WordsRequest,
+    suspend fun reviewWord(
+        batchId: String,
+        word: String,
+        correct: Boolean,
         accessToken: String
     ): ApiResult<Boolean, NetworkError>
     suspend fun getBatchesInProgress(
@@ -348,11 +356,9 @@ class WatApiImpl(
         }
     }
 
-    override suspend fun getReviewPage(
+    override suspend fun getReviewWords(
         ietfCode: String,
         resourceType: String,
-        page: Int,
-        limit: Int,
         accessToken: String
     ): ApiResult<Batch, NetworkError> {
         val response = get(
@@ -361,10 +367,6 @@ class WatApiImpl(
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
-            ),
-            params = mapOf(
-                "page" to page.toString(),
-                "limit" to limit.toString()
             )
         )
 
@@ -494,14 +496,20 @@ class WatApiImpl(
         }
     }
 
-    override suspend fun updateWordsCorrect(
-        request: WordsRequest,
+    override suspend fun reviewWord(
+        batchId: String,
+        word: String,
+        correct: Boolean,
         accessToken: String
     ): ApiResult<Boolean, NetworkError> {
         val response = post(
             httpClient = httpClient,
-            url = "$BASE_URL/api/words",
-            body = request,
+            url = "$BASE_URL/api/word",
+            body = WordRequest(
+                batchId = batchId,
+                word = word,
+                correct = correct
+            ),
             headers = mapOf(
                 "Authorization" to "Bearer $accessToken",
                 "Content-Type" to "application/json"
