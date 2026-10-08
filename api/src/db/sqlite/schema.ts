@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/sqlite-core";
+import { CONSENSUS_VALUES } from "../store";
 
 const now = () => sql`(unixepoch())`;
 
@@ -143,6 +144,9 @@ export const wordsTable = sqliteTable(
     verseId: integer("verse_id")
       .notNull()
       .references(() => versesTable.id, { onDelete: "cascade" }),
+    // Derived from `models` once every vote is in; see ModelsRepo.updateResults.
+    consensus: text("consensus", { enum: CONSENSUS_VALUES }),
+    unanimous: integer("unanimous", { mode: "boolean" }).default(false).notNull(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .default(now())
       .notNull(),

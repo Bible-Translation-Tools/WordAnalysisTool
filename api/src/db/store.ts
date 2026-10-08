@@ -11,6 +11,13 @@ import type { ModelResult } from "../types";
 // Row types (what a driver returns; column names are camelCase everywhere)
 // ---------------------------------------------------------------------------
 
+/**
+ * Consensus of a word's model votes, stored on `words.consensus` once every
+ * model has voted (NULL until then). See `classifyVotes` for the rule.
+ */
+export const CONSENSUS_VALUES = ["correct", "incorrect", "review", "none"] as const;
+export type Consensus = (typeof CONSENSUS_VALUES)[number];
+
 export type UserEntity = {
   id: number;
   wacsUserId: number;
@@ -81,6 +88,10 @@ export type WordEntity = {
   word: string;
   batchId: string;
   verseId: number;
+  /** NULL while any model vote is still pending (or no models were seeded). */
+  consensus: Consensus | null;
+  /** Every model voted the same way, 0 or 1 (the review pool). */
+  unanimous: boolean;
   createdAt: Date;
 };
 
@@ -219,11 +230,15 @@ export interface WordsRepo {
 export interface ModelsRepo {
   /** Seed one status=-1 (unchecked) row per (word, model); existing rows are kept. */
   seed(wordIds: number[], models: string[]): Promise<void>;
-  /** Write per-model statuses for the named words of a batch. */
+  /**
+   * Write per-model statuses for the named words of a batch, then refresh
+   * those words' `consensus` / `unanimous` columns from their votes.
+   */
   updateResults(batchId: string, results: ModelResult[]): Promise<void>;
   /**
    * Delete the models of a batch's words that still have an unchecked
-   * (status -1) vote — used when pausing a batch.
+   * (status -1) vote — used when pausing a batch. Words left without models
+   * get their consensus cleared.
    */
   deleteIncomplete(batchId: string): Promise<void>;
 }
@@ -241,7 +256,7 @@ export interface BatchesRepo {
   /** Stop a pending batch. Returns true if a row was affected. */
   pause(id: string): Promise<boolean>;
   deleteById(id: string): Promise<boolean>;
-  /** Distinct batches whose words have model rows (ingested), with creator. */
+  /** Batches that have words (ingested), with creator. */
   listRecent(): Promise<RecentBatch[]>;
 }
 
@@ -275,7 +290,7 @@ export interface UsersRepo {
 }
 
 export interface StatsRepo {
-  /** Consensus tallies for a batch (see `classifyVotes` for the rule). */
+  /** Consensus tallies for a batch, read from `words.consensus`. */
   getBatchTallies(batchId: string): Promise<BatchTallies>;
   /** Number of reviews each user has made in a batch. */
   getReviewCountsByUser(batchId: string): Promise<UserReviewCount[]>;

@@ -1,10 +1,23 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, not, sql } from "drizzle-orm";
 import { MAX_PARAMS, PgDb } from "../client";
 import { modelsTable, wordsTable } from "../schema";
 import { ModelsRepo } from "../../store";
 import { chunkByParams } from "../../common/chunk";
+import { consensusSql, unanimousSql } from "../sql";
 
 export function createModelsRepo(db: PgDb): ModelsRepo {
+  /** Recompute `consensus` / `unanimous` for the named words from their votes. */
+  const refreshConsensus = (batchId: string, words: string[]) =>
+    db
+      .update(wordsTable)
+      .set({
+        consensus: sql`(select ${consensusSql()} from ${modelsTable} where ${modelsTable.wordId} = ${wordsTable.id})`,
+        unanimous: sql`coalesce((select ${unanimousSql()} from ${modelsTable} where ${modelsTable.wordId} = ${wordsTable.id}), false)`,
+      })
+      .where(
+        and(eq(wordsTable.batchId, batchId), inArray(wordsTable.word, words)),
+      );
+
   return {
     async seed(wordIds, models) {
       if (models.length === 0) return;
@@ -23,6 +36,7 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
     },
 
     async updateResults(batchId, results) {
+      const touched = new Set<string>();
       for (const modelResult of results) {
         // Each word binds 3 params: CASE (word, status) + IN (word).
         for (const chunk of chunkByParams(modelResult.results, 3, MAX_PARAMS, 3)) {
@@ -31,6 +45,7 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
               sql`WHEN ${wordsTable.word} = ${r.word.trim()} THEN ${r.status}`,
           );
           const words = chunk.map((r) => r.word.trim());
+          words.forEach((w) => touched.add(w));
           const statusFragment = sql.join(statusCases, sql` `);
           await db
             .update(modelsTable)
@@ -49,6 +64,9 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
             );
         }
       }
+      for (const chunk of chunkByParams([...touched], 1, MAX_PARAMS, 1)) {
+        await refreshConsensus(batchId, chunk);
+      }
     },
 
     async deleteIncomplete(batchId) {
@@ -60,6 +78,23 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
           and(eq(wordsTable.batchId, batchId), eq(modelsTable.status, -1)),
         );
       await db.delete(modelsTable).where(inArray(modelsTable.wordId, badWordIds));
+      // Words left without any model row are back to "not processed".
+      await db
+        .update(wordsTable)
+        .set({ consensus: null, unanimous: false })
+        .where(
+          and(
+            eq(wordsTable.batchId, batchId),
+            not(
+              exists(
+                db
+                  .select({ id: modelsTable.id })
+                  .from(modelsTable)
+                  .where(eq(modelsTable.wordId, wordsTable.id)),
+              ),
+            ),
+          ),
+        );
     },
   };
 }

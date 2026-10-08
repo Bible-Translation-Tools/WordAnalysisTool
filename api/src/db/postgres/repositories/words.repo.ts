@@ -7,10 +7,13 @@ import { chunkByParams } from "../../common/chunk";
 export function createWordsRepo(db: PgDb): WordsRepo {
   return {
     async insertMany(words, batchId) {
-      for (const chunk of chunkByParams(words, 3, MAX_PARAMS)) {
+      for (const chunk of chunkByParams(words, 4, MAX_PARAMS)) {
         await db
           .insert(wordsTable)
-          .values(chunk.map((w) => ({ word: w.word, verseId: w.verseId, batchId })))
+          .values(
+            // Drizzle binds the `unanimous` default as a parameter: 4 per row.
+            chunk.map((w) => ({ word: w.word, verseId: w.verseId, batchId, unanimous: false })),
+          )
           .onConflictDoNothing({
             target: [wordsTable.word, wordsTable.batchId],
           });

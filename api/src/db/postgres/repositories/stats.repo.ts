@@ -1,36 +1,21 @@
 import { count, eq, sql } from "drizzle-orm";
 import { PgDb } from "../client";
-import { modelsTable, wordReviewsTable, wordsTable } from "../schema";
+import { wordReviewsTable, wordsTable } from "../schema";
 import { StatsRepo } from "../../store";
-import { consensusSql, isProcessedSql } from "../sql";
 
 export function createStatsRepo(db: PgDb): StatsRepo {
   return {
     async getBatchTallies(batchId) {
-      const consensus = db
-        .select({
-          wordId: modelsTable.wordId,
-          consensus: consensusSql().as("consensus"),
-          isProcessed: isProcessedSql().as("is_processed"),
-        })
-        .from(modelsTable)
-        .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
-        .where(eq(wordsTable.batchId, batchId))
-        .groupBy(modelsTable.wordId)
-        .as("consensus_subquery");
-
+      // One pass over the batch's words; consensus is maintained on write.
       const [stats] = await db
         .select({
-          correct: count(sql`CASE WHEN consensus = 'Correct' THEN 1 END`),
-          incorrect: count(sql`CASE WHEN consensus = 'Incorrect' THEN 1 END`),
-          reviewNeeded: count(
-            sql`CASE WHEN consensus = 'Review Needed' THEN 1 END`,
-          ),
-          total: count(wordsTable.id),
-          completed: count(sql`CASE WHEN is_processed THEN 1 END`),
+          correct: count(sql`CASE WHEN ${wordsTable.consensus} = 'correct' THEN 1 END`),
+          incorrect: count(sql`CASE WHEN ${wordsTable.consensus} = 'incorrect' THEN 1 END`),
+          reviewNeeded: count(sql`CASE WHEN ${wordsTable.consensus} = 'review' THEN 1 END`),
+          total: count(),
+          completed: count(wordsTable.consensus),
         })
         .from(wordsTable)
-        .leftJoin(consensus, eq(wordsTable.id, consensus.wordId))
         .where(eq(wordsTable.batchId, batchId));
       return stats;
     },

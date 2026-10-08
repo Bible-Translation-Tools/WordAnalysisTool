@@ -55,6 +55,11 @@ npm run db:d1:migrate:local   # local dev database (.wrangler/state)
 npm run db:d1:migrate:remote  # the database_id in wrangler.jsonc
 ```
 
+`words.consensus` / `words.unanimous` are derived columns, refreshed by
+`ModelsRepo.updateResults` whenever votes change, so stats and the review pool
+read only `words` instead of aggregating `models` on every request. The SQL
+rule lives in each driver's `sql.ts` and must match `classifyVotes`.
+
 Keep the two schema files in sync: every column added to one must be added to
 the other, and the compile-time checks in each driver's `repositories/index.ts`
 fail if a driver's rows stop matching the shared entity types.

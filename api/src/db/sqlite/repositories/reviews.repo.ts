@@ -1,34 +1,21 @@
-import { and, asc, count, eq, inArray, max, min, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/sqlite-core";
 import { SqliteDb } from "../client";
-import {
-  modelsTable,
-  versesTable,
-  wordReviewsTable,
-  wordsTable,
-} from "../schema";
-import { ReviewsRepo } from "../../store";
+import { versesTable, wordReviewsTable, wordsTable } from "../schema";
+import { Consensus, ReviewsRepo } from "../../store";
 import { samplingOrder } from "../sql";
 
+/** The review pool is unanimous words; their status is 1 (correct) or 0. */
+const GOOD: Record<number, Consensus> = { 1: "correct", 0: "incorrect" };
+const STATUS_OF: Partial<Record<Consensus, number>> = { correct: 1, incorrect: 0 };
+
 export function createReviewsRepo(db: SqliteDb): ReviewsRepo {
-  /** Words of a batch whose models all agree on 0 or 1, with that status. */
   const goodWords = (batchId: string) =>
-    db
-      .select({
-        wordId: modelsTable.wordId,
-        status: min(modelsTable.status).as("status"),
-      })
-      .from(modelsTable)
-      .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
-      .where(eq(wordsTable.batchId, batchId))
-      .groupBy(modelsTable.wordId)
-      .having(
-        and(
-          eq(min(modelsTable.status), max(modelsTable.status)),
-          inArray(min(modelsTable.status), [0, 1]),
-        ),
-      )
-      .as("good_words");
+    and(
+      eq(wordsTable.batchId, batchId),
+      eq(wordsTable.unanimous, true),
+      inArray(wordsTable.consensus, ["correct", "incorrect"]),
+    );
 
   return {
     async upsert(review) {
@@ -58,20 +45,22 @@ export function createReviewsRepo(db: SqliteDb): ReviewsRepo {
     },
 
     async countGoodWordsByStatus(batchId) {
-      const good = goodWords(batchId);
       const rows = await db
-        .select({ status: good.status, count: count() })
-        .from(good)
-        .groupBy(sql`${good.status}`);
-      return rows.map((r) => ({ status: Number(r.status), count: r.count }));
+        .select({ consensus: wordsTable.consensus, count: count() })
+        .from(wordsTable)
+        .where(goodWords(batchId))
+        .groupBy(wordsTable.consensus);
+      return rows.map((r) => ({ status: STATUS_OF[r.consensus!]!, count: r.count }));
     },
 
     async fetchPool(batchId, userId, limits) {
-      const good = goodWords(batchId);
-
       let pool;
       if (limits === null) {
-        pool = db.select({ wordId: good.wordId }).from(good).as("pool");
+        pool = db
+          .select({ wordId: wordsTable.id })
+          .from(wordsTable)
+          .where(goodWords(batchId))
+          .as("pool");
       } else if (limits.length === 0) {
         return [];
       } else {
@@ -79,10 +68,10 @@ export function createReviewsRepo(db: SqliteDb): ReviewsRepo {
         // so each sampled status is wrapped in a subquery first.
         const perStatus = limits.map((l, i) => {
           const sampled = db
-            .select({ wordId: good.wordId })
-            .from(good)
-            .where(eq(good.status, l.status))
-            .orderBy(samplingOrder(good.wordId, userId))
+            .select({ wordId: wordsTable.id })
+            .from(wordsTable)
+            .where(and(goodWords(batchId), eq(wordsTable.consensus, GOOD[l.status])))
+            .orderBy(samplingOrder(wordsTable.id, userId))
             .limit(l.limit)
             .as(`sampled_${i}`);
           return db.select({ wordId: sampled.wordId }).from(sampled);

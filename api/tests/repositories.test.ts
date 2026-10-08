@@ -289,13 +289,21 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
       expect(report[1].models.map((m) => m.status)).toEqual([1, 1]);
       expect(report[119].models.map((m) => m.status)).toEqual([1, -1]);
 
+      // Consensus is maintained on write: [0,1] -> review, [1,1] -> correct
+      // and unanimous, [1,-1] -> still pending.
+      expect(report[0]).toMatchObject({ consensus: "review", unanimous: false });
+      expect(report[1]).toMatchObject({ consensus: "correct", unanimous: true });
+      expect(report[119]).toMatchObject({ consensus: null, unanimous: false });
+
       const left = await repos.words.findUnprocessedForBatch(batchId, 50);
       expect(left.map((w) => w.word)).toEqual([words[119].word]);
 
       await repos.models.deleteIncomplete(batchId);
       const after = await repos.words.findForReport(batchId);
       expect(after[119].models).toEqual([]);
+      expect(after[119]).toMatchObject({ consensus: null, unanimous: false });
       expect(after[0].models).toHaveLength(2);
+      expect(after[0].consensus).toBe("review");
       expect(await repos.words.findUnprocessedForBatch(batchId, 50)).toEqual([]);
     });
   });
@@ -330,7 +338,7 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
     }
 
     it("tallies consensus and review progress", async () => {
-      const { batchId, user, wordIds } = await seedVotes();
+      const { batchId, user, wordIds, words } = await seedVotes();
 
       expect(await repos.stats.getBatchTallies(batchId)).toEqual({
         correct: 4,
@@ -339,6 +347,18 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
         total: 8,
         completed: 7,
       });
+
+      // Legacy votes (2) count as processed without a consensus.
+      await repos.models.updateResults(batchId, [
+        { model: "m1", retries: 1, results: [{ word: words[7].word, status: 2 }] },
+        { model: "m2", retries: 1, results: [{ word: words[7].word, status: 2 }] },
+      ]);
+      expect(await repos.stats.getBatchTallies(batchId)).toMatchObject({
+        completed: 8,
+        correct: 4,
+      });
+      const report = await repos.words.findForReport(batchId);
+      expect(report[7]).toMatchObject({ consensus: "none", unanimous: false });
 
       await repos.users.upsertFromOAuth({ ...OAUTH, email: "b@example.com", username: "bob" });
       const bob = (await repos.users.findByEmail("b@example.com"))!;
@@ -359,12 +379,12 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
         incorrect: 2,
         review_needed: 1,
         reviewed: 2, // round((2 + 1) / 2)
-        completed: 7,
+        completed: 8, // word 7 got legacy votes above
         total: 8,
       });
 
-      const report = await repos.words.findForReport(batchId);
-      expect(report[0].reviews.map((r) => r.correct).sort()).toEqual([false, true]);
+      const reviewed = await repos.words.findForReport(batchId);
+      expect(reviewed[0].reviews.map((r) => r.correct).sort()).toEqual([false, true]);
 
       expect(await repos.reviews.deleteByBatch(batchId)).toBe(true);
       expect(await repos.reviews.deleteByBatch(batchId)).toBe(false);

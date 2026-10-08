@@ -9,6 +9,7 @@ import {
   index,
   varchar,
 } from "drizzle-orm/pg-core";
+import { CONSENSUS_VALUES } from "../store";
 
 export const usersTable = pgTable(
   "users",
@@ -127,6 +128,9 @@ export const wordsTable = pgTable(
     verseId: integer("verse_id")
       .notNull()
       .references(() => versesTable.id, { onDelete: "cascade" }),
+    // Derived from `models` once every vote is in; see ModelsRepo.updateResults.
+    consensus: varchar("consensus", { length: 16, enum: CONSENSUS_VALUES }),
+    unanimous: boolean("unanimous").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

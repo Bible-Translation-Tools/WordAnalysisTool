@@ -1,9 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, exists } from "drizzle-orm";
 import { PgDb } from "../client";
 import {
   batchesTable,
   languagesTable,
-  modelsTable,
   resourcesTable,
   usersTable,
   wordsTable,
@@ -65,21 +64,29 @@ export function createBatchesRepo(db: PgDb): BatchesRepo {
     },
 
     listRecent() {
+      // Ingested batches: ones that have words. An EXISTS probe instead of a
+      // join so the cost does not grow with the number of words.
       return db
-        .selectDistinct({
+        .select({
           id: batchesTable.id,
           ietfCode: languagesTable.code,
           resourceType: resourcesTable.resourceType,
           user: { username: usersTable.username },
         })
         .from(batchesTable)
-        .innerJoin(wordsTable, eq(batchesTable.id, wordsTable.batchId))
-        .innerJoin(modelsTable, eq(wordsTable.id, modelsTable.wordId))
         .innerJoin(usersTable, eq(batchesTable.userId, usersTable.id))
         .innerJoin(resourcesTable, eq(batchesTable.resourceId, resourcesTable.id))
         .innerJoin(
           languagesTable,
           eq(resourcesTable.languageId, languagesTable.id),
+        )
+        .where(
+          exists(
+            db
+              .select({ id: wordsTable.id })
+              .from(wordsTable)
+              .where(eq(wordsTable.batchId, batchesTable.id)),
+          ),
         );
     },
   };
