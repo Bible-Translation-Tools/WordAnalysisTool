@@ -1,6 +1,8 @@
-import { createDb, Database } from "./db/client";
-import { createRepositories, Repositories } from "./db/repositories";
-import AiClient from "./ai/client";
+import { createRepositories, Repositories } from "./db";
+import { D1UsageMeter, globalD1Meter } from "./db/sqlite/metrics";
+import AiClient, { AiChat } from "./ai/client";
+import { MockAiClient } from "./ai/mock";
+import { isDev } from "./lib/utils";
 import {
   createIngestionService,
   IngestionService,
@@ -11,15 +13,17 @@ import {
 } from "./services/ai-processing.service";
 
 /**
- * Application container: the drizzle client, repositories and services are
- * built once here. Both the HTTP path (via middleware) and the cron path use
- * `createContainer` so there is a single construction site.
+ * Application container: the repositories (over whichever database driver
+ * `DB_DRIVER` selects) and services are built once here. Both the HTTP path
+ * (via middleware) and the cron path use `createContainer` so there is a
+ * single construction site.
  */
 export type Container = {
   env: CloudflareBindings;
-  db: Database;
   repos: Repositories;
-  ai: AiClient;
+  /** D1 rows read/written meter; set only in DEV on the d1 driver. */
+  usage?: D1UsageMeter;
+  ai: AiChat;
   services: {
     ingestion: IngestionService;
     aiProcessor: AiProcessor;
@@ -27,14 +31,17 @@ export type Container = {
 };
 
 export function createContainer(env: CloudflareBindings): Container {
-  const db = createDb(env);
-  const repos = createRepositories(db);
-  const ai = new AiClient(env);
+  const dev = isDev(env);
+  // In DEV, meter D1 usage so each tick/request can log what it cost.
+  const usage = dev && env.DB_DRIVER === "d1" ? globalD1Meter : undefined;
+  const repos = createRepositories(env, { d1Meter: usage });
+  // ENVIRONMENT=DEV swaps the AI providers for a deterministic mock (no API calls).
+  const ai: AiChat = dev ? new MockAiClient() : new AiClient(env);
 
   return {
     env,
-    db,
     repos,
+    usage,
     ai,
     services: {
       ingestion: createIngestionService(repos),

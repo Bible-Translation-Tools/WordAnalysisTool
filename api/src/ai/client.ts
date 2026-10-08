@@ -3,7 +3,16 @@ import { buildSystem, buildUser } from "./shared";
 import { getModelConfig } from "./registry";
 import { ADAPTERS } from "./providers";
 
-export default class AiClient {
+/** What the AI processor needs from a chat backend. */
+export interface AiChat {
+  chat(
+    model: string,
+    language: string,
+    words: WordContext[],
+  ): Promise<ChatResponse[] | BatchError>;
+}
+
+export default class AiClient implements AiChat {
   private env: CloudflareBindings;
 
   constructor(env: CloudflareBindings) {

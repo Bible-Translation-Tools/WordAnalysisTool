@@ -5,6 +5,10 @@ export const isAdmin = (username: string, env: CloudflareBindings) => {
   return admins.includes(username);
 };
 
+/** True when `ENVIRONMENT` is "DEV" (mock AI, see ai/mock.ts). Anything else is PROD. */
+export const isDev = (env: { ENVIRONMENT?: string }) =>
+  String(env.ENVIRONMENT ?? "").toUpperCase() === "DEV";
+
 export const chunkArray = (array: any[], size: number) => {
   const arr = [];
   for (var i = 0; i < array.length; i += size) {

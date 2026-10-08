@@ -1,5 +1,5 @@
-import { Repositories } from "../db/repositories";
-import { BatchEntity } from "../db/repositories/batches.repo";
+import { Repositories } from "../db";
+import { BatchEntity, BatchUpdate } from "../db/store";
 import { getBooksForTranslation } from "../integrations/biel";
 import { parseVerses, findSingletons } from "../usfm";
 import { briefReason } from "../lib/utils";
@@ -144,7 +144,7 @@ export function createIngestionService(repos: Repositories) {
         response: null,
       };
 
-      const toUpdate: Record<string, unknown> = {
+      const toUpdate: BatchUpdate = {
         error: JSON.stringify(errorDetails),
         updatedAt: new Date(),
       };

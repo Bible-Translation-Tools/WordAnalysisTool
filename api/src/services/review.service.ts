@@ -1,35 +1,33 @@
-import {
-	AnyColumn,
-	and,
-	asc,
-	count,
-	eq,
-	inArray,
-	max,
-	min,
-	sql,
-} from "drizzle-orm";
-import { unionAll } from "drizzle-orm/pg-core";
-import { Database } from "../db/client";
-import {
-	modelsTable,
-	versesTable,
-	wordReviewsTable,
-	wordsTable,
-} from "../db/schema";
+import { Repositories } from "../db";
+import { StatusCount, StatusLimit } from "../db/store";
 import { BatchProgress, WordResponse } from "../types";
 import { emptyProgress } from "./stats.service";
 
 // Total pool of "good" (unanimous 0/1) words presented for review.
-const REVIEW_POOL_LIMIT = 370;
+export const REVIEW_POOL_LIMIT = 370;
 
 /**
- * Sampling order: a hash of (word id, user id), so each status quota is drawn
- * from across the whole vocabulary instead of the lowest word ids, which follow
- * ingestion order and so are alphabetical.
+ * Split `poolLimit` across statuses proportionally to how many good words
+ * each has, rounding and then fixing the sum on the first status. Returns
+ * null when the pool fits as a whole (no sampling needed).
  */
-function samplingOrder(wordId: AnyColumn, userId: number) {
-	return sql`md5(${wordId}::text || ':' || ${userId}::text)`;
+export function computeReviewLimits(
+  counts: StatusCount[],
+  poolLimit: number = REVIEW_POOL_LIMIT,
+): StatusLimit[] | null {
+  const total = counts.reduce((sum, row) => sum + row.count, 0);
+  if (total <= poolLimit) return null;
+
+  const limits = counts.map((c) => ({
+    status: c.status,
+    limit: Math.round((c.count / total) * poolLimit),
+  }));
+
+  const summed = limits.reduce((sum, c) => sum + c.limit, 0);
+  if (summed !== poolLimit && limits.length > 0) {
+    limits[0].limit += poolLimit - summed;
+  }
+  return limits;
 }
 
 /**
@@ -39,121 +37,27 @@ function samplingOrder(wordId: AnyColumn, userId: number) {
  * the client walks it one word at a time.
  */
 export async function sampleReviewWords(
-	db: Database,
-	batchId: string,
-	userId: number,
+  repos: Pick<Repositories, "reviews">,
+  batchId: string,
+  userId: number,
 ): Promise<{ output: WordResponse[]; progress: BatchProgress }> {
-	const categorizedGoodWords = db
-		.select({
-			wordId: modelsTable.wordId,
-			status: min(modelsTable.status).as("status"),
-		})
-		.from(modelsTable)
-		.innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
-		.where(eq(wordsTable.batchId, batchId))
-		.groupBy(modelsTable.wordId)
-		.having(
-			and(
-				eq(min(modelsTable.status), max(modelsTable.status)),
-				inArray(min(modelsTable.status), [0, 1]),
-			),
-		)
-		.as("categorized_good_words");
+  const counts = await repos.reviews.countGoodWordsByStatus(batchId);
+  const limits = computeReviewLimits(counts);
+  const rows = await repos.reviews.fetchPool(batchId, userId, limits);
 
-	const categoryCounts = await db
-		.select({
-			status: categorizedGoodWords.status,
-			count: count().as("count"),
-		})
-		.from(categorizedGoodWords)
-		.groupBy(categorizedGoodWords.status);
+  const output: WordResponse[] = rows.map((row) => ({
+    word: row.word,
+    ref: `${row.book}:${row.chapter}:${row.verse}`,
+    text: row.text,
+    correct: row.review ? row.review.correct : null,
+    results: [],
+  }));
 
-	const totalGoodWords = categoryCounts.reduce(
-		(sum, row) => sum + row.count,
-		0,
-	);
+  const progress: BatchProgress = {
+    ...emptyProgress,
+    reviewed: output.filter((word) => word.correct !== null).length,
+    total: output.length,
+  };
 
-	let sampledGoodWords;
-	if (totalGoodWords <= REVIEW_POOL_LIMIT) {
-		sampledGoodWords = db
-			.select({ wordId: categorizedGoodWords.wordId })
-			.from(categorizedGoodWords)
-			.as("good_words");
-	} else {
-		const limitsPerStatus = categoryCounts.map((category) => ({
-			status: category.status,
-			limit: Math.round(
-				(category.count / totalGoodWords) * REVIEW_POOL_LIMIT,
-			),
-		}));
-
-		const summedLimits = limitsPerStatus.reduce(
-			(sum, c) => sum + c.limit,
-			0,
-		);
-		if (summedLimits !== REVIEW_POOL_LIMIT && limitsPerStatus.length > 0) {
-			limitsPerStatus[0].limit += REVIEW_POOL_LIMIT - summedLimits;
-		}
-
-		const queriesPerStatus = limitsPerStatus.map((c) =>
-			db
-				.select({ wordId: categorizedGoodWords.wordId })
-				.from(categorizedGoodWords)
-				.where(eq(categorizedGoodWords.status, c.status))
-				.orderBy(samplingOrder(categorizedGoodWords.wordId, userId))
-				.limit(c.limit),
-		);
-
-		if (queriesPerStatus.length === 0) {
-			sampledGoodWords = db
-				.select({ wordId: modelsTable.wordId })
-				.from(modelsTable)
-				.where(sql`false`)
-				.as("good_words");
-		} else if (queriesPerStatus.length === 1) {
-			sampledGoodWords = queriesPerStatus[0].as("good_words");
-		} else {
-			const [first, second, ...rest] = queriesPerStatus;
-			sampledGoodWords = unionAll(first, second, ...rest).as(
-				"good_words",
-			);
-		}
-	}
-
-	const wordsData = await db
-		.select({
-			word: wordsTable.word,
-			review: wordReviewsTable,
-			book: versesTable.bookCode,
-			chapter: versesTable.chapter,
-			verse: versesTable.verse,
-			text: versesTable.text,
-		})
-		.from(wordsTable)
-		.innerJoin(sampledGoodWords, eq(wordsTable.id, sampledGoodWords.wordId))
-		.innerJoin(versesTable, eq(wordsTable.verseId, versesTable.id))
-		.leftJoin(
-			wordReviewsTable,
-			and(
-				eq(wordsTable.id, wordReviewsTable.wordId),
-				eq(wordReviewsTable.userId, userId),
-			),
-		)
-		.orderBy(asc(wordsTable.word));
-
-	const output: WordResponse[] = wordsData.map((row) => ({
-		word: row.word,
-		ref: `${row.book}:${row.chapter}:${row.verse}`,
-		text: row.text,
-		correct: row.review ? row.review.correct : null,
-		results: [],
-	}));
-
-	const progress: BatchProgress = {
-		...emptyProgress,
-		reviewed: output.filter((word) => word.correct !== null).length,
-		total: output.length,
-	};
-
-	return { output, progress };
+  return { output, progress };
 }

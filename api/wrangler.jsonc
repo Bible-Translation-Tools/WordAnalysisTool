@@ -14,11 +14,11 @@
         "enabled": true
     },
     "limits": {
-        "cpu_ms": 60000, // default is 30000 (30 seconds)
+        "cpu_ms": 60000 // default is 30000 (30 seconds)
     },
     "triggers": {
         "crons": [
-            "* * * * *", // run cron job every 5 minutes
+            "* * * * *" // run cron job every 5 minutes
         ]
     },
     /**
@@ -32,18 +32,21 @@
      * databases, object storage, AI inference, real-time communication and more.
      * https://developers.cloudflare.com/workers/runtime-apis/bindings/
      */
-    // "d1_databases": [
-    //     {
-    //         "binding": "DB",
-    //         "database_name": "batches",
-    //         "database_id": "a2a4cd5e-e39c-431d-8b47-303413da29b2"
-    //     }
-    // ],
+    "d1_databases": [
+        {
+            "binding": "DB",
+            "database_name": "batches",
+            "database_id": "a2a4cd5e-e39c-431d-8b47-303413da29b2",
+            "migrations_dir": "drizzle/sqlite"
+        }
+    ],
     /**
      * Environment Variables
      * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
      */
     "vars": {
+        "DB_DRIVER": "d1", // Database driver: "postgres" or "d1".
+        "ENVIRONMENT": "prod", // Possible values: prod or dev
         "AUTH_URL": "https://content.bibletranslationtools.org/login/oauth/access_token",
         "WACS_API": "https://content.bibletranslationtools.org/api/v1",
         "WACS_CALLBACK": "https://word-analysis-tool.wycliffe-associates-account.workers.dev/auth/callback"

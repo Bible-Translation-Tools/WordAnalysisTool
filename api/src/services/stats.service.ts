@@ -1,8 +1,5 @@
-import { count, eq, sql } from "drizzle-orm";
-import { Database } from "../db/client";
-import { modelsTable, wordReviewsTable, wordsTable } from "../db/schema";
+import { Repositories } from "../db";
 import { BatchProgress, BatchStatus } from "../types";
-import { consensusSql, isProcessedSql } from "./consensus";
 
 export const emptyProgress: BatchProgress = {
   correct: 0,
@@ -15,51 +12,25 @@ export const emptyProgress: BatchProgress = {
 
 /** Consensus tallies + review progress for a batch. */
 export async function computeBatchProgress(
-  db: Database,
+  repos: Pick<Repositories, "stats">,
   batchId: string,
 ): Promise<BatchProgress> {
-  const consensusSubquery = db
-    .select({
-      wordId: modelsTable.wordId,
-      consensus: consensusSql().as("consensus"),
-      isProcessed: isProcessedSql().as("is_processed"),
-    })
-    .from(modelsTable)
-    .innerJoin(wordsTable, eq(modelsTable.wordId, wordsTable.id))
-    .where(eq(wordsTable.batchId, batchId))
-    .groupBy(modelsTable.wordId)
-    .as("consensus_subquery");
-
-  const [stats] = await db
-    .select({
-      correct: count(sql`CASE WHEN consensus = 'Correct' THEN 1 END`),
-      incorrect: count(sql`CASE WHEN consensus = 'Incorrect' THEN 1 END`),
-      reviewNeeded: count(sql`CASE WHEN consensus = 'Review Needed' THEN 1 END`),
-      total: count(wordsTable.id),
-      completed: count(sql`CASE WHEN is_processed THEN 1 END`),
-    })
-    .from(wordsTable)
-    .leftJoin(consensusSubquery, eq(wordsTable.id, consensusSubquery.wordId))
-    .where(eq(wordsTable.batchId, batchId));
-
-  const userReviewCounts = await db
-    .select({ userId: wordReviewsTable.userId, count: count() })
-    .from(wordReviewsTable)
-    .innerJoin(wordsTable, eq(wordReviewsTable.wordId, wordsTable.id))
-    .where(eq(wordsTable.batchId, batchId))
-    .groupBy(wordReviewsTable.userId);
+  const [tallies, userReviewCounts] = await Promise.all([
+    repos.stats.getBatchTallies(batchId),
+    repos.stats.getReviewCountsByUser(batchId),
+  ]);
 
   const totalReviews = userReviewCounts.reduce((sum, row) => sum + row.count, 0);
   const averageReviews =
     userReviewCounts.length > 0 ? totalReviews / userReviewCounts.length : 0;
 
   return {
-    correct: stats.correct,
-    incorrect: stats.incorrect,
-    review_needed: stats.reviewNeeded,
+    correct: tallies.correct,
+    incorrect: tallies.incorrect,
+    review_needed: tallies.reviewNeeded,
     reviewed: Math.round(averageReviews),
-    completed: stats.completed,
-    total: stats.total,
+    completed: tallies.completed,
+    total: tallies.total,
   };
 }
 

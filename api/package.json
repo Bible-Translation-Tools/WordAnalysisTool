@@ -1,11 +1,15 @@
 {
   "name": "wat-worker",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "wrangler dev --test-scheduled",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:pg:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "db:pg:migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:d1:generate": "drizzle-kit generate --config drizzle.sqlite.config.ts",
+    "db:d1:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:d1:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -25,6 +29,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@libsql/client": "^0.18.0",
     "@types/common-tags": "^1.8.4",
     "@types/sqlstring": "^2.3.2",
     "dotenv": "^17.4.2",

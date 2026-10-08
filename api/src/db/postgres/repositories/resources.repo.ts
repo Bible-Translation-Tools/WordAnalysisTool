@@ -1,17 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
-import { Database } from "../client";
+import { PgDb } from "../client";
 import { languagesTable, resourcesTable } from "../schema";
+import { ResourcesRepo } from "../../store";
 
-export type ResourceRef = {
-  ietf: string;
-  resourceType: string;
-  name: string;
-};
-
-export function createResourcesRepo(db: Database) {
+export function createResourcesRepo(db: PgDb): ResourcesRepo {
   return {
-    /** Resolve a resource id to its ietf code, resource type, and language name. */
-    async getRef(resourceId: number): Promise<ResourceRef | null> {
+    async getRef(resourceId) {
       const [row] = await db
         .select({
           ietf: languagesTable.code,
@@ -27,11 +21,7 @@ export function createResourcesRepo(db: Database) {
       return row ?? null;
     },
 
-    /**
-     * Resolve (ietf code, resource type) to an existing resource id, or null.
-     * Used to locate a batch (which is keyed by its resource) from URL params.
-     */
-    async getId(ietf: string, resourceType: string): Promise<number | null> {
+    async getId(ietf, resourceType) {
       const [row] = await db
         .select({ id: resourcesTable.id })
         .from(resourcesTable)
@@ -48,8 +38,7 @@ export function createResourcesRepo(db: Database) {
       return row?.id ?? null;
     },
 
-    /** Ensure a resources row exists for (resourceType, languageId). Returns its id. */
-    async upsert(resourceType: string, languageId: number): Promise<number> {
+    async upsert(resourceType, languageId) {
       const [row] = await db
         .insert(resourcesTable)
         .values({ resourceType, languageId })
@@ -62,5 +51,3 @@ export function createResourcesRepo(db: Database) {
     },
   };
 }
-
-export type ResourcesRepo = ReturnType<typeof createResourcesRepo>;

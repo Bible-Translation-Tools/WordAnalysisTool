@@ -13,7 +13,7 @@ import {
 const router = new Hono<AppEnv>();
 
 router.get("/api/review/:ietf_code/:resource_type", async (c) => {
-  const { db, repos } = c.get("container");
+  const { repos } = c.get("container");
 
   try {
     const ietf_code = c.req.param("ietf_code");
@@ -34,7 +34,7 @@ router.get("/api/review/:ietf_code/:resource_type", async (c) => {
     }
 
     const { output, progress } = await sampleReviewWords(
-      db,
+      repos,
       dbBatch.id,
       user.id,
     );

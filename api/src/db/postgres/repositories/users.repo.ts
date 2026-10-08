@@ -1,32 +1,17 @@
 import { and, eq, gt, sql } from "drizzle-orm";
-import { Database } from "../client";
+import { PgDb } from "../client";
 import { usersTable } from "../schema";
+import { UsersRepo } from "../../store";
 
-export type UserEntity = typeof usersTable.$inferSelect;
-
-export type OAuthUpsert = {
-  email: string;
-  username: string;
-  wacsUserId: number;
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  state: string;
-};
-
-export function createUsersRepo(db: Database) {
+export function createUsersRepo(db: PgDb): UsersRepo {
   return {
-    findByEmail(email: string): Promise<UserEntity | undefined> {
+    findByEmail(email) {
       return db.query.usersTable.findFirst({
         where: eq(usersTable.email, email),
       });
     },
 
-    /** A user whose login `state` is set and newer than `since` (unexpired). */
-    findByFreshState(
-      state: string,
-      since: Date,
-    ): Promise<UserEntity | undefined> {
+    findByFreshState(state, since) {
       return db.query.usersTable.findFirst({
         where: and(
           eq(usersTable.state, state),
@@ -35,14 +20,14 @@ export function createUsersRepo(db: Database) {
       });
     },
 
-    async clearState(state: string): Promise<void> {
+    async clearState(state) {
       await db
         .update(usersTable)
         .set({ state: null, updatedAt: new Date() })
         .where(eq(usersTable.state, state));
     },
 
-    async upsertFromOAuth(values: OAuthUpsert): Promise<void> {
+    async upsertFromOAuth(values) {
       await db
         .insert(usersTable)
         .values(values)
@@ -60,5 +45,3 @@ export function createUsersRepo(db: Database) {
     },
   };
 }
-
-export type UsersRepo = ReturnType<typeof createUsersRepo>;

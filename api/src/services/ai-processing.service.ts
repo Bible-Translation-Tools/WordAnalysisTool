@@ -1,5 +1,6 @@
-import { Repositories } from "../db/repositories";
-import AiClient from "../ai/client";
+import { Repositories } from "../db";
+import { BatchUpdate } from "../db/store";
+import { AiChat } from "../ai/client";
 import { BatchError, ChatResponse, ModelResult, WordContext } from "../types";
 import { isChatError } from "../lib/utils";
 import { BATCH_MAX_RETRIES, WORDS_PER_BATCH } from "../config/constants";
@@ -104,7 +105,7 @@ export function buildWordContexts(
   });
 }
 
-export function createAiProcessor(repos: Repositories, client: AiClient) {
+export function createAiProcessor(repos: Repositories, client: AiChat) {
   /** Process one chunk of the oldest pending batch through every model. */
   async function processPending(): Promise<void> {
     const batch = await repos.batches.findPending();
@@ -203,18 +204,20 @@ export function createAiProcessor(repos: Repositories, client: AiClient) {
       }
 
       if (modelsResults.length > 0) {
-        const updateError = await repos.models.updateResults(
-          batchId,
-          modelsResults,
-        );
-        if (updateError) {
-          updateError.prompt = wordsPrompt;
-          errorDetails = updateError;
+        try {
+          await repos.models.updateResults(batchId, modelsResults);
+        } catch (error: any) {
+          errorDetails = {
+            prompt: wordsPrompt,
+            message: `failed to store results: ${error.message || error}`,
+            model: null,
+            response: null,
+          };
         }
       }
     }
 
-    const toUpdate: Record<string, unknown> = { updatedAt: new Date() };
+    const toUpdate: BatchUpdate = { updatedAt: new Date() };
 
     if (words.length === 0) {
       toUpdate.pending = false;

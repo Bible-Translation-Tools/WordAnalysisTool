@@ -4,12 +4,17 @@ import { jwt } from "hono/jwt";
 import { AppEnv } from "../bindings";
 import { createContainer } from "../container";
 import { isAdmin } from "../lib/utils";
-import { UserEntity } from "../db/repositories/users.repo";
+import { UserEntity } from "../db/store";
 
 /** Build the per-request container and attach it to the context. */
 export const injectContainer: MiddlewareHandler<AppEnv> = async (c, next) => {
-  c.set("container", createContainer(c.env));
-  await next();
+  const container = createContainer(c.env);
+  c.set("container", container);
+  try {
+    await next();
+  } finally {
+    container.usage?.flush(`${c.req.method} ${c.req.path}`);
+  }
 };
 
 /** JWT auth for /api/* routes. */

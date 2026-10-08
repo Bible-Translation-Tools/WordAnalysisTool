@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import { Database } from "../client";
+import { PgDb } from "../client";
 import {
   batchesTable,
   languagesTable,
@@ -8,71 +8,62 @@ import {
   usersTable,
   wordsTable,
 } from "../schema";
+import { BatchesRepo } from "../../store";
 
-export type BatchEntity = typeof batchesTable.$inferSelect;
-
-export function createBatchesRepo(db: Database) {
+export function createBatchesRepo(db: PgDb): BatchesRepo {
   return {
-    findByResourceId(resourceId: number): Promise<BatchEntity | undefined> {
+    findByResourceId(resourceId) {
       return db.query.batchesTable.findFirst({
         where: eq(batchesTable.resourceId, resourceId),
       });
     },
 
-    /** Batch keyed by resource, with its creator (for stats / review screens). */
-    findByResourceIdWithUser(resourceId: number) {
+    findByResourceIdWithUser(resourceId) {
       return db.query.batchesTable.findFirst({
         where: eq(batchesTable.resourceId, resourceId),
         with: { user: true },
       });
     },
 
-    /** Oldest batch currently being ingested, if any. */
-    findIngesting(): Promise<BatchEntity | undefined> {
+    findIngesting() {
       return db.query.batchesTable.findFirst({
         where: eq(batchesTable.ingesting, true),
         orderBy: [asc(batchesTable.createdAt)],
       });
     },
 
-    /** Oldest batch pending AI processing, if any. */
-    findPending(): Promise<BatchEntity | undefined> {
+    findPending() {
       return db.query.batchesTable.findFirst({
         where: eq(batchesTable.pending, true),
         orderBy: [asc(batchesTable.createdAt)],
       });
     },
 
-    async create(values: typeof batchesTable.$inferInsert): Promise<void> {
+    async create(values) {
       await db.insert(batchesTable).values(values);
     },
 
-    async updateById(
-      id: string,
-      values: Partial<typeof batchesTable.$inferInsert>,
-    ): Promise<void> {
+    async updateById(id, values) {
       await db.update(batchesTable).set(values).where(eq(batchesTable.id, id));
     },
 
-    /** Stop a pending batch. Returns true if a row was affected. */
-    async pause(id: string): Promise<boolean> {
+    async pause(id) {
       const rows = await db
         .update(batchesTable)
         .set({ pending: false, error: null })
         .where(eq(batchesTable.id, id))
-        .returning();
+        .returning({ id: batchesTable.id });
       return rows.length > 0;
     },
 
-    async deleteById(id: string): Promise<boolean> {
+    async deleteById(id) {
       const rows = await db
         .delete(batchesTable)
         .where(eq(batchesTable.id, id))
-        .returning();
+        .returning({ id: batchesTable.id });
       return rows.length > 0;
     },
 
-    /** Distinct batches that have at least one processed word, with creator. */
     listRecent() {
       return db
         .selectDistinct({
@@ -93,5 +84,3 @@ export function createBatchesRepo(db: Database) {
     },
   };
 }
-
-export type BatchesRepo = ReturnType<typeof createBatchesRepo>;

@@ -1,16 +1,11 @@
 import { eq, sql } from "drizzle-orm";
-import { Database } from "../client";
+import { SqliteDb } from "../client";
 import { languagesTable } from "../schema";
-import { LanguageInfo } from "../../integrations/biel";
+import { LanguagesRepo } from "../../store";
 
-export function createLanguagesRepo(db: Database) {
+export function createLanguagesRepo(db: SqliteDb): LanguagesRepo {
   return {
-    /**
-     * Ensure a languages row exists for this ietf code. If already present its
-     * id is reused; otherwise a row is created from BIEL language info. Returns
-     * the language id.
-     */
-    async upsert(info: LanguageInfo): Promise<number> {
+    async upsert(info) {
       const [row] = await db
         .insert(languagesTable)
         .values({
@@ -32,8 +27,7 @@ export function createLanguagesRepo(db: Database) {
       return row.id;
     },
 
-    /** English name of a language (for the AI prompt), or "" if unknown. */
-    async getName(languageId: number): Promise<string> {
+    async getName(languageId) {
       const [row] = await db
         .select({ name: languagesTable.angName })
         .from(languagesTable)
@@ -42,5 +36,3 @@ export function createLanguagesRepo(db: Database) {
     },
   };
 }
-
-export type LanguagesRepo = ReturnType<typeof createLanguagesRepo>;

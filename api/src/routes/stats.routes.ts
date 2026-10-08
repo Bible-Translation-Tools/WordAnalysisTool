@@ -11,7 +11,7 @@ import { Batch, BatchDetails, BatchError, PublicUser } from "../types";
 const router = new Hono<AppEnv>();
 
 router.get("/api/stats/:ietf_code/:resource_type", async (c) => {
-  const { db, repos } = c.get("container");
+  const { repos } = c.get("container");
 
   try {
     const ietf_code = c.req.param("ietf_code");
@@ -26,7 +26,7 @@ router.get("/api/stats/:ietf_code/:resource_type", async (c) => {
       throw new HTTPException(404, { message: "batch not found" });
     }
 
-    const progress = await computeBatchProgress(db, dbBatch.id);
+    const progress = await computeBatchProgress(repos, dbBatch.id);
     const status = deriveStatus(progress, {
       ingesting: dbBatch.ingesting,
       pending: dbBatch.pending,

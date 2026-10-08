@@ -9,7 +9,7 @@ const databaseUrl = drizzle(postgres(`${process.env.DATABASE_URL}`));
 
 const main = async () => {
   try {
-    await migrate(databaseUrl, { migrationsFolder: "drizzle" });
+    await migrate(databaseUrl, { migrationsFolder: "drizzle/postgres" });
     console.log("Migration complete");
   } catch (error) {
     console.log(error);

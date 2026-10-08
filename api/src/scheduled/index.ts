@@ -10,9 +10,8 @@ export async function scheduledHandler(
   env: CloudflareBindings,
   _ctx: ExecutionContext,
 ): Promise<void> {
+  const container = createContainer(env);
   try {
-    const container = createContainer(env);
-
     const ingestBatch = await container.repos.batches.findIngesting();
     if (ingestBatch) {
       await container.services.ingestion.ingestSource(ingestBatch);
@@ -22,5 +21,7 @@ export async function scheduledHandler(
     await container.services.aiProcessor.processPending();
   } catch (error) {
     console.error("cron error:", error);
+  } finally {
+    container.usage?.flush("cron tick");
   }
 }

@@ -1,9 +1,7 @@
-import { sql, SQL } from "drizzle-orm";
-
 /**
  * Canonical consensus of a set of model votes for one word. The rule is shared
- * by the CSV report (JS array form, `classifyVotes`) and the stats aggregation
- * (SQL form, `consensusSql`) so it lives in exactly one place.
+ * by the CSV report (this JS form) and the stats aggregation (the SQL form,
+ * `consensusSql` in each driver's `src/db/<driver>/sql.ts`), which must agree.
  *
  * Only 0 (incorrect) and 1 (correct) count as votes; any other value (e.g. a
  * legacy 2) is ignored. Majority wins; a tie is "review"; no valid vote at all
@@ -27,25 +25,3 @@ export const REPORT_LABEL: Record<Consensus, string> = {
   review: "Review Needed",
   none: "Not Processed",
 };
-
-/**
- * Aggregate consensus expression over a `models` group (grouped by word_id).
- * Mirrors `classifyVotes`. Words with any unchecked (-1) vote, or no valid
- * 0/1 vote, resolve to NULL (excluded from the stats tallies).
- */
-export function consensusSql(): SQL<string> {
-  return sql<string>`
-    CASE
-      WHEN bool_or(status = -1) THEN NULL
-      WHEN count(*) FILTER (WHERE status IN (0, 1)) = 0 THEN NULL
-      WHEN count(*) FILTER (WHERE status = 1) > count(*) FILTER (WHERE status = 0) THEN 'Correct'
-      WHEN count(*) FILTER (WHERE status = 0) > count(*) FILTER (WHERE status = 1) THEN 'Incorrect'
-      ELSE 'Review Needed'
-    END
-  `;
-}
-
-/** True when every model for the word has been processed (no -1 left). */
-export function isProcessedSql(): SQL<boolean> {
-  return sql<boolean>`NOT bool_or(status = -1)`;
-}
