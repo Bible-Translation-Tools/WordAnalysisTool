@@ -1,4 +1,4 @@
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { MAX_PARAMS, PgDb } from "../client";
 import { versesTable } from "../schema";
 import { VersesRepo } from "../../store";
@@ -55,8 +55,14 @@ export function createVersesRepo(db: PgDb): VersesRepo {
 
     async getTextsByRefs(resourceId, refs) {
       const map = new Map<string, string>();
-      // Each ref binds 3 params; keep the OR list short so the planner copes.
+      // Row-value IN, not an OR chain: with a few dozen OR terms the planner
+      // gives up on the unique index and scans every verse of the resource.
+      // Each ref binds 3 params, plus the resource id.
       for (const chunk of chunkByParams(uniqueRefs(refs), 3, 600, 1)) {
+        const tuples = sql.join(
+          chunk.map((r) => sql`(${r.book}, ${r.chapter}, ${r.verse})`),
+          sql`, `,
+        );
         const rows = await db
           .select({
             book: versesTable.bookCode,
@@ -68,15 +74,7 @@ export function createVersesRepo(db: PgDb): VersesRepo {
           .where(
             and(
               eq(versesTable.resourceId, resourceId),
-              or(
-                ...chunk.map((r) =>
-                  and(
-                    eq(versesTable.bookCode, r.book),
-                    eq(versesTable.chapter, r.chapter),
-                    eq(versesTable.verse, r.verse),
-                  ),
-                ),
-              ),
+              sql`(${versesTable.bookCode}, ${versesTable.chapter}, ${versesTable.verse}) IN (${tuples})`,
             ),
           );
         for (const r of rows) map.set(verseKey(r), r.text);

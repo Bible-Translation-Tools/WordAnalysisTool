@@ -1,11 +1,10 @@
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, notExists, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
 import { PgDb } from "../client";
 import { versesTable, wordReviewsTable, wordsTable } from "../schema";
 import { Consensus, ReviewsRepo } from "../../store";
-import { samplingOrder } from "../sql";
 
-/** The review pool is unanimous words; their status is 1 (correct) or 0. */
+/** Review candidates are unanimous words; their status is 1 (correct) or 0. */
 const GOOD: Record<number, Consensus> = { 1: "correct", 0: "incorrect" };
 const STATUS_OF: Partial<Record<Consensus, number>> = { correct: 1, incorrect: 0 };
 
@@ -16,6 +15,9 @@ export function createReviewsRepo(db: PgDb): ReviewsRepo {
       eq(wordsTable.unanimous, true),
       inArray(wordsTable.consensus, ["correct", "incorrect"]),
     );
+  // Literal, not a bound parameter: it must match idx_word_sampled's WHERE.
+  const sampledWords = (batchId: string) =>
+    and(eq(wordsTable.batchId, batchId), sql`${wordsTable.sampled} = true`);
 
   return {
     async upsert(review) {
@@ -53,33 +55,50 @@ export function createReviewsRepo(db: PgDb): ReviewsRepo {
       return rows.map((r) => ({ status: STATUS_OF[r.consensus!]!, count: r.count }));
     },
 
-    async fetchPool(batchId, userId, limits) {
+    async countSampled(batchId) {
+      const [row] = await db
+        .select({ count: count() })
+        .from(wordsTable)
+        .where(sampledWords(batchId));
+      return row.count;
+    },
+
+    async markSampled(batchId, limits) {
       let pool;
       if (limits === null) {
-        pool = db
-          .select({ wordId: wordsTable.id })
-          .from(wordsTable)
-          .where(goodWords(batchId))
-          .as("pool");
+        pool = db.select({ wordId: wordsTable.id }).from(wordsTable).where(goodWords(batchId));
       } else if (limits.length === 0) {
-        return [];
+        return;
       } else {
         const perStatus = limits.map((l) =>
           db
             .select({ wordId: wordsTable.id })
             .from(wordsTable)
             .where(and(goodWords(batchId), eq(wordsTable.consensus, GOOD[l.status])))
-            .orderBy(samplingOrder(wordsTable.id, userId))
+            .orderBy(sql`random()`)
             .limit(l.limit),
         );
         if (perStatus.length === 1) {
-          pool = perStatus[0].as("pool");
+          pool = perStatus[0];
         } else {
           const [first, second, ...rest] = perStatus;
-          pool = unionAll(first, second, ...rest).as("pool");
+          pool = unionAll(first, second, ...rest);
         }
       }
 
+      // The NOT EXISTS guard makes a second draw a no-op; the one UPDATE is
+      // the only full scan the review pool ever costs.
+      const alreadySampled = db
+        .select({ id: wordsTable.id })
+        .from(wordsTable)
+        .where(sampledWords(batchId));
+      await db
+        .update(wordsTable)
+        .set({ sampled: true })
+        .where(and(inArray(wordsTable.id, pool), notExists(alreadySampled)));
+    },
+
+    fetchPool(batchId, userId) {
       return db
         .select({
           word: wordsTable.word,
@@ -90,7 +109,6 @@ export function createReviewsRepo(db: PgDb): ReviewsRepo {
           text: versesTable.text,
         })
         .from(wordsTable)
-        .innerJoin(pool, eq(wordsTable.id, pool.wordId))
         .innerJoin(versesTable, eq(wordsTable.verseId, versesTable.id))
         .leftJoin(
           wordReviewsTable,
@@ -99,6 +117,7 @@ export function createReviewsRepo(db: PgDb): ReviewsRepo {
             eq(wordReviewsTable.userId, userId),
           ),
         )
+        .where(sampledWords(batchId))
         .orderBy(asc(wordsTable.word));
     },
   };

@@ -221,6 +221,8 @@ export function createAiProcessor(repos: Repositories, client: AiChat) {
 
     if (words.length === 0) {
       toUpdate.pending = false;
+      // Done: replace the incrementally maintained tallies with a recount.
+      await repos.stats.recountTallies(batchId);
     }
 
     if (errorDetails) {

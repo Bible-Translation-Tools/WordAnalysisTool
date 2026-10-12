@@ -4,6 +4,8 @@ import { modelsTable, wordsTable } from "../schema";
 import { ModelsRepo } from "../../store";
 import { chunkByParams } from "../../common/chunk";
 import { consensusSql, unanimousSql } from "../sql";
+import { applyTallyDelta, countByConsensus, recountTallies } from "../tallies";
+import { isZeroDelta, tallyDelta } from "../../common/tallies";
 
 export function createModelsRepo(db: PgDb): ModelsRepo {
   /** Recompute `consensus` / `unanimous` for the named words from their votes. */
@@ -17,6 +19,16 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
       .where(
         and(eq(wordsTable.batchId, batchId), inArray(wordsTable.word, words)),
       );
+
+  /**
+   * Votes changed, so the review pool drawn from them is stale; the next
+   * review request redraws it. Hits only the partial `sampled` index.
+   */
+  const clearSampled = (batchId: string) =>
+    db
+      .update(wordsTable)
+      .set({ sampled: false })
+      .where(and(eq(wordsTable.batchId, batchId), sql`${wordsTable.sampled} = true`));
 
   return {
     async seed(wordIds, models) {
@@ -38,6 +50,15 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
     async updateResults(batchId, results) {
       const touched = new Set<string>();
       for (const modelResult of results) {
+        for (const r of modelResult.results) touched.add(r.word.trim());
+      }
+      const wordChunks = chunkByParams([...touched], 1, MAX_PARAMS, 1);
+      // Count the touched words' consensus before and after; the difference
+      // is added to the batch's tally counters.
+      const before = (await Promise.all(
+        wordChunks.map((c) => countByConsensus(db, batchId, c)),
+      )).flat();
+      for (const modelResult of results) {
         // Each word binds 3 params: CASE (word, status) + IN (word).
         for (const chunk of chunkByParams(modelResult.results, 3, MAX_PARAMS, 3)) {
           const statusCases = chunk.map(
@@ -45,7 +66,6 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
               sql`WHEN ${wordsTable.word} = ${r.word.trim()} THEN ${r.status}`,
           );
           const words = chunk.map((r) => r.word.trim());
-          words.forEach((w) => touched.add(w));
           const statusFragment = sql.join(statusCases, sql` `);
           await db
             .update(modelsTable)
@@ -64,9 +84,13 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
             );
         }
       }
-      for (const chunk of chunkByParams([...touched], 1, MAX_PARAMS, 1)) {
-        await refreshConsensus(batchId, chunk);
-      }
+      for (const chunk of wordChunks) await refreshConsensus(batchId, chunk);
+      if (touched.size > 0) await clearSampled(batchId);
+      const after = (await Promise.all(
+        wordChunks.map((c) => countByConsensus(db, batchId, c)),
+      )).flat();
+      const delta = tallyDelta(before, after);
+      if (!isZeroDelta(delta)) await applyTallyDelta(db, batchId, delta);
     },
 
     async deleteIncomplete(batchId) {
@@ -81,7 +105,7 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
       // Words left without any model row are back to "not processed".
       await db
         .update(wordsTable)
-        .set({ consensus: null, unanimous: false })
+        .set({ consensus: null, unanimous: false, sampled: false })
         .where(
           and(
             eq(wordsTable.batchId, batchId),
@@ -95,6 +119,8 @@ export function createModelsRepo(db: PgDb): ModelsRepo {
             ),
           ),
         );
+      // Pausing is rare; a full recount is simpler than tracking the delta.
+      await recountTallies(db, batchId);
     },
   };
 }

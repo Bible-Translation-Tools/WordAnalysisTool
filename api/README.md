@@ -60,6 +60,22 @@ npm run db:d1:migrate:remote  # the database_id in wrangler.jsonc
 read only `words` instead of aggregating `models` on every request. The SQL
 rule lives in each driver's `sql.ts` and must match `classifyVotes`.
 
+Stats come from counters on `batches` (`words_total`, `words_completed`,
+`words_correct`, `words_incorrect`, `words_review`), so `/api/stats` reads one
+row. `ModelsRepo.updateResults` counts the touched words' consensus before and
+after the write and adds the difference; `StatsRepo.recountTallies` does a full
+recount (one pass over the batch's words) when ingestion finishes, when
+processing completes and after a pause, so any drift is short-lived.
+
+`words.sampled` marks the review pool. The first `/api/review` request for a
+batch draws it once (`ReviewsRepo.markSampled`: unanimous correct/incorrect
+words, sampled at random per status down to `REVIEW_POOL_LIMIT`), and every
+later request reads just the flagged rows through the partial index
+`idx_word_sampled`. All reviewers see the same pool. The flag is cleared for
+the whole batch whenever its votes change (`updateResults`), so a re-run
+redraws the pool on the next request; `/api/review/reset` only deletes
+reviews and keeps the pool.
+
 Keep the two schema files in sync: every column added to one must be added to
 the other, and the compile-time checks in each driver's `repositories/index.ts`
 fail if a driver's rows stop matching the shared entity types.
@@ -80,8 +96,18 @@ cron tick and request logs its cost plus a running total for the isolate:
 [d1] cron tick: 14 stmts, read 3.1k, written 150 | total: read 2.10M, written 412.0k
 ```
 
+Any single statement that reads 2,000 rows or more is also logged on its own
+with its SQL, so a scan hiding inside a tick is visible at once:
+
+```
+[d1] heavy: read 31.1k, written 0 — select "book_code", … from "verses" where …
+```
+
 Run a batch to completion locally and read the last total to see what it would
-cost in production. Totals reset when `wrangler dev` reloads the worker.
+cost in production. Totals reset when `wrangler dev` reloads the worker. A
+query the planner handles well on an empty database can still scan on real
+data (an OR chain of 33 verse refs did), so check the heavy lines after
+changing a query, not just the tests.
 
 ### Tests
 

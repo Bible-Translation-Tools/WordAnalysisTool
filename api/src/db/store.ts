@@ -43,6 +43,16 @@ export type BatchEntity = {
   models: string | null;
   error: string | null;
   retries: number;
+  /**
+   * Consensus tallies over the batch's words, kept in step with
+   * `words.consensus` by ModelsRepo (deltas) and StatsRepo.recountTallies
+   * (full recount), so stats never scan `words`.
+   */
+  wordsTotal: number;
+  wordsCompleted: number;
+  wordsCorrect: number;
+  wordsIncorrect: number;
+  wordsReview: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -59,6 +69,11 @@ export type BatchInsert = {
   models?: string | null;
   error?: string | null;
   retries?: number;
+  wordsTotal?: number;
+  wordsCompleted?: number;
+  wordsCorrect?: number;
+  wordsIncorrect?: number;
+  wordsReview?: number;
   createdAt?: Date;
   updatedAt?: Date;
 };
@@ -90,8 +105,10 @@ export type WordEntity = {
   verseId: number;
   /** NULL while any model vote is still pending (or no models were seeded). */
   consensus: Consensus | null;
-  /** Every model voted the same way, 0 or 1 (the review pool). */
+  /** Every model voted the same way, 0 or 1 (eligible for review). */
   unanimous: boolean;
+  /** Drawn into the batch's review pool; see ReviewsRepo.markSampled. */
+  sampled: boolean;
   createdAt: Date;
 };
 
@@ -220,7 +237,8 @@ export interface WordsRepo {
   findIdByWord(batchId: string, word: string): Promise<number | null>;
   /**
    * Words in a batch that still have at least one unchecked (status -1) model,
-   * with their models and verse. Used by the AI-processing loop.
+   * with their models and verse. Used by the AI-processing loop; served by the
+   * partial index on `consensus IS NULL`, so it never walks finished words.
    */
   findUnprocessedForBatch(batchId: string, limit: number): Promise<WordWithModelsAndVerse[]>;
   /** All words in a batch with models, reviews and verse — for the CSV report. */
@@ -268,17 +286,21 @@ export interface ReviewsRepo {
    * Count the batch's "good" words (every model agrees on 0 or 1) per status.
    */
   countGoodWordsByStatus(batchId: string): Promise<StatusCount[]>;
+  /** Number of words currently marked `sampled` in a batch. */
+  countSampled(batchId: string): Promise<number>;
   /**
-   * The review pool for a batch/user: good words joined to their verse and the
-   * user's existing review, ordered by word. With `limits`, each status is
-   * sampled down to its limit in a per-user deterministic order; with null the
-   * whole pool is returned.
+   * Draw the batch's review pool once: flag good words as `sampled`, each
+   * status drawn at random down to its limit (every good word when `limits`
+   * is null). Does nothing when the batch already has sampled words, so two
+   * concurrent first requests cannot double the pool. The flag is cleared by
+   * ModelsRepo whenever the batch's votes change.
    */
-  fetchPool(
-    batchId: string,
-    userId: number,
-    limits: StatusLimit[] | null,
-  ): Promise<ReviewPoolRow[]>;
+  markSampled(batchId: string, limits: StatusLimit[] | null): Promise<void>;
+  /**
+   * The batch's sampled words joined to their verse and the user's existing
+   * review, ordered by word.
+   */
+  fetchPool(batchId: string, userId: number): Promise<ReviewPoolRow[]>;
 }
 
 export interface UsersRepo {
@@ -290,8 +312,15 @@ export interface UsersRepo {
 }
 
 export interface StatsRepo {
-  /** Consensus tallies for a batch, read from `words.consensus`. */
+  /** Consensus tallies for a batch, read from the counters on `batches`. */
   getBatchTallies(batchId: string): Promise<BatchTallies>;
+  /**
+   * Recount the tallies from `words.consensus` and store them on the batch.
+   * One pass over the batch's words: used when ingestion finishes (sets the
+   * total) and when processing completes, to correct any drift of the
+   * incremental deltas.
+   */
+  recountTallies(batchId: string): Promise<BatchTallies>;
   /** Number of reviews each user has made in a batch. */
   getReviewCountsByUser(batchId: string): Promise<UserReviewCount[]>;
 }

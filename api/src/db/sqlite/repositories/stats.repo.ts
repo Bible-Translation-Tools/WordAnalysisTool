@@ -1,31 +1,51 @@
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, exists } from "drizzle-orm";
 import { SqliteDb } from "../client";
-import { wordReviewsTable, wordsTable } from "../schema";
+import { batchesTable, wordReviewsTable, wordsTable } from "../schema";
 import { StatsRepo } from "../../store";
+import { ZERO_TALLIES } from "../../common/tallies";
+import { recountTallies } from "../tallies";
 
 export function createStatsRepo(db: SqliteDb): StatsRepo {
   return {
     async getBatchTallies(batchId) {
-      // One pass over the batch's words; consensus is maintained on write.
-      const [stats] = await db
+      // Counters maintained on the batch row: one row read.
+      const [b] = await db
         .select({
-          correct: count(sql`CASE WHEN ${wordsTable.consensus} = 'correct' THEN 1 END`),
-          incorrect: count(sql`CASE WHEN ${wordsTable.consensus} = 'incorrect' THEN 1 END`),
-          reviewNeeded: count(sql`CASE WHEN ${wordsTable.consensus} = 'review' THEN 1 END`),
-          total: count(),
-          completed: count(wordsTable.consensus),
+          correct: batchesTable.wordsCorrect,
+          incorrect: batchesTable.wordsIncorrect,
+          reviewNeeded: batchesTable.wordsReview,
+          total: batchesTable.wordsTotal,
+          completed: batchesTable.wordsCompleted,
         })
-        .from(wordsTable)
-        .where(eq(wordsTable.batchId, batchId));
-      return stats;
+        .from(batchesTable)
+        .where(eq(batchesTable.id, batchId));
+      return b ?? { ...ZERO_TALLIES };
+    },
+
+    recountTallies(batchId) {
+      return recountTallies(db, batchId);
     },
 
     getReviewCountsByUser(batchId) {
+      // Correlated EXISTS instead of a join: the planner would otherwise loop
+      // over every word of the batch and probe reviews; this loops over the
+      // (few) reviews and probes words by primary key.
       return db
         .select({ userId: wordReviewsTable.userId, count: count() })
         .from(wordReviewsTable)
-        .innerJoin(wordsTable, eq(wordReviewsTable.wordId, wordsTable.id))
-        .where(eq(wordsTable.batchId, batchId))
+        .where(
+          exists(
+            db
+              .select({ id: wordsTable.id })
+              .from(wordsTable)
+              .where(
+                and(
+                  eq(wordsTable.id, wordReviewsTable.wordId),
+                  eq(wordsTable.batchId, batchId),
+                ),
+              ),
+          ),
+        )
         .groupBy(wordReviewsTable.userId);
     },
   };

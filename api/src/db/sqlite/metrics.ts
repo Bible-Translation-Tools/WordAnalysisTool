@@ -15,17 +15,25 @@ const zero = (): D1Usage => ({ statements: 0, rowsRead: 0, rowsWritten: 0 });
 
 type Meta = { rows_read?: number; rows_written?: number } | undefined;
 
+/** Statements reading at least this many rows are logged one by one. */
+export const HEAVY_ROWS_READ = 2_000;
+
 export class D1UsageMeter {
   /** Since the last `flush`. */
   current: D1Usage = zero();
   /** Since the meter was created (the isolate's lifetime in `wrangler dev`). */
   total: D1Usage = zero();
 
-  record(meta: Meta): void {
+  record(meta: Meta, query?: string): void {
+    const read = meta?.rows_read ?? 0;
+    const written = meta?.rows_written ?? 0;
     for (const u of [this.current, this.total]) {
       u.statements += 1;
-      u.rowsRead += meta?.rows_read ?? 0;
-      u.rowsWritten += meta?.rows_written ?? 0;
+      u.rowsRead += read;
+      u.rowsWritten += written;
+    }
+    if (read >= HEAVY_ROWS_READ && query) {
+      console.log(`[d1] heavy: read ${fmt(read)}, written ${fmt(written)} — ${brief(query)}`);
     }
   }
 
@@ -42,6 +50,12 @@ export class D1UsageMeter {
     this.current = zero();
     return c;
   }
+}
+
+/** One line of SQL, long IN lists and such cut down. */
+function brief(query: string): string {
+  const flat = query.replace(/\s+/g, " ").trim();
+  return flat.length > 220 ? `${flat.slice(0, 220)}…` : flat;
 }
 
 function fmt(n: number): string {
@@ -61,10 +75,11 @@ class MeteredStatement implements D1PreparedStatement {
   constructor(
     readonly inner: D1PreparedStatement,
     private readonly meter: D1UsageMeter,
+    readonly query: string,
   ) {}
 
   bind(...values: unknown[]): D1PreparedStatement {
-    return new MeteredStatement(this.inner.bind(...values), this.meter);
+    return new MeteredStatement(this.inner.bind(...values), this.meter, this.query);
   }
 
   async first<T = unknown>(colName?: string): Promise<T | null> {
@@ -78,13 +93,13 @@ class MeteredStatement implements D1PreparedStatement {
 
   async run<T = Record<string, unknown>>(): Promise<D1Result<T>> {
     const res = await this.inner.run<T>();
-    this.meter.record(res.meta);
+    this.meter.record(res.meta, this.query);
     return res;
   }
 
   async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
     const res = await this.inner.all<T>();
-    this.meter.record(res.meta);
+    this.meter.record(res.meta, this.query);
     return res;
   }
 
@@ -102,7 +117,7 @@ class MeteredStatement implements D1PreparedStatement {
       this.meter.record(undefined);
       return rows;
     }
-    this.meter.record(upstream.meta);
+    this.meter.record(upstream.meta, this.query);
     return rowsFromUpstream(upstream, options?.columnNames === true);
   }
 
@@ -182,10 +197,13 @@ const unwrap = (s: D1PreparedStatement): D1PreparedStatement =>
 /** Wrap a D1 binding so that every statement's rows read/written are metered. */
 export function meterD1(d1: D1Database, meter: D1UsageMeter): D1Database {
   const metered: Pick<D1Database, "prepare" | "batch" | "exec"> = {
-    prepare: (query) => new MeteredStatement(d1.prepare(query), meter),
+    prepare: (query) => new MeteredStatement(d1.prepare(query), meter, query),
     batch: async <T = unknown>(statements: D1PreparedStatement[]) => {
       const results = await d1.batch<T>(statements.map(unwrap));
-      for (const r of results) meter.record(r.meta);
+      results.forEach((r, i) => {
+        const s = statements[i];
+        meter.record(r.meta, s instanceof MeteredStatement ? s.query : undefined);
+      });
       return results;
     },
     exec: (query) => d1.exec(query),

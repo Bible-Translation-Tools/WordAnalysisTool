@@ -34,13 +34,17 @@ const BATCH_STATEMENTS = 100;
 export async function runBatch(
   db: SqliteDb,
   statements: BatchItem<"sqlite">[],
-): Promise<void> {
+): Promise<unknown[]> {
+  const results: unknown[] = [];
   for (let i = 0; i < statements.length; i += BATCH_STATEMENTS) {
     const group = statements.slice(i, i + BATCH_STATEMENTS);
     if (group.length === 1) {
-      await group[0];
+      results.push(await group[0]);
     } else if (group.length > 1) {
-      await db.batch(group as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+      results.push(
+        ...(await db.batch(group as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]])),
+      );
     }
   }
+  return results;
 }

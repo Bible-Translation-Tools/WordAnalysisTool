@@ -1,0 +1,1 @@
+CREATE INDEX "idx_word_pending" ON "words" USING btree ("batch_id") WHERE "words"."consensus" IS NULL;

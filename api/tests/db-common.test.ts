@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chunkByParams } from "../src/db/common/chunk";
 import { dedupeVerses, uniqueRefs } from "../src/db/common/verses";
 import { computeReviewLimits } from "../src/services/review.service";
+import { isZeroDelta, talliesOf, tallyDelta } from "../src/db/common/tallies";
 
 describe("chunkByParams", () => {
   it("keeps every statement at or under the parameter limit", () => {
@@ -60,5 +61,23 @@ describe("computeReviewLimits", () => {
       { status: 0, limit: 123 },
     ]);
     expect(limits!.reduce((s, l) => s + l.limit, 0)).toBe(370);
+  });
+});
+
+describe("tallies", () => {
+  it("folds consensus counts and diffs them", () => {
+    const before = [
+      { consensus: null, count: 3 },
+      { consensus: "correct" as const, count: 2 },
+    ];
+    const after = [
+      { consensus: "correct" as const, count: 3 },
+      { consensus: "review" as const, count: 1 },
+      { consensus: "none" as const, count: 1 },
+    ];
+    expect(talliesOf(before)).toEqual({ correct: 2, incorrect: 0, reviewNeeded: 0, total: 5, completed: 2 });
+    expect(tallyDelta(before, after)).toEqual({ correct: 1, incorrect: 0, reviewNeeded: 1, completed: 3 });
+    expect(isZeroDelta(tallyDelta(after, after))).toBe(true);
+    expect(isZeroDelta(tallyDelta(before, after))).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -106,6 +106,12 @@ export const batchesTable = pgTable(
     models: text("models"),
     error: text("error"),
     retries: integer("retries").default(0).notNull(),
+    // Consensus tallies over the batch's words; see StatsRepo.recountTallies.
+    wordsTotal: integer("words_total").default(0).notNull(),
+    wordsCompleted: integer("words_completed").default(0).notNull(),
+    wordsCorrect: integer("words_correct").default(0).notNull(),
+    wordsIncorrect: integer("words_incorrect").default(0).notNull(),
+    wordsReview: integer("words_review").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -131,11 +137,25 @@ export const wordsTable = pgTable(
     // Derived from `models` once every vote is in; see ModelsRepo.updateResults.
     consensus: varchar("consensus", { length: 16, enum: CONSENSUS_VALUES }),
     unanimous: boolean("unanimous").default(false).notNull(),
+    // Part of the review pool; set once per batch by ReviewsRepo.markSampled.
+    sampled: boolean("sampled").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("idx_unique_word").on(table.batchId, table.word),
     index("idx_word_verse_id").on(table.verseId),
+    // Partial: only the few hundred sampled words per batch, so fetching the
+    // review pool never touches the rest. Includes `word` so the planner
+    // prefers it over idx_unique_word for the ORDER BY word pool query.
+    index("idx_word_sampled")
+      .on(table.batchId, table.word)
+      .where(sql`${table.sampled} = true`),
+    // Partial: words still waiting for votes, so each processing tick finds
+    // its next chunk without walking the finished ones. Shrinks to nothing
+    // as the batch completes.
+    index("idx_word_pending")
+      .on(table.batchId)
+      .where(sql`${table.consensus} IS NULL`),
   ],
 );
 

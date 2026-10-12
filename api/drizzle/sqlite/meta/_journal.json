@@ -15,6 +15,27 @@
       "when": 1791469902826,
       "tag": "0001_purple_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791544470194,
+      "tag": "0002_chunky_marvel_zombies",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791546888483,
+      "tag": "0003_batch_tallies",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791559831636,
+      "tag": "0004_pending_words_index",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { AnyColumn, sql, SQL } from "drizzle-orm";
+import { sql, SQL } from "drizzle-orm";
 
 /**
  * Consensus of a word's votes, as an aggregate over its `models` rows. Mirrors
@@ -22,14 +22,4 @@ export function consensusSql(): SQL<string | null> {
 /** Every model voted the same way, and that way is 0 or 1. */
 export function unanimousSql(): SQL<boolean> {
   return sql<boolean>`count(*) > 0 AND min(status) = max(status) AND min(status) IN (0, 1)`;
-}
-
-/**
- * Review sampling order: a per-user pseudo-random permutation of word ids, so
- * each status quota is drawn from across the whole vocabulary instead of the
- * lowest word ids (ingestion order, i.e. alphabetical). SQLite has no md5, so
- * this is a Knuth multiplicative hash on (word id + user id) modulo 2^32.
- */
-export function samplingOrder(wordId: AnyColumn, userId: number): SQL {
-  return sql`(((${wordId} + ${userId}) * 2654435761) % 4294967296)`;
 }

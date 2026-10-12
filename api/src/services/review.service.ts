@@ -3,7 +3,7 @@ import { StatusCount, StatusLimit } from "../db/store";
 import { BatchProgress, WordResponse } from "../types";
 import { emptyProgress } from "./stats.service";
 
-// Total pool of "good" (unanimous 0/1) words presented for review.
+// Size of the review pool drawn from a batch's "good" (unanimous 0/1) words.
 export const REVIEW_POOL_LIMIT = 370;
 
 /**
@@ -31,19 +31,23 @@ export function computeReviewLimits(
 }
 
 /**
- * Build the review pool for a batch/user: unanimous correct/incorrect words,
- * sampled proportionally down to REVIEW_POOL_LIMIT, joined to their verse and
- * the user's existing review. Returns the whole ordered pool + review progress;
- * the client walks it one word at a time.
+ * The review pool for a batch/user. The pool is drawn once per batch: good
+ * (unanimous correct/incorrect) words, sampled proportionally down to
+ * REVIEW_POOL_LIMIT and flagged `sampled`; later requests read just those
+ * rows. The flag is cleared when the batch's votes change, which redraws the
+ * pool on the next request. Returns the ordered pool + review progress; the
+ * client walks it one word at a time.
  */
 export async function sampleReviewWords(
   repos: Pick<Repositories, "reviews">,
   batchId: string,
   userId: number,
 ): Promise<{ output: WordResponse[]; progress: BatchProgress }> {
-  const counts = await repos.reviews.countGoodWordsByStatus(batchId);
-  const limits = computeReviewLimits(counts);
-  const rows = await repos.reviews.fetchPool(batchId, userId, limits);
+  if ((await repos.reviews.countSampled(batchId)) === 0) {
+    const counts = await repos.reviews.countGoodWordsByStatus(batchId);
+    await repos.reviews.markSampled(batchId, computeReviewLimits(counts));
+  }
+  const rows = await repos.reviews.fetchPool(batchId, userId);
 
   const output: WordResponse[] = rows.map((row) => ({
     word: row.word,

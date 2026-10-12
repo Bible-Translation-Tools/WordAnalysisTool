@@ -74,6 +74,8 @@ async function seedBatch(
   await repos.words.insertMany(words, batchId);
   const wordIds = await repos.words.fetchUnprocessedIds(words, batchId);
   await repos.models.seed(wordIds, models);
+  // As the ingestion service does: sets words_total on the batch.
+  await repos.stats.recountTallies(batchId);
 
   return { user, languageId, resourceId, refResourceId, batchId, words, wordIds, models };
 }
@@ -360,6 +362,34 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
       const report = await repos.words.findForReport(batchId);
       expect(report[7]).toMatchObject({ consensus: "none", unanimous: false });
 
+      // Tallies are counters on the batch, moved by deltas; a recount agrees.
+      const live = await repos.stats.getBatchTallies(batchId);
+      expect(await repos.stats.recountTallies(batchId)).toEqual(live);
+      expect(live).toEqual({ correct: 4, incorrect: 2, reviewNeeded: 1, total: 8, completed: 8 });
+
+      // Flipping a vote moves a word between buckets, not just into them.
+      await repos.models.updateResults(batchId, [
+        { model: "m1", retries: 0, results: [{ word: words[0].word, status: 0 }] },
+      ]);
+      expect(await repos.stats.getBatchTallies(batchId)).toMatchObject({
+        correct: 3,
+        reviewNeeded: 2,
+        completed: 8,
+      });
+      // Unchecking a vote drops the word out of `completed`.
+      await repos.models.updateResults(batchId, [
+        { model: "m2", retries: 0, results: [{ word: words[1].word, status: -1 }] },
+      ]);
+      expect(await repos.stats.getBatchTallies(batchId)).toMatchObject({ correct: 2, completed: 7 });
+      await repos.models.deleteIncomplete(batchId);
+      expect(await repos.stats.getBatchTallies(batchId)).toEqual({
+        correct: 2,
+        incorrect: 2,
+        reviewNeeded: 2,
+        total: 8,
+        completed: 7,
+      });
+
       await repos.users.upsertFromOAuth({ ...OAUTH, email: "b@example.com", username: "bob" });
       const bob = (await repos.users.findByEmail("b@example.com"))!;
       await repos.reviews.upsert({ wordId: wordIds[0], userId: user.id, correct: true });
@@ -375,11 +405,12 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
 
       const progress = await computeBatchProgress(repos, batchId);
       expect(progress).toEqual({
-        correct: 4,
+        // Tallies as left by the vote changes above (read from the counters).
+        correct: 2,
         incorrect: 2,
-        review_needed: 1,
+        review_needed: 2,
         reviewed: 2, // round((2 + 1) / 2)
-        completed: 8, // word 7 got legacy votes above
+        completed: 7,
         total: 8,
       });
 
@@ -391,7 +422,7 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
       expect(await repos.stats.getReviewCountsByUser(batchId)).toEqual([]);
     });
 
-    it("builds the review pool, whole and sampled", async () => {
+    it("draws the review pool once and serves it from the sampled flag", async () => {
       const { batchId, user, words, wordIds } = await seedVotes();
 
       expect(
@@ -402,34 +433,64 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
         { status: 0, count: 2 },
         { status: 1, count: 4 },
       ]);
+      expect(await repos.reviews.countSampled(batchId)).toBe(0);
+      expect(await repos.reviews.fetchPool(batchId, user.id)).toEqual([]);
 
+      // Whole pool (no sampling needed).
+      await repos.reviews.markSampled(batchId, null);
+      expect(await repos.reviews.countSampled(batchId)).toBe(6);
       await repos.reviews.upsert({ wordId: wordIds[2], userId: user.id, correct: false });
 
-      const whole = await repos.reviews.fetchPool(batchId, user.id, null);
+      const whole = await repos.reviews.fetchPool(batchId, user.id);
       expect(whole.map((r) => r.word)).toEqual(words.slice(0, 6).map((w) => w.word));
       expect(whole[2].review?.correct).toBe(false);
       expect(whole[0].review).toBeNull();
       expect(whole[0]).toMatchObject({ book: "gen", chapter: 1, verse: "1" });
       expect(whole[0].text).toContain("verse 0");
 
+      // Changing votes clears the flag; the pool is redrawn with limits.
+      await repos.models.updateResults(batchId, [
+        { model: "m1", retries: 0, results: [{ word: words[7].word, status: 1 }] },
+      ]);
+      expect(await repos.reviews.countSampled(batchId)).toBe(0);
+
       const limits = [
         { status: 1, limit: 2 },
         { status: 0, limit: 1 },
       ];
-      const sampled = await repos.reviews.fetchPool(batchId, user.id, limits);
+      await repos.reviews.markSampled(batchId, limits);
+      const sampled = await repos.reviews.fetchPool(batchId, user.id);
       expect(sampled).toHaveLength(3);
       const correctWords = words.slice(0, 4).map((w) => w.word);
       const incorrectWords = words.slice(4, 6).map((w) => w.word);
       expect(sampled.filter((r) => correctWords.includes(r.word))).toHaveLength(2);
       expect(sampled.filter((r) => incorrectWords.includes(r.word))).toHaveLength(1);
-      // Ordered by word, and deterministic per user.
       expect(sampled.map((r) => r.word)).toEqual([...sampled.map((r) => r.word)].sort());
-      const again = await repos.reviews.fetchPool(batchId, user.id, limits);
-      expect(again.map((r) => r.word)).toEqual(sampled.map((r) => r.word));
 
-      const single = await repos.reviews.fetchPool(batchId, user.id, [{ status: 0, limit: 1 }]);
-      expect(single).toHaveLength(1);
-      expect(await repos.reviews.fetchPool(batchId, user.id, [])).toEqual([]);
+      // A second draw is a no-op, so concurrent first requests cannot double the pool.
+      await repos.reviews.markSampled(batchId, limits);
+      await repos.reviews.markSampled(batchId, null);
+      expect(await repos.reviews.countSampled(batchId)).toBe(3);
+      expect((await repos.reviews.fetchPool(batchId, user.id)).map((r) => r.word)).toEqual(
+        sampled.map((r) => r.word),
+      );
+
+      // Pausing (deleteIncomplete) only resets words that lost their models;
+      // the drawn pool is made of complete words and survives.
+      await repos.models.deleteIncomplete(batchId);
+      expect(await repos.reviews.countSampled(batchId)).toBe(3);
+      // Empty limits draw nothing.
+      await repos.models.updateResults(batchId, [
+        { model: "m1", retries: 0, results: [{ word: words[0].word, status: 1 }] },
+      ]);
+      expect(await repos.reviews.countSampled(batchId)).toBe(0);
+      await repos.reviews.markSampled(batchId, []);
+      expect(await repos.reviews.countSampled(batchId)).toBe(0);
+    });
+
+    it("sampleReviewWords draws lazily on the first request", async () => {
+      const { batchId, user, words, wordIds } = await seedVotes();
+      await repos.reviews.upsert({ wordId: wordIds[2], userId: user.id, correct: false });
 
       const { output, progress } = await sampleReviewWords(repos, batchId, user.id);
       expect(output).toHaveLength(6);
@@ -442,6 +503,12 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
       });
       expect(progress.reviewed).toBe(1);
       expect(progress.total).toBe(6);
+      expect(await repos.reviews.countSampled(batchId)).toBe(6);
+
+      // Another user reads the same pool, with their own (empty) reviews.
+      const again = await sampleReviewWords(repos, batchId, user.id + 1);
+      expect(again.output.map((w) => w.word)).toEqual(output.map((w) => w.word));
+      expect(again.progress.reviewed).toBe(0);
     });
   });
 

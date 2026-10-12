@@ -1,0 +1,2 @@
+ALTER TABLE "words" ADD COLUMN "sampled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_word_sampled" ON "words" USING btree ("batch_id","word") WHERE "words"."sampled" = true;

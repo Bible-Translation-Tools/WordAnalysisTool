@@ -5,8 +5,11 @@ import { describe, expect, it } from "vitest";
 /**
  * The migration that adds `words.consensus` / `words.unanimous` backfills them
  * from existing votes. Apply every earlier migration, insert legacy-shaped
- * rows, apply the last one, and check the derived columns.
+ * rows, apply the backfill one and everything after it (the batch tally
+ * counters backfill too), and check the derived columns.
  */
+
+const BACKFILL_MARK = "Backfill from existing votes";
 
 type Exec = (sql: string) => Promise<void>;
 type Query = (sql: string) => Promise<Record<string, unknown>[]>;
@@ -25,8 +28,9 @@ function migrationFiles(dir: string): string[][] {
 
 async function runScenario(exec: Exec, query: Query, dir: string, q: (s: string) => string) {
   const files = migrationFiles(dir);
-  const last = files[files.length - 1];
-  for (const file of files.slice(0, -1)) for (const s of file) await exec(s);
+  const at = files.findIndex((file) => file.some((s) => s.includes(BACKFILL_MARK)));
+  expect(at).toBeGreaterThan(0);
+  for (const file of files.slice(0, at)) for (const s of file) await exec(s);
 
   await exec(
     `INSERT INTO ${q("users")} (wacs_user_id, username, email) VALUES (1, 'u', 'u@example.com')`,
@@ -50,7 +54,7 @@ async function runScenario(exec: Exec, query: Query, dir: string, q: (s: string)
       ('a',2,5)`,
   );
 
-  for (const s of last) await exec(s);
+  for (const file of files.slice(at)) for (const s of file) await exec(s);
 
   const rows = await query(
     `SELECT word, consensus, unanimous FROM ${q("words")} ORDER BY word`,
@@ -64,6 +68,17 @@ async function runScenario(exec: Exec, query: Query, dir: string, q: (s: string)
     ["w5", "none", false],
     ["w6", null, false],
   ]);
+
+  const [batch] = await query(
+    `SELECT words_total, words_completed, words_correct, words_incorrect, words_review FROM ${q("batches")}`,
+  );
+  expect(Object.fromEntries(Object.entries(batch).map(([k, v]) => [k, Number(v)]))).toEqual({
+    words_total: 6,
+    words_completed: 4,
+    words_correct: 2,
+    words_incorrect: 0,
+    words_review: 1,
+  });
 }
 
 describe("consensus backfill migration", () => {

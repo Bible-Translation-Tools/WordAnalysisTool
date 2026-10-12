@@ -5,6 +5,8 @@ import { modelsTable, wordsTable } from "../schema";
 import { ModelsRepo } from "../../store";
 import { chunkByParams } from "../../common/chunk";
 import { consensusSql, unanimousSql } from "../sql";
+import { applyTallyDelta, countByConsensus, recountTallies } from "../tallies";
+import { ConsensusCount, isZeroDelta, tallyDelta } from "../../common/tallies";
 
 export function createModelsRepo(db: SqliteDb): ModelsRepo {
   /** Recompute `consensus` / `unanimous` for the named words from their votes. */
@@ -18,6 +20,16 @@ export function createModelsRepo(db: SqliteDb): ModelsRepo {
       .where(
         and(eq(wordsTable.batchId, batchId), inArray(wordsTable.word, words)),
       );
+
+  /**
+   * Votes changed, so the review pool drawn from them is stale; the next
+   * review request redraws it. Hits only the partial `sampled` index.
+   */
+  const clearSampled = (batchId: string) =>
+    db
+      .update(wordsTable)
+      .set({ sampled: false })
+      .where(and(eq(wordsTable.batchId, batchId), sql`${wordsTable.sampled} = 1`));
 
   return {
     async seed(wordIds, models) {
@@ -67,11 +79,28 @@ export function createModelsRepo(db: SqliteDb): ModelsRepo {
             );
         }),
       );
-      // The batch runs in order, so the refresh sees the new statuses.
-      for (const chunk of chunkByParams([...touched], 1, MAX_PARAMS, 1)) {
-        statements.push(refreshConsensus(batchId, chunk));
-      }
-      await runBatch(db, statements);
+      // The batch runs in order, so the refresh sees the new statuses. The
+      // touched words' consensus is counted before and after inside the same
+      // transaction; the difference is added to the batch's tally counters.
+      const wordChunks = chunkByParams([...touched], 1, MAX_PARAMS, 1);
+      const before = wordChunks.map((c) => countByConsensus(db, batchId, c));
+      const after = wordChunks.map((c) => countByConsensus(db, batchId, c));
+      const refresh = wordChunks.map((c) => refreshConsensus(batchId, c));
+      const all: BatchItem<"sqlite">[] = [
+        ...before,
+        ...statements,
+        ...refresh,
+        ...(touched.size > 0 ? [clearSampled(batchId)] : []),
+        ...after,
+      ];
+      const out = await runBatch(db, all);
+      const n = wordChunks.length;
+      const rows = (items: unknown[]) => items.flat() as ConsensusCount[];
+      const delta = tallyDelta(
+        rows(out.slice(0, n)),
+        rows(out.slice(out.length - n)),
+      );
+      if (!isZeroDelta(delta)) await applyTallyDelta(db, batchId, delta);
     },
 
     async deleteIncomplete(batchId) {
@@ -86,7 +115,7 @@ export function createModelsRepo(db: SqliteDb): ModelsRepo {
       // Words left without any model row are back to "not processed".
       await db
         .update(wordsTable)
-        .set({ consensus: null, unanimous: false })
+        .set({ consensus: null, unanimous: false, sampled: false })
         .where(
           and(
             eq(wordsTable.batchId, batchId),
@@ -100,6 +129,8 @@ export function createModelsRepo(db: SqliteDb): ModelsRepo {
             ),
           ),
         );
+      // Pausing is rare; a full recount is simpler than tracking the delta.
+      await recountTallies(db, batchId);
     },
   };
 }

@@ -1,4 +1,4 @@
-import { and, asc, eq, exists, inArray, not } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, isNull, not } from "drizzle-orm";
 import { MAX_PARAMS, PgDb } from "../client";
 import { modelsTable, wordsTable } from "../schema";
 import { WordsRepo } from "../../store";
@@ -7,12 +7,18 @@ import { chunkByParams } from "../../common/chunk";
 export function createWordsRepo(db: PgDb): WordsRepo {
   return {
     async insertMany(words, batchId) {
-      for (const chunk of chunkByParams(words, 4, MAX_PARAMS)) {
+      for (const chunk of chunkByParams(words, 5, MAX_PARAMS)) {
         await db
           .insert(wordsTable)
           .values(
-            // Drizzle binds the `unanimous` default as a parameter: 4 per row.
-            chunk.map((w) => ({ word: w.word, verseId: w.verseId, batchId, unanimous: false })),
+            // Drizzle binds the boolean defaults as parameters: 5 per row.
+            chunk.map((w) => ({
+              word: w.word,
+              verseId: w.verseId,
+              batchId,
+              unanimous: false,
+              sampled: false,
+            })),
           )
           .onConflictDoNothing({
             target: [wordsTable.word, wordsTable.batchId],
@@ -58,10 +64,14 @@ export function createWordsRepo(db: PgDb): WordsRepo {
     },
 
     findUnprocessedForBatch(batchId, limit) {
+      // `consensus IS NULL` drives the scan through the partial index
+      // idx_word_pending; the EXISTS keeps the exact "has an unchecked vote"
+      // meaning (a word with no models at all is NULL too).
       return db.query.wordsTable.findMany({
         where: (words, { and, eq }) =>
           and(
             eq(words.batchId, batchId),
+            isNull(words.consensus),
             exists(
               db
                 .select({ id: modelsTable.id })
