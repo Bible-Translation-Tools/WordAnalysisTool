@@ -43,4 +43,11 @@ describe("toReportRow", () => {
     });
     expect(row?.split(",").slice(0, 2)).toEqual(["w", "gen 1:1"]);
   });
+
+  it("header has one column per model", async () => {
+    const { reportHeader } = await import("../src/services/report.service");
+    expect(reportHeader(5)).toBe(
+      "word,reference,model1,model2,model3,model4,model5,AI consensus,correct/reviews,verdict,anomaly\n",
+    );
+  });
 });

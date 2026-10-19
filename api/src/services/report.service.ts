@@ -1,7 +1,12 @@
 import { classifyVotes, REPORT_LABEL } from "./consensus";
 
-export const REPORT_HEADER =
-  "word,reference,model1,model2,model3,AI consensus,correct/reviews,verdict,anomaly\n";
+export const reportHeader = (modelCount: number) =>
+  [
+    "word",
+    "reference",
+    ...Array.from({ length: modelCount }, (_, i) => `model${i + 1}`),
+    "AI consensus,correct/reviews,verdict,anomaly\n",
+  ].join(",");
 
 const MODEL_STATUS_LABEL: Record<number, string> = {
   0: "Likely Incorrect",
