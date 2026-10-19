@@ -1,4 +1,4 @@
-import { and, asc, eq, exists, inArray, isNull, not } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, isNull } from "drizzle-orm";
 import { MAX_PARAMS, runBatch, SqliteDb } from "../client";
 import { modelsTable, wordReviewsTable, wordsTable } from "../schema";
 import { WordForReport, WordsRepo } from "../../store";
@@ -27,7 +27,7 @@ export function createWordsRepo(db: SqliteDb): WordsRepo {
       await runBatch(db, statements);
     },
 
-    async fetchUnprocessedIds(words, batchId) {
+    async fetchIds(words, batchId) {
       const wordIds: number[] = [];
       for (const chunk of chunkByParams(words, 1, MAX_PARAMS, 1)) {
         const rows = await db
@@ -39,14 +39,6 @@ export function createWordsRepo(db: SqliteDb): WordsRepo {
               inArray(
                 wordsTable.word,
                 chunk.map((w) => w.word),
-              ),
-              not(
-                exists(
-                  db
-                    .select({ id: modelsTable.id })
-                    .from(modelsTable)
-                    .where(eq(modelsTable.wordId, wordsTable.id)),
-                ),
               ),
             ),
           );

@@ -3,7 +3,6 @@ import { HTTPException } from "hono/http-exception";
 import { stream } from "hono/streaming";
 import { AppEnv } from "../bindings";
 import { reportHeader, toReportRow } from "../services/report.service";
-import { parseModels } from "../lib/utils";
 
 const router = new Hono<AppEnv>();
 
@@ -29,7 +28,7 @@ router.get("/api/report/:ietf_code/:resource_type", async (c) => {
     c.header("Content-Disposition", 'attachment; filename="report.csv"');
 
     return stream(c, async (s) => {
-      await s.write(reportHeader(parseModels(dbBatch.models).length));
+      await s.write(reportHeader(words[0]?.models.length ?? 0));
       for (const word of words) {
         const row = toReportRow(word);
         if (row !== null) await s.write(`${row}\n`);

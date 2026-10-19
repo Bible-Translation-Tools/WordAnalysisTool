@@ -31,8 +31,25 @@ export function createModelsRepo(db: SqliteDb): ModelsRepo {
       .set({ sampled: false })
       .where(and(eq(wordsTable.batchId, batchId), sql`${wordsTable.sampled} = 1`));
 
+  /** Words of the batch with an unchecked vote are back to "not processed". */
+  const resetUnchecked = (batchId: string) =>
+    db
+      .update(wordsTable)
+      .set({ consensus: null, unanimous: false, sampled: false })
+      .where(
+        and(
+          eq(wordsTable.batchId, batchId),
+          exists(
+            db
+              .select({ id: modelsTable.id })
+              .from(modelsTable)
+              .where(and(eq(modelsTable.wordId, wordsTable.id), eq(modelsTable.status, -1))),
+          ),
+        ),
+      );
+
   return {
-    async seed(wordIds, models) {
+    async seed(batchId, wordIds, models) {
       if (models.length === 0) return;
       // Drizzle binds column defaults (retries) as parameters too: 4 per row.
       const rows = wordIds.flatMap((wordId) =>
@@ -46,7 +63,7 @@ export function createModelsRepo(db: SqliteDb): ModelsRepo {
             target: [modelsTable.model, modelsTable.wordId],
           }),
       );
-      await runBatch(db, statements);
+      await runBatch(db, [...statements, resetUnchecked(batchId)]);
     },
 
     async updateResults(batchId, results) {

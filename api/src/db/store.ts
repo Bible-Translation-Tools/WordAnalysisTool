@@ -231,8 +231,8 @@ export interface VersesRepo {
 export interface WordsRepo {
   /** Insert words for a batch; (batch, word) duplicates are ignored. */
   insertMany(words: WordInsert[], batchId: string): Promise<void>;
-  /** Ids of the given words in a batch that have no model rows yet. */
-  fetchUnprocessedIds(words: { word: string }[], batchId: string): Promise<number[]>;
+  /** Ids of the given words in a batch. */
+  fetchIds(words: { word: string }[], batchId: string): Promise<number[]>;
   /** Resolve (batchId, word) to its id. */
   findIdByWord(batchId: string, word: string): Promise<number | null>;
   /**
@@ -249,8 +249,13 @@ export interface WordsRepo {
 }
 
 export interface ModelsRepo {
-  /** Seed one status=-1 (unchecked) row per (word, model); existing rows are kept. */
-  seed(wordIds: number[], models: string[]): Promise<void>;
+  /**
+   * Seed one status=-1 (unchecked) row per (word, model); existing rows are
+   * kept. Words of the batch that now have an unchecked vote (e.g. a model
+   * added on re-ingestion) get their consensus cleared so processing picks
+   * them up again.
+   */
+  seed(batchId: string, wordIds: number[], models: string[]): Promise<void>;
   /**
    * Write per-model statuses for the named words of a batch, then refresh
    * those words' `consensus` / `unanimous` columns from their votes.

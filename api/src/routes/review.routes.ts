@@ -29,7 +29,9 @@ router.get("/api/review/:ietf_code/:resource_type", async (c) => {
     if (!dbBatch) {
       throw new HTTPException(404, { message: "batch not found" });
     }
-    if (dbBatch.pending) {
+    // Nothing to review before the first votes; drawing a pool then would
+    // scan every word on each request.
+    if (dbBatch.pending || dbBatch.ingesting || dbBatch.wordsCompleted === 0) {
       throw new HTTPException(400, { message: "batch is still processing" });
     }
 

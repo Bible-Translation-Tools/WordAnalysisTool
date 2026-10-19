@@ -72,8 +72,8 @@ async function seedBatch(
     verseId: refMap.get(`${v.book}:${v.chapter}:${v.verse}`)!,
   }));
   await repos.words.insertMany(words, batchId);
-  const wordIds = await repos.words.fetchUnprocessedIds(words, batchId);
-  await repos.models.seed(wordIds, models);
+  const wordIds = await repos.words.fetchIds(words, batchId);
+  await repos.models.seed(batchId, wordIds, models);
   // As the ingestion service does: sets words_total on the batch.
   await repos.stats.recountTallies(batchId);
 
@@ -246,8 +246,7 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
       const { batchId, words, wordIds, models } = await seedBatch(repos, { words: 150 });
       expect(wordIds).toHaveLength(150);
 
-      // Already-seeded words are not unprocessed any more.
-      expect(await repos.words.fetchUnprocessedIds(words, batchId)).toEqual([]);
+      expect(await repos.words.fetchIds(words, batchId)).toEqual(wordIds);
       // Re-inserting the same words is a no-op.
       await repos.words.insertMany(words, batchId);
 
@@ -495,6 +494,21 @@ describe.each(DRIVERS)("%s repositories", (_name, make) => {
       expect(await repos.reviews.countSampled(batchId)).toBe(0);
       await repos.reviews.markSampled(batchId, []);
       expect(await repos.reviews.countSampled(batchId)).toBe(0);
+    });
+
+    it("adding a model re-opens processed words", async () => {
+      const { batchId, words, wordIds } = await seedVotes();
+      await repos.reviews.markSampled(batchId, null);
+      expect(await repos.stats.getBatchTallies(batchId)).toMatchObject({ completed: 7 });
+
+      // Re-ingest with a third model: every word gets an unchecked vote.
+      await repos.models.seed(batchId, wordIds, ["m1", "m2", "m3"]);
+      const pending = await repos.words.findUnprocessedForBatch(batchId, 50);
+      expect(pending.map((w) => w.word)).toEqual(words.map((w) => w.word));
+      expect(pending[0].models).toHaveLength(3);
+      expect(pending[0]).toMatchObject({ consensus: null, unanimous: false, sampled: false });
+      expect(await repos.reviews.countSampled(batchId)).toBe(0);
+      expect(await repos.stats.recountTallies(batchId)).toMatchObject({ completed: 0, total: 8 });
     });
 
     it("sampleReviewWords draws lazily on the first request", async () => {

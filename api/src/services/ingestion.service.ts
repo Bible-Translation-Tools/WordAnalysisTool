@@ -124,8 +124,8 @@ export function createIngestionService(repos: Repositories) {
         );
 
       await repos.words.insertMany(wordRows, batchId);
-      const wordIds = await repos.words.fetchUnprocessedIds(wordRows, batchId);
-      await repos.models.seed(wordIds, models);
+      const wordIds = await repos.words.fetchIds(wordRows, batchId);
+      await repos.models.seed(batchId, wordIds, models);
       // Sets words_total (and the rest, for a re-ingested batch).
       await repos.stats.recountTallies(batchId);
 
