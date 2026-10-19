@@ -31,3 +31,16 @@ describe("briefReason", () => {
     expect(briefReason(new Error("plain error"))).toBe("plain error");
   });
 });
+
+describe("toReportRow", () => {
+  it("joins the reference as 'book chapter:verse'", async () => {
+    const { toReportRow } = await import("../src/services/report.service");
+    const row = toReportRow({
+      word: "w",
+      verse: { bookCode: "gen", chapter: 1, verse: "1" },
+      models: [{ model: "m", status: 1 }],
+      reviews: [{ correct: true }],
+    });
+    expect(row?.split(",").slice(0, 2)).toEqual(["w", "gen 1:1"]);
+  });
+});

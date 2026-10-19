@@ -241,7 +241,10 @@ export interface WordsRepo {
    * partial index on `consensus IS NULL`, so it never walks finished words.
    */
   findUnprocessedForBatch(batchId: string, limit: number): Promise<WordWithModelsAndVerse[]>;
-  /** All words in a batch with models, reviews and verse — for the CSV report. */
+  /**
+   * The batch's words that have at least one human review, with models,
+   * reviews and verse, ordered by word — the rows of the CSV report.
+   */
   findForReport(batchId: string): Promise<WordForReport[]>;
 }
 

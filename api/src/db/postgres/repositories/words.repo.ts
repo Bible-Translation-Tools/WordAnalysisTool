@@ -1,7 +1,7 @@
 import { and, asc, eq, exists, inArray, isNull, not } from "drizzle-orm";
 import { MAX_PARAMS, PgDb } from "../client";
-import { modelsTable, wordsTable } from "../schema";
-import { WordsRepo } from "../../store";
+import { modelsTable, wordReviewsTable, wordsTable } from "../schema";
+import { WordForReport, WordsRepo } from "../../store";
 import { chunkByParams } from "../../common/chunk";
 
 export function createWordsRepo(db: PgDb): WordsRepo {
@@ -89,16 +89,44 @@ export function createWordsRepo(db: PgDb): WordsRepo {
       });
     },
 
-    findForReport(batchId) {
-      return db.query.wordsTable.findMany({
-        where: eq(wordsTable.batchId, batchId),
-        with: {
-          models: { orderBy: [asc(modelsTable.model)] },
-          reviews: true,
-          verse: true,
-        },
-        orderBy: [asc(wordsTable.word)],
-      });
+    async findForReport(batchId) {
+      // Only reviewed words reach the CSV. Collect their ids from the reviews
+      // side first (a scan of the small reviews table plus primary-key
+      // probes); a single query with the subquery inlined made the planner
+      // walk every word of the batch instead.
+      const reviewed = await db
+        .selectDistinct({ wordId: wordReviewsTable.wordId })
+        .from(wordReviewsTable)
+        .where(
+          exists(
+            db
+              .select({ id: wordsTable.id })
+              .from(wordsTable)
+              .where(
+                and(
+                  eq(wordsTable.id, wordReviewsTable.wordId),
+                  eq(wordsTable.batchId, batchId),
+                ),
+              ),
+          ),
+        );
+      const rows: WordForReport[] = [];
+      for (const chunk of chunkByParams(reviewed, 1, MAX_PARAMS)) {
+        rows.push(
+          ...(await db.query.wordsTable.findMany({
+            where: inArray(
+              wordsTable.id,
+              chunk.map((r) => r.wordId),
+            ),
+            with: {
+              models: { orderBy: [asc(modelsTable.model)] },
+              reviews: true,
+              verse: true,
+            },
+          })),
+        );
+      }
+      return rows.sort((a, b) => (a.word < b.word ? -1 : a.word > b.word ? 1 : 0));
     },
   };
 }

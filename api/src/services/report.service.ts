@@ -1,7 +1,7 @@
 import { classifyVotes, REPORT_LABEL } from "./consensus";
 
 export const REPORT_HEADER =
-  "word,book,chapter,verse,model1,model2,model3,AI consensus,correct/reviews,verdict,anomaly\n";
+  "word,reference,model1,model2,model3,AI consensus,correct/reviews,verdict,anomaly\n";
 
 const MODEL_STATUS_LABEL: Record<number, string> = {
   0: "Likely Incorrect",
@@ -43,9 +43,7 @@ export function toReportRow(word: ReportWord): string | null {
 
   return [
     word.word,
-    word.verse.bookCode || "",
-    word.verse.chapter || "",
-    word.verse.verse || "",
+    `${word.verse.bookCode} ${word.verse.chapter}:${word.verse.verse}`,
     ...modelCells,
     consensus,
     reviewsStr,
