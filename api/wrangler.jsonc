@@ -35,8 +35,8 @@
     "d1_databases": [
         {
             "binding": "DB",
-            "database_name": "batches",
-            "database_id": "a2a4cd5e-e39c-431d-8b47-303413da29b2",
+            "database_name": "word-analysis-tool",
+            "database_id": "6c5079cc-4648-43ef-bc76-60b7a6b83c78",
             "migrations_dir": "drizzle/sqlite"
         }
     ],
