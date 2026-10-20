@@ -49,7 +49,7 @@
         "ENVIRONMENT": "prod", // Possible values: prod or dev
         "AUTH_URL": "https://content.bibletranslationtools.org/login/oauth/access_token",
         "WACS_API": "https://content.bibletranslationtools.org/api/v1",
-        "WACS_CALLBACK": "https://word-analysis-tool.wycliffe-associates-account.workers.dev/auth/callback"
+        "WACS_CALLBACK": "https://wat.bibletranslationtools.org/auth/callback"
     },
     /**
      * Note: Use secrets to store sensitive data.
